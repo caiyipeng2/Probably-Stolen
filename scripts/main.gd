@@ -465,7 +465,8 @@ func _update_counter() -> void:
 		return
 	var it: Dictionary = GameState.counter_item
 	var def := GameState.get_item_def(it.get("def_id", ""))
-	counter_icon.texture = load("res://assets/items/" + String(def.get("icon", ""))) if ResourceLoader.exists("res://assets/items/" + String(def.get("icon", ""))) else null
+	var cip := GameState.item_icon_path(def)
+	counter_icon.texture = load(cip) if cip != "" else null
 	counter_name.text = String(def.get("name", ""))
 	if GameState.current_customer.get("intent") == "sell":
 		counter_price.text = "顾客开价 %d¥" % int(it.get("asking_price", 0))
@@ -481,7 +482,8 @@ func _rebuild_display() -> void:
 		if i < GameState.display.size():
 			var it: Dictionary = GameState.display[i]
 			var def := GameState.get_item_def(it.get("def_id", ""))
-			var icon := _texture_rect(p, Vector2(8, 6), Vector2(160, 80), "res://assets/items/" + String(def.get("icon", "")))
+			var dip := GameState.item_icon_path(def)
+			var icon := _texture_rect(p, Vector2(8, 6), Vector2(160, 80), dip)
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_label(p, String(def.get("name", "")), Vector2(8, 88), Vector2(160, 22), 18, C_TEXT)
 			_label(p, "%d¥" % GameState.effective_value(it), Vector2(8, 110), Vector2(160, 20), 18, C_AMBER)
@@ -514,7 +516,8 @@ func _rebuild_grid() -> void:
 		var icon := TextureButton.new()
 		icon.position = Vector2(int(it["x"]) * 66, int(it["y"]) * 66)
 		icon.size = Vector2(w, h)
-		icon.texture_normal = load("res://assets/items/" + String(def.get("icon", "")))
+		var gip := GameState.item_icon_path(def)
+		icon.texture_normal = load(gip) if gip != "" else null
 		icon.ignore_texture_size = true
 		icon.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
@@ -551,7 +554,8 @@ func _update_detail() -> void:
 		detail_counter_btn.disabled = true
 		return
 	var def := GameState.get_item_def(it.get("def_id", ""))
-	detail_icon.texture = load("res://assets/items/" + String(def.get("icon", ""))) if ResourceLoader.exists("res://assets/items/" + String(def.get("icon", ""))) else null
+	var tip := GameState.item_icon_path(def)
+	detail_icon.texture = load(tip) if tip != "" else null
 	detail_name.text = String(def.get("name", ""))
 	detail_desc.text = String(def.get("description", ""))
 	var tags: Array = def.get("tags", [])
@@ -602,7 +606,7 @@ func _matches_filter(it: Dictionary) -> bool:
 		"chem": return cat == "chem"
 		"cyber": return cat == "cyber"
 		"document": return cat == "document"
-		"misc": return cat in ["food", "misc", "tool", "container", "organ"]
+		"misc": return cat in ["food", "misc", "tool", "container", "organ", "medical", "water", "furniture"]
 	return true
 
 func _set_filter(cat: String) -> void:

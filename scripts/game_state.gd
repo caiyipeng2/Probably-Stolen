@@ -10,6 +10,7 @@ const GRID_H := 3
 const DISPLAY_SLOTS := 6
 
 var items_def: Dictionary = {}
+var tradable_pool: Array = []
 var customer_defs: Array = []
 var events: Array = []
 
@@ -45,6 +46,65 @@ func _load_defs() -> void:
 		if data is Array:
 			for d in data:
 				items_def[d["id"]] = d
+	var priv := FileAccess.open("res://data_private/items_full.json", FileAccess.READ)
+	if priv:
+		var pdata = JSON.parse_string(priv.get_as_text())
+		if pdata is Array:
+			for p in pdata:
+				var id := String(p.get("id", ""))
+				if id == "":
+					continue
+				var src := String(p.get("source", ""))
+				if src.begins_with("NpcCharacter") or src.begins_with("PlayerCharacter") or src == "CharacterItemDirectory.cs":
+					continue
+				var norm: Dictionary = p.duplicate(true)
+				norm["base_value"] = int(p.get("base_value", 0))
+				if int(norm["base_value"]) <= 0:
+					norm["base_value"] = 10
+				norm["name"] = String(p.get("name", id))
+				norm["description"] = String(p.get("description", ""))
+				norm["icon"] = String(p.get("icon", ""))
+				norm["shape"] = p.get("shape", [1, 1])
+				norm["inspect_type"] = String(p.get("inspect_type", "generic"))
+				var cat := String(p.get("category", "misc"))
+				var tags: Array = p.get("tags", []).duplicate()
+				if not tags.has(cat):
+					tags.append(cat)
+				for t in p.get("types", []):
+					var tl := String(t).to_lower()
+					if not tags.has(tl):
+						tags.append(tl)
+				norm["tags"] = tags
+				if not items_def.has(id):
+					items_def[id] = norm
+				else:
+					var base: Dictionary = items_def[id].duplicate(true)
+					if String(base.get("name", "")) == id or String(base.get("name", "")) == "":
+						base["name"] = norm["name"]
+					if String(base.get("description", "")) == "":
+						base["description"] = norm["description"]
+					if String(base.get("icon", "")) == "":
+						base["icon"] = norm["icon"]
+					if int(base.get("base_value", 0)) <= 0:
+						base["base_value"] = norm["base_value"]
+					if not base.has("shape"):
+						base["shape"] = norm["shape"]
+					if String(base.get("inspect_type", "generic")) == "generic":
+						base["inspect_type"] = norm["inspect_type"]
+					var btags: Array = base.get("tags", []).duplicate()
+					for t in tags:
+						if not btags.has(t):
+							btags.append(t)
+					base["tags"] = btags
+					items_def[id] = base
+	tradable_pool = []
+	for id in items_def.keys():
+		var d: Dictionary = items_def[id]
+		if int(d.get("base_value", 0)) <= 0:
+			continue
+		if String(d.get("icon", "")) == "":
+			continue
+		tradable_pool.append(id)
 	f = FileAccess.open("res://data/customers.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -242,7 +302,7 @@ func _gen_customer() -> Dictionary:
 		"line": arche.get("greet", ""),
 	}
 	if intent == "sell":
-		var pool := ["cig_red", "cig_black", "water_bottle_full", "water_jug", "nutrifruit", "hand_steel", "hand_carbon", "hand_gold", "aug_chip", "handmade_pistol", "revolver_short", "organ_heart", "organ_liver", "command_keycard", "chem_scanner"]
+		var pool: Array = tradable_pool if not tradable_pool.is_empty() else ["cig_red", "cig_black", "water_bottle_full", "water_jug", "nutrifruit", "hand_steel", "hand_carbon", "hand_gold", "aug_chip", "handmade_pistol", "revolver_short", "organ_heart", "organ_liver", "command_keycard", "chem_scanner"]
 		var def_id: String = pool[rng.randi_range(0, pool.size() - 1)]
 		var cond := rng.randi_range(40, 100)
 		var auth := true
@@ -282,6 +342,18 @@ func next_customer() -> void:
 	counter_item = current_customer.get("item", {}) if current_customer.get("intent") == "sell" else {}
 	emit_signal("customer_changed")
 	emit_signal("state_changed")
+
+func item_icon_path(def: Dictionary) -> String:
+	var icon := String(def.get("icon", ""))
+	if icon == "":
+		return "res://assets/items/magnifier.png"
+	var p := "res://assets_private/items/" + icon
+	if ResourceLoader.exists(p):
+		return p
+	p = "res://assets/items/" + icon
+	if ResourceLoader.exists(p):
+		return p
+	return "res://assets/items/magnifier.png"
 
 func effective_value(item: Dictionary) -> int:
 	if item.is_empty():
