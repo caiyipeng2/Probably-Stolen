@@ -1,0 +1,93 @@
+[
+  {
+    "id": "security_patrol",
+    "title": "治安部巡查",
+    "text": "两名治安部警员在店门口停下，目光扫过柜台。",
+    "choices": [
+      {
+        "label": "打点一下（-80₵）",
+        "cash": -80,
+        "rep": {
+          "security": 5,
+          "blackmarket": -2
+        },
+        "result": "警员收了钱，顺手拿走一包烟，离开了。"
+      },
+      {
+        "label": "拒绝并配合检查",
+        "cash": 0,
+        "rep": {
+          "security": -2,
+          "lower": 1
+        },
+        "result": "他们翻了一阵，没找到什么，临走前记下了店名。"
+      }
+    ]
+  },
+  {
+    "id": "black_market_offer",
+    "title": "黑市中间人",
+    "text": "一个没有名字的中间人想让你代收一批来路不明的义体。",
+    "choices": [
+      {
+        "label": "接下这单（+150₵）",
+        "cash": 150,
+        "rep": {
+          "blackmarket": 6,
+          "security": -3
+        },
+        "result": "钱到账了，麻烦也跟着来了。"
+      },
+      {
+        "label": "拒绝",
+        "cash": 0,
+        "rep": {
+          "blackmarket": -3
+        },
+        "result": "中间人耸耸肩，消失在雨里。"
+      }
+    ]
+  },
+  {
+    "id": "street_beggar",
+    "title": "街头拾荒者",
+    "text": "一个瘦得脱形的拾荒者站在门口，手里攥着几枚硬币。",
+    "choices": [
+      {
+        "label": "给他一份食物（-30₵）",
+        "cash": -30,
+        "rep": {
+          "lower": 5
+        },
+        "result": "他连声道谢，把食物塞进怀里跑了。"
+      },
+      {
+        "label": "赶走他",
+        "cash": 0,
+        "rep": {
+          "lower": -3
+        },
+        "result": "他骂了一句，踢翻了门口的垃圾桶。"
+      }
+    ]
+  },
+  {
+    "id": "power_flicker",
+    "title": "停电",
+    "text": "店里的灯闪了几下，冷柜发出不祥的嗡嗡声。",
+    "choices": [
+      {
+        "label": "付费维修（-60₵）",
+        "cash": -60,
+        "rep": {},
+        "result": "电工换了保险丝，灯恢复了。"
+      },
+      {
+        "label": "自己动手",
+        "cash": 0,
+        "rep": {},
+        "result": "你拍了两下配电箱，灯居然亮了。手被电麻了一晚上。"
+      }
+    ]
+  }
+]

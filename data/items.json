@@ -1,0 +1,384 @@
+[
+  {
+    "id": "water_bottle_full",
+    "name": "纯净水",
+    "category": "food",
+    "icon": "water_bottle_full.png",
+    "shape": [
+      1,
+      2
+    ],
+    "base_value": 12,
+    "tags": [
+      "water",
+      "drink"
+    ],
+    "contraband": 0,
+    "description": "一升装的过滤水，下层区的硬通货。",
+    "inspect_type": "water"
+  },
+  {
+    "id": "large_water_bottle_full",
+    "name": "大瓶纯净水",
+    "category": "food",
+    "icon": "large_water_bottle_full.png",
+    "shape": [
+      1,
+      2
+    ],
+    "base_value": 20,
+    "tags": [
+      "water",
+      "drink"
+    ],
+    "contraband": 0,
+    "description": "五升装，搬起来费劲，但能喝很久。",
+    "inspect_type": "water"
+  },
+  {
+    "id": "water_jug",
+    "name": "储水罐",
+    "category": "container",
+    "icon": "water_jug.png",
+    "shape": [
+      1,
+      2
+    ],
+    "base_value": 35,
+    "tags": [
+      "water",
+      "container"
+    ],
+    "contraband": 0,
+    "description": "带密封盖的塑料储水罐。",
+    "inspect_type": "water"
+  },
+  {
+    "id": "water_tablet",
+    "name": "净水药片",
+    "category": "chem",
+    "icon": "water_tablet.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 18,
+    "tags": [
+      "water",
+      "chem"
+    ],
+    "contraband": 0,
+    "description": "一片能让十升污水变得勉强能喝。",
+    "inspect_type": "water"
+  },
+  {
+    "id": "nutrifruit",
+    "name": "营养果",
+    "category": "food",
+    "icon": "nutrifruit.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 15,
+    "tags": [
+      "food",
+      "luxury"
+    ],
+    "contraband": 0,
+    "description": "空间站水培的紫色果实，甜得不太自然。",
+    "inspect_type": "generic"
+  },
+  {
+    "id": "pack_condom",
+    "name": "瑞克斯避孕套",
+    "category": "misc",
+    "icon": "pack_condom.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 10,
+    "tags": [
+      "misc",
+      "luxury"
+    ],
+    "contraband": 0,
+    "description": "补贴发放计划留下的常见货。",
+    "inspect_type": "generic"
+  },
+  {
+    "id": "cig_red",
+    "name": "红牌香烟",
+    "category": "chem",
+    "icon": "cig_red.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 25,
+    "tags": [
+      "chem",
+      "luxury",
+      "smoke"
+    ],
+    "contraband": 0,
+    "description": "红色包装的廉价香烟，假货很多。",
+    "inspect_type": "cig"
+  },
+  {
+    "id": "cig_black",
+    "name": "黑牌香烟",
+    "category": "chem",
+    "icon": "cig_black.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 40,
+    "tags": [
+      "chem",
+      "luxury",
+      "smoke"
+    ],
+    "contraband": 0,
+    "description": "黑色包装的高档香烟，常被用来洗钱。",
+    "inspect_type": "cig"
+  },
+  {
+    "id": "handmade_pistol",
+    "name": "自制手枪",
+    "category": "weapon",
+    "icon": "handmade_pistol.png",
+    "shape": [
+      2,
+      1
+    ],
+    "base_value": 240,
+    "tags": [
+      "weapon",
+      "contraband"
+    ],
+    "contraband": 2,
+    "description": "序列号被磨掉的自制手枪，来路不明。",
+    "inspect_type": "weapon"
+  },
+  {
+    "id": "revolver_short",
+    "name": "短管左轮",
+    "category": "weapon",
+    "icon": "revolver_short.png",
+    "shape": [
+      2,
+      1
+    ],
+    "base_value": 180,
+    "tags": [
+      "weapon",
+      "contraband"
+    ],
+    "contraband": 2,
+    "description": "短管左轮，近距离很有说服力。",
+    "inspect_type": "weapon"
+  },
+  {
+    "id": "hand_steel",
+    "name": "钢制义手",
+    "category": "cyber",
+    "icon": "hand_steel.png",
+    "shape": [
+      2,
+      2
+    ],
+    "base_value": 100,
+    "tags": [
+      "cyber",
+      "medical"
+    ],
+    "contraband": 0,
+    "description": "基础款钢制义手，耐用但笨重。",
+    "inspect_type": "cyber"
+  },
+  {
+    "id": "hand_carbon",
+    "name": "碳纤维义手",
+    "category": "cyber",
+    "icon": "hand_carbon.png",
+    "shape": [
+      2,
+      2
+    ],
+    "base_value": 140,
+    "tags": [
+      "cyber",
+      "medical"
+    ],
+    "contraband": 0,
+    "description": "轻量碳纤维义手，动作更灵活。",
+    "inspect_type": "cyber"
+  },
+  {
+    "id": "hand_gold",
+    "name": "金色义手",
+    "category": "cyber",
+    "icon": "hand_gold.png",
+    "shape": [
+      2,
+      2
+    ],
+    "base_value": 200,
+    "tags": [
+      "cyber",
+      "luxury",
+      "medical"
+    ],
+    "contraband": 0,
+    "description": "镀金义手，身份的象征，也是销赃的热门货。",
+    "inspect_type": "cyber"
+  },
+  {
+    "id": "aug_chip",
+    "name": "义体芯片",
+    "category": "cyber",
+    "icon": "aug_chip.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 120,
+    "tags": [
+      "cyber",
+      "contraband"
+    ],
+    "contraband": 1,
+    "description": "来源不明的义体控制芯片。",
+    "inspect_type": "cyber"
+  },
+  {
+    "id": "chem_scanner",
+    "name": "化学扫描仪",
+    "category": "tool",
+    "icon": "chem_scanner.png",
+    "shape": [
+      1,
+      2
+    ],
+    "base_value": 90,
+    "tags": [
+      "tool",
+      "chem"
+    ],
+    "contraband": 0,
+    "description": "能读出液体和粉末的大致成分。",
+    "inspect_type": "generic"
+  },
+  {
+    "id": "magnifier",
+    "name": "放大镜",
+    "category": "tool",
+    "icon": "magnifier.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 45,
+    "tags": [
+      "tool"
+    ],
+    "contraband": 0,
+    "description": "鉴定师的第二双眼睛。",
+    "inspect_type": "generic"
+  },
+  {
+    "id": "radio_on",
+    "name": "便携收音机",
+    "category": "misc",
+    "icon": "radio_on.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 60,
+    "tags": [
+      "misc",
+      "tool"
+    ],
+    "contraband": 0,
+    "description": "能收到治安部频道和地下电台。",
+    "inspect_type": "generic"
+  },
+  {
+    "id": "organ_heart",
+    "name": "生物心脏",
+    "category": "organ",
+    "icon": "organ_heart.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 350,
+    "tags": [
+      "organ",
+      "medical",
+      "contraband"
+    ],
+    "contraband": 3,
+    "description": "低温保存的健康心脏，来源不便多问。",
+    "inspect_type": "cyber"
+  },
+  {
+    "id": "organ_liver",
+    "name": "生物肝脏",
+    "category": "organ",
+    "icon": "organ_liver.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 280,
+    "tags": [
+      "organ",
+      "medical",
+      "contraband"
+    ],
+    "contraband": 3,
+    "description": "刚从活体取出的肝脏，还带着冷气。",
+    "inspect_type": "cyber"
+  },
+  {
+    "id": "command_keycard",
+    "name": "指挥级门禁卡",
+    "category": "document",
+    "icon": "command_keycard.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 80,
+    "tags": [
+      "document",
+      "contraband"
+    ],
+    "contraband": 1,
+    "description": "能打开空间站部分指挥区闸门。",
+    "inspect_type": "generic"
+  },
+  {
+    "id": "handnote",
+    "name": "鉴定手记",
+    "category": "document",
+    "icon": "handnote.png",
+    "shape": [
+      1,
+      1
+    ],
+    "base_value": 30,
+    "tags": [
+      "document",
+      "tool"
+    ],
+    "contraband": 0,
+    "description": "上一任店主留下的鉴定笔记，夹着几张手绘图。",
+    "inspect_type": "generic"
+  }
+]

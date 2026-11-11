@@ -1,0 +1,140 @@
+[
+  {
+    "id": "lower_resident",
+    "name": "下层区居民",
+    "faction": "lower",
+    "sprite": "maleUpper_0.png",
+    "budget": [
+      150,
+      500
+    ],
+    "intent": "both",
+    "prefer_tags": [
+      "food",
+      "water",
+      "misc"
+    ],
+    "price_mod": 0.9,
+    "patience": 3,
+    "greet": "欢迎光临我们的小店！今天想出手什么好东西？",
+    "ask": "这东西看着不错，怎么卖？",
+    "accept": "成交，谢了老板。",
+    "reject": "那我再去别家看看。",
+    "counter": "再便宜点，我身上就这么多。"
+  },
+  {
+    "id": "scavenger",
+    "name": "拾荒客",
+    "faction": "lower",
+    "sprite": "scavMale_0.png",
+    "budget": [
+      80,
+      320
+    ],
+    "intent": "both",
+    "prefer_tags": [
+      "misc",
+      "tool",
+      "container"
+    ],
+    "price_mod": 0.8,
+    "patience": 2,
+    "greet": "我从废弃区捡了点东西，你收不收？",
+    "ask": "这个能换多少？",
+    "accept": "行，拿去吧。",
+    "reject": "算了，我找别人。",
+    "counter": "再加一点，我冒了很大风险。"
+  },
+  {
+    "id": "security_officer",
+    "name": "治安部警员",
+    "faction": "security",
+    "sprite": "maleSec_0.png",
+    "budget": [
+      300,
+      900
+    ],
+    "intent": "buy",
+    "prefer_tags": [
+      "weapon",
+      "document",
+      "tool"
+    ],
+    "price_mod": 1.0,
+    "patience": 2,
+    "greet": "例行检查。你这里有没有不该出现的东西？",
+    "ask": "这件东西的来路清楚吗？",
+    "accept": "很好，算你配合。",
+    "reject": "我会记住这家店。",
+    "counter": "这个价格不合理，解释一下。"
+  },
+  {
+    "id": "black_market",
+    "name": "黑市商人",
+    "faction": "blackmarket",
+    "sprite": "femaleBM_2.png",
+    "budget": [
+      500,
+      1500
+    ],
+    "intent": "both",
+    "prefer_tags": [
+      "contraband",
+      "cyber",
+      "organ"
+    ],
+    "price_mod": 1.1,
+    "patience": 4,
+    "greet": "听说你这里什么都能收？",
+    "ask": "开个价，别浪费我时间。",
+    "accept": "痛快，下次还找你。",
+    "reject": "你会后悔的。",
+    "counter": "这个数，不能再多了。"
+  },
+  {
+    "id": "upper_tourist",
+    "name": "上层区游客",
+    "faction": "upper",
+    "sprite": "femaleUpper_4.png",
+    "budget": [
+      800,
+      2400
+    ],
+    "intent": "buy",
+    "prefer_tags": [
+      "luxury",
+      "cyber",
+      "food"
+    ],
+    "price_mod": 1.25,
+    "patience": 4,
+    "greet": "这就是下层区的店铺？比我想的有趣。",
+    "ask": "这件东西有什么故事？",
+    "accept": "包起来，我要了。",
+    "reject": "太粗俗了，我去别处。",
+    "counter": "这个价格配不上它的品相。"
+  },
+  {
+    "id": "revolutionary",
+    "name": "革命军联络员",
+    "faction": "rev",
+    "sprite": "scavFemale_2.png",
+    "budget": [
+      200,
+      700
+    ],
+    "intent": "buy",
+    "prefer_tags": [
+      "weapon",
+      "medical",
+      "tool"
+    ],
+    "price_mod": 0.95,
+    "patience": 3,
+    "greet": "同志，我们需要一些……物资。",
+    "ask": "这批货能稳定供应吗？",
+    "accept": "为了革命。",
+    "reject": "我会告诉组织。",
+    "counter": "我们的资金有限，再谈谈。"
+  }
+]

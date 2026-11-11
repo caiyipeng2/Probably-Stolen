@@ -1,0 +1,11 @@
+.godot/
+build/
+_research/
+*.apk
+*.aab
+*.log
+
+# Ripped game assets: private build only, never publish
+assets/art/
+assets/customers/
+assets/items/
