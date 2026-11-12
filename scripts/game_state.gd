@@ -20,6 +20,13 @@ const MACHINE_FAULTS := {
 	"surge": {"name": "电压浪涌", "fee": 60},
 	"contamination": {"name": "污染", "fee": 80},
 }
+const GROWTH_MACHINES := ["hydroponics", "aquaculture", "meat_culture"]
+const GROWTH_HARVESTS := 3
+const DIFFICULTY := {
+	"easy": {"name": "简单", "cash": 800, "rent": 150, "budget": 1.15, "damage": 0.8},
+	"normal": {"name": "普通", "cash": 600, "rent": 200, "budget": 1.0, "damage": 1.0},
+	"hard": {"name": "困难", "cash": 450, "rent": 260, "budget": 0.9, "damage": 1.25},
+}
 
 var items_def: Dictionary = {}
 var tradable_pool: Array = []
@@ -65,6 +72,7 @@ var machine_temps: Dictionary = {}
 var machine_durability: Dictionary = {}
 var machine_faults: Dictionary = {}
 
+var difficulty := "normal"
 var day := 1
 var cash := 600
 var rent := 200
@@ -381,10 +389,12 @@ func rotate_item(uid: int) -> bool:
 	emit_signal("state_changed")
 	return true
 
-func new_game() -> void:
+func new_game(diff_id: String = "normal") -> void:
+	difficulty = diff_id if DIFFICULTY.has(diff_id) else "normal"
+	var dcfg: Dictionary = DIFFICULTY[difficulty]
 	day = 1
-	cash = 600
-	rent = 200
+	cash = int(dcfg["cash"])
+	rent = int(dcfg["rent"])
 	rent_due = 6
 	loan = 200
 	loan_due = 12
@@ -505,7 +515,7 @@ func _gen_customer() -> Dictionary:
 		c["line"] = arche.get("greet", "") + "\n" + arche.get("ask", "")
 	else:
 		c["want_tags"] = arche.get("prefer_tags", [])
-		var bmult := 1.0 + float(upgrade_total("budget")) / 100.0
+		var bmult := (1.0 + float(upgrade_total("budget")) / 100.0) * float(DIFFICULTY[difficulty]["budget"])
 		c["budget"] = int(round(float(rng.randi_range(int(arche["budget"][0]), int(arche["budget"][1]))) * bmult))
 		c["offer"] = 0
 		c["max_price"] = 0
@@ -1017,6 +1027,7 @@ func _combat_enemy_turn() -> void:
 	if not combat_active:
 		return
 	var dmg := combat_roll(int(combat_enemy.get("atk_min", 5)), int(combat_enemy.get("atk_max", 9)))
+	dmg = maxi(1, int(round(float(dmg) * float(DIFFICULTY[difficulty]["damage"]))))
 	if combat_guarding:
 		dmg = maxi(1, int(round(float(dmg) * 0.5)))
 	combat_player_hp -= dmg
@@ -1436,8 +1447,16 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
 	power -= use_power
 	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": use_time, "total": use_time, "outputs": m.get("outputs", []).duplicate(true)}
+	var growth := machine_id in GROWTH_MACHINES
+	if growth:
+		job["growth"] = true
+		job["ready"] = false
+		job["harvests_left"] = GROWTH_HARVESTS
+		job["regrow"] = use_time * 0.6
 	machine_jobs.append(job)
 	emit_signal("state_changed")
+	if growth:
+		return {"ok": true, "text": "%s 已播种，预计 %.1f 秒成熟。" % [job["name"], job["remaining"]]}
 	return {"ok": true, "text": "%s 已启动，预计 %.1f 秒。" % [job["name"], job["remaining"]]}
 
 func install_module(machine_id: String) -> Dictionary:
@@ -1501,6 +1520,50 @@ func repair_machine(machine_id: String) -> Dictionary:
 	emit_signal("state_changed")
 	return {"ok": true, "text": "%s 已维修，花费 %d₵。" % [m.get("name", machine_id), cost]}
 
+func harvest_machine(machine_id: String) -> Dictionary:
+	var idx := -1
+	for i in range(machine_jobs.size()):
+		if String(machine_jobs[i].get("machine_id", "")) == machine_id:
+			idx = i
+			break
+	if idx < 0:
+		return {"ok": false, "text": "这台机器没有正在生长的作物。"}
+	var j: Dictionary = machine_jobs[idx]
+	if not bool(j.get("growth", false)):
+		return {"ok": false, "text": "这台机器不能收获。"}
+	if not bool(j.get("ready", false)):
+		return {"ok": false, "text": "作物还在生长，暂时不能收获。"}
+	var got: Array = []
+	for out in j.get("outputs", []):
+		var oid := String(out.get("id", ""))
+		if not items_def.has(oid):
+			continue
+		for n in range(int(out.get("count", 1))):
+			add_item(make_item(oid, 100, true, false))
+			got.append(String(get_item_def(oid).get("name", oid)))
+	var mid := machine_id
+	var wear: int = [1, 2, 3][clampi(int(machine_temps.get(mid, 2)), 1, 3) - 1] + rng.randi_range(0, 1)
+	var dur := maxi(0, int(machine_durability.get(mid, 100)) - wear)
+	machine_durability[mid] = dur
+	var left := int(j.get("harvests_left", 1)) - 1
+	var msg := "收获：+%s" % "、".join(got)
+	if left > 0:
+		j["harvests_left"] = left
+		j["ready"] = false
+		j["remaining"] = float(j.get("regrow", 1.0))
+		msg += "，还可收获 %d 次。" % left
+	else:
+		machine_jobs.remove_at(idx)
+		msg += "，作物已耗尽。"
+	if dur <= 0:
+		msg += "（机器损坏，需要维修）"
+	var fault := _roll_machine_fault(mid)
+	if fault != "":
+		machine_faults[mid] = fault
+		msg += "（故障：%s）" % machine_fault_name(fault)
+	emit_signal("state_changed")
+	return {"ok": true, "text": msg}
+
 func _process(delta: float) -> void:
 	if machine_jobs.is_empty():
 		return
@@ -1510,8 +1573,15 @@ func _process(delta: float) -> void:
 		var j: Dictionary = machine_jobs[k]
 		j["remaining"] = float(j.get("remaining", 0.0)) - delta
 		if float(j["remaining"]) <= 0.0:
-			finished.append(j)
-			machine_jobs.remove_at(k)
+			if bool(j.get("growth", false)):
+				if not bool(j.get("ready", false)):
+					j["remaining"] = 0.0
+					j["ready"] = true
+					emit_signal("machine_finished", "%s 已成熟，可收获（剩余 %d 次）。" % [j.get("name", ""), int(j.get("harvests_left", 0))])
+				k += 1
+			else:
+				finished.append(j)
+				machine_jobs.remove_at(k)
 		else:
 			k += 1
 	for j in finished:
@@ -1537,7 +1607,7 @@ func _process(delta: float) -> void:
 		emit_signal("machine_finished", msg)
 	emit_signal("state_changed")
 
-func save_game() -> bool:
+func save_game(slot: int = 1) -> bool:
 	var data := {
 		"version": 1, "day": day, "cash": cash, "rent": rent, "rent_due": rent_due,
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
@@ -1546,22 +1616,22 @@ func save_game() -> bool:
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
-		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step,
+		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty,
 	}
-	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
+	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
 	return true
 
-func has_save() -> bool:
-	return FileAccess.file_exists("user://save_1.json")
+func has_save(slot: int = 1) -> bool:
+	return FileAccess.file_exists("user://save_%d.json" % slot)
 
-func load_game() -> bool:
-	if not has_save():
+func load_game(slot: int = 1) -> bool:
+	if not has_save(slot):
 		return false
-	var f := FileAccess.open("user://save_1.json", FileAccess.READ)
+	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.READ)
 	if f == null:
 		return false
 	var data = JSON.parse_string(f.get_as_text())
@@ -1598,6 +1668,9 @@ func load_game() -> bool:
 	wanted_defeated = data.get("wanted_defeated", []).duplicate(true)
 	tutorial_done = bool(data.get("tutorial_done", false))
 	tutorial_step = int(data.get("tutorial_step", 0))
+	difficulty = String(data.get("difficulty", "normal"))
+	if not DIFFICULTY.has(difficulty):
+		difficulty = "normal"
 	ending_id = String(data.get("ending_id", ""))
 	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)

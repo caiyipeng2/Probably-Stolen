@@ -64,6 +64,7 @@ var machine_jobs_label: Label
 var machine_power_label: Label
 var machine_start_btn: Button
 var machine_repair_btn: Button
+var machine_harvest_btn: Button
 var minigame_layer: Control
 var minigame_target_cells: Array = []
 var minigame_cells: Array = []
@@ -545,7 +546,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M14", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M15", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -715,7 +716,8 @@ func _build_machine_bay() -> void:
 		temp_buttons.append(tb)
 	machine_start_btn = _button(detail, "启动生产", Vector2(24, 440), Vector2(300, 72), C_AMBER, _start_selected_machine)
 	machine_repair_btn = _button(detail, "维修", Vector2(340, 440), Vector2(200, 72), C_CYAN, _repair_selected_machine)
-	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(560, 454), Vector2(700, 70), 22, C_MUTED)
+	machine_harvest_btn = _button(detail, "收获", Vector2(560, 440), Vector2(180, 72), C_GREEN, _harvest_selected_machine)
+	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(760, 454), Vector2(500, 70), 22, C_MUTED)
 	var jobs_panel := _panel(panel, Vector2(570, 700), Vector2(1280, 250), C_PANEL2, C_LINE, 2)
 	_label(jobs_panel, "运行队列", Vector2(24, 12), Vector2(300, 32), 24, C_AMBER)
 	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 180), 22, C_TEXT)
@@ -1420,20 +1422,38 @@ func _on_action(key: String) -> void:
 
 func _on_save() -> void:
 	_play_sfx("soft")
-	if GameState.save_game():
-		_toast("已保存到存档位 1。")
-	else:
-		_toast("存档失败。")
+	_open_save_menu("save")
 
 func _on_load() -> void:
 	_play_sfx("soft")
-	if GameState.load_game():
+	_open_save_menu("load")
+
+func _open_save_menu(mode: String) -> void:
+	var actions: Array = []
+	for i in range(1, 4):
+		var label := "槽位 %d%s" % [i, "" if GameState.has_save(i) else "（空）"]
+		if mode == "save":
+			actions.append({"label": label, "cb": _save_slot.bind(i)})
+		else:
+			actions.append({"label": label, "cb": _load_slot.bind(i)})
+	_show_modal("存档" if mode == "save" else "读档", "选择要保存/读取的槽位。", actions)
+
+func _save_slot(slot: int) -> void:
+	if GameState.save_game(slot):
+		_close_modal()
+		_toast("已保存到槽位 %d。" % slot)
+	else:
+		_toast("存档失败。")
+
+func _load_slot(slot: int) -> void:
+	if GameState.load_game(slot):
 		selected_uid = -1
 		current_page = 0
+		_close_modal()
 		_refresh()
-		_toast("已读取存档位 1。")
+		_toast("已读取槽位 %d。" % slot)
 	else:
-		_toast("没有找到可读取的存档。")
+		_toast("槽位 %d 为空。" % slot)
 
 func _on_end_day_pressed() -> void:
 	if GameState.phase == "gameover":
@@ -1483,7 +1503,7 @@ func _next_day() -> void:
 
 func _restart_game() -> void:
 	_close_modal()
-	GameState.new_game()
+	GameState.new_game(GameState.difficulty)
 	selected_uid = -1
 	current_page = 0
 	last_summary = {}
@@ -1576,6 +1596,11 @@ func _refresh_machine_panel() -> void:
 	var dur := int(GameState.machine_durability.get(selected_machine_id, 100))
 	var fault := String(GameState.machine_faults.get(selected_machine_id, ""))
 	var state_text := "（已损坏）" if dur <= 0 else ("（故障：%s）" % GameState.machine_fault_name(fault) if fault != "" else "")
+	var growth_job: Dictionary = {}
+	for j in GameState.machine_jobs:
+		if String(j.get("machine_id", "")) == selected_machine_id and bool(j.get("growth", false)):
+			growth_job = j
+			break
 	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_time, int(m.get("temp", 24)), dur, state_text]
 	var ins: Array = []
 	for i in m.get("inputs", []):
@@ -1600,6 +1625,14 @@ func _refresh_machine_panel() -> void:
 	for j in GameState.machine_jobs:
 		if String(j.get("machine_id", "")) == selected_machine_id:
 			machine_start_btn.disabled = true
+	if machine_harvest_btn:
+		var ready := not growth_job.is_empty() and bool(growth_job.get("ready", false))
+		machine_harvest_btn.disabled = not ready
+		if not growth_job.is_empty():
+			if ready:
+				machine_status_label.text = "作物可收获（剩余 %d 次）。" % int(growth_job.get("harvests_left", 0))
+			else:
+				machine_status_label.text = "作物生长中：%.1fs。" % float(growth_job.get("remaining", 0.0))
 	if machine_repair_btn:
 		machine_repair_btn.text = "维修 %d₵" % GameState.machine_repair_cost(selected_machine_id)
 		machine_repair_btn.disabled = dur >= 100 and fault == ""
@@ -1625,15 +1658,29 @@ func _refresh_machine_jobs() -> void:
 		return
 	var text := ""
 	for j in GameState.machine_jobs:
-		text += "· %s  剩余 %.1fs
+		if bool(j.get("growth", false)):
+			if bool(j.get("ready", false)):
+				text += "· %s  可收获（剩余 %d 次）
+" % [j.get("name", ""), int(j.get("harvests_left", 0))]
+			else:
+				text += "· %s  生长中 %.1fs
+" % [j.get("name", ""), float(j.get("remaining", 0.0))]
+		else:
+			text += "· %s  剩余 %.1fs
 " % [j.get("name", ""), float(j.get("remaining", 0.0))]
 	machine_jobs_label.text = text
 
+func _harvest_selected_machine() -> void:
+	var res := GameState.harvest_machine(selected_machine_id)
+	_play_sfx("cash" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
 func _repair_selected_machine() -> void:
 	var res := GameState.repair_machine(selected_machine_id)
-	machine_status_label.text = String(res.get("text", ""))
 	_play_sfx("machine" if bool(res.get("ok", false)) else "fail")
 	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
 
 func _start_selected_machine(quality: float = -1.0) -> void:
 	if quality < 0.0 and selected_machine_id in ["printer", "chem_mixer", "dna_lab"]:
@@ -2070,7 +2117,15 @@ func _show_welcome() -> void:
 	if welcome_shown:
 		return
 	welcome_shown = true
-	_show_modal("欢迎来到下层区", "你盘下了一间当铺，欠着导师 200¥ 贷款，7 天后要交 200¥ 房租。\n\n流程：看顾客拿出什么 → 点「鉴定」验货 → 点「议价」或直接「成交」→ 结束营业结算。\n\n底部是你的异形格背包，展示柜里的商品才能卖给想买东西的顾客。", [{"label": "开始营业", "cb": _welcome_done}])
+	_show_modal("欢迎来到下层区", "你盘下了一间当铺，欠着导师 200¥ 贷款，7 天后要交房租。\n\n流程：看顾客拿出什么 → 点「鉴定」验货 → 点「议价」或直接「成交」→ 结束营业结算。\n\n选择难度开始：简单（800₵ 启动资金、房租 150₵）、普通（600₵ / 200₵）、困难（450₵ / 260₵，敌人伤害更高）。", [
+		{"label": "简单", "cb": _choose_difficulty.bind("easy"), "color": C_GREEN},
+		{"label": "普通", "cb": _choose_difficulty.bind("normal"), "color": C_AMBER},
+		{"label": "困难", "cb": _choose_difficulty.bind("hard"), "color": C_RUST},
+	])
+
+func _choose_difficulty(id: String) -> void:
+	GameState.new_game(id)
+	_welcome_done()
 
 func _welcome_done() -> void:
 	_close_modal()

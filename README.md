@@ -1,10 +1,11 @@
-# 深空当铺手机版（M14）
+# 深空当铺手机版（M15）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M1–M13 已完成；当前为 **M14 私有构建**：后日谈剧情池、机器小游戏/耐久/随机故障、17 种失败/终局结局、公开版音频/图标替换、完整新手教程、9 名通缉目标与平衡校准，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M14 已完成；当前为 **M15 私有构建**：后日谈剧情池、机器小游戏/耐久/故障/生长周期、3 存档槽、难度模式、17 种失败/终局结局、公开版音频/图标替换、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M14 私有构建）：`build/probably_stolen_m14.apk`
+- APK（M15 私有构建）：`build/probably_stolen_m15.apk`
+- M14 APK：`build/probably_stolen_m14.apk`
 - M13 APK：`build/probably_stolen_m13.apk`
 - M12 APK：`build/probably_stolen_m12.apk`
 - M11 APK：`build/probably_stolen_m11.apk`
@@ -74,6 +75,8 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M13 已完成
   - `53_m13_public_icons.png` 公开版逐物品图标预览
   - `54_m13_welcome.png` M13 欢迎界面
   - `55_m14_welcome.png` M14 欢迎界面
+  - `56_m15_difficulty.png` 难度选择
+  - `57_m15_growth.png` 水培种植成熟与收获
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -225,6 +228,15 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **存档**：`machine_faults` 随存档保存；`test_machine_faults.gd` 覆盖故障禁用、维修、全面保养与读档。
 - **真机**：M14 APK 安装启动正常。
 
+## M15 已完成（多存档、难度与生长周期）
+
+- **3 存档槽**：存档/读档菜单可选择槽位 1–3，`has_save(slot)`/`save_game(slot)`/`load_game(slot)` 全部槽位化；槽位 1 兼容旧存档。
+- **难度模式**：开局欢迎界面选择简单/普通/困难；启动资金 800/600/450₵，房租 150/200/260₵，顾客预算 1.15/1.0/0.9，敌人伤害 0.8/1.0/1.25；难度随存档保存。
+- **生长周期**：水培种植机、循环水养殖、肉类培养箱改为「播种 → 成熟 → 收获 ×3」：一次投入可收获 3 次，每次收获后进入较短再生长期，3 次后作物耗尽需重新播种。
+- **收获 UI**：机器详情新增「收获」按钮与生长/可收获状态，运行队列显示成熟次数；收获会磨损耐久并可能触发故障。
+- **测试**：`test_meta.gd` 验证三档难度与槽位 3 存读档；`test_growth.gd` 验证播种、未成熟禁止收获、3 次收获、作物耗尽与补种。
+- **真机**：M15 APK 安装启动正常，难度选择与作物收获界面已真机验证。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -240,7 +252,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m14.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m15.apk
 ```
 
 开发调试参数：
@@ -301,4 +313,6 @@ godot --path . --dumpinspect
 - M13 边界：公开物品图标为占位设计，公开音频为程序化音色；私有 APK 仍使用原版素材。
 - M14 已完成：机器随机故障（卡料/浪涌/污染）、故障禁用与附加维修费、维修工全面保养事件、故障存档、M14 APK。
 - M14 边界：故障只影响启动与维修费，不改变产出数量；未模拟故障传播/连锁损坏。
-- 后续：精细公开物品图标/立绘、种植/养殖周期、3D 打印形状拼图、剩余机器深度玩法。
+- M15 已完成：3 存档槽、简单/普通/困难难度、水培/养殖/肉类培养的生长-收获周期、收获 UI 与存档。
+- M15 边界：生长周期为固定 3 次收获，未模拟疾病/水质/饲料配比；难度只调整资金/房租/预算/伤害，不改剧情与结局条件。
+- 后续：精细公开立绘/图标、3D 打印形状拼图、剩余机器深度玩法。
