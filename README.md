@@ -1,10 +1,11 @@
-# 深空当铺手机版（M5）
+# 深空当铺手机版（M6）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M2–M4 已完成；当前为 **M5 私有构建**：剧情/支线、回合制战斗、通缉板、查抄队伍、报纸与多结局，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M5 已完成；当前为 **M6 私有构建**：原版剧情场景、完整新手教程、音频、9 名通缉目标、平衡校准与发布候选包，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M5 私有构建）：`build/probably_stolen_m5.apk`
+- APK（M6 私有构建）：`build/probably_stolen_m6.apk`
+- M5 APK：`build/probably_stolen_m5.apk`
 - M4 APK：`build/probably_stolen_m4.apk`
 - M3 APK：`build/probably_stolen_m3.apk`
 - M2 APK：`build/probably_stolen_m2.apk`
@@ -42,6 +43,12 @@ Steam《深空当铺：可能是偷的》手机移植项目。M2–M4 已完成�
   - `30_m5_combat.png` 战斗界面
   - `31_m5_combat_result.png` 战斗胜利
   - `32_m5_wanted_done.png` 通缉状态
+  - `33_m6_welcome.png` M6 欢迎/操作说明
+  - `34_m6_story.png` 原版剧情场景（乔治奥）
+  - `35_m6_tutorial.png` 分步新手教程
+  - `36_m6_inspect.png` 鉴定（自定义物品名）
+  - `37_m6_bargain.png` 议价
+  - `38_m6_deal.png` 成交（Georgio 入门线）
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -110,6 +117,17 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **存档**：剧情已看节点、剧情标记、通缉击败状态随存档保存。
 - 真机已验证：日结→报纸、导师剧情选择、通缉页、战斗胜利（现金 600→900）、剧情/通缉存档。
 
+## M6 已完成（发布候选，私有构建）
+
+- **原版对话库**：恢复原版 `Dialogue` 表 **2544 条**键→中文映射，落在 `data_private/dialogue_keys_zh.json`（不进公开仓库）。
+- **剧情场景系统**：数据驱动，按天调度剧情顾客；支持 `sell` / `buy` / `dialogue` 三种意图、原版中文对话、选项效果、场景标记与存档。首批 11 个场景：Georgio 入门线、Serpico 警员线、Officer Lun 查抄/剩余物资线，共约 75 行原版对话。
+- **新手教程**：欢迎说明 → 原版乔治奥入门对话 → 4 步触屏教程（鉴定/议价/成交/上架/日结），可跳过并随存档保存。
+- **音频**：提取原版主音乐、空间站环境音与 12 个交互音效；按钮、鉴定、成交、战斗、机器、日结均有反馈，顶栏「音效 开/关」持久化。
+- **通缉**：3 → **9 名**目标（含 Boss「卢」），战斗平衡：混混/查抄队员 100%、卡特尔打手 87%、Boss 40%。
+- **平衡**：30 局 headless 模拟；主动经营 30/30 存活，第 10 天现金中位 1708₵；完全不交易第 13 天房租破产。买店线从 5000 下调到 2000₵。
+- **内容文档**：`docs/内容对齐清单.md`、`docs/剧情场景清单.md`、`docs/平衡报告.md`。
+- **真机验收**：SM-S9280 安装启动正常；冷启动 297ms，PSS 367MB，`gfxinfo` 50/90 分位 5ms、99 分位 32ms、掉帧 2.27%；剧情、教程、鉴定、议价、成交链路真机通过；音频轨在媒体音量非 0 时正常播放。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -125,7 +143,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m5.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m6.apk
 ```
 
 开发调试参数：
@@ -147,6 +165,9 @@ godot --path . --dumpinspect
 - `data/`：物品、顾客、事件 JSON。
 - `assets/`：像素场景、顾客立绘、物品图标、像素字体。
 - `docs/立项方案.md`：全量 1:1 目标与 M1–M6 路线。
+- `docs/内容对齐清单.md`：原版/当前内容量对照与缺口。
+- `docs/剧情场景清单.md`：已导入剧情场景、触发日期与效果。
+- `docs/平衡报告.md`：30 局经济模拟与战斗胜率。
 - `_research/`：拆包、反编译、效果图与测试截图，已排除在 APK 与公开仓库之外。
 
 ## 素材与版权
@@ -163,5 +184,7 @@ godot --path . --dumpinspect
 - M4 已完成：8 派系 5 档声望树、13 专精、60 项网络升级、顾客名录、电话委托、统一信息面板。
 - M4 边界：部分原版升级为被动/简化效果（展示柜扩容、许可证类未做独立限制）；电话为委托板，不含完整联系人对话。
 - M5 已完成：17 个剧情节点、5 个结局、回合制战斗、通缉板、查抄队伍、8 类夜间事件、报纸、剧情/通缉存档。
-- M5 边界：原版 2544 条对话未逐条导入，当前为代表性主支线；战斗/通缉为简化规则；完整内容对齐在 M6 做。
-- 后续：M6 内容校验/平衡/发布。公开版素材替换在发布阶段处理。
+- M5 边界：原版 2544 条对话未逐条导入，当前为代表性主支线；战斗/通缉为简化规则。
+- M6 已完成：原版对话键库（2544 条）、11 个可玩剧情场景、剧情场景系统、完整教程、音频与开关、9 名通缉、平衡校准、M6 发布候选 APK。
+- M6 边界：2544 条对话中约 75 行进入可玩场景，剩余 45 个剧情顾客（Eleanor/Nellis/Grandpa Cheng 等）按同一数据格式后续补齐；16 台机器、8 类夜间事件、简化战斗规则保持现状；公开版仍需替换拆包素材与音频。
+- 后续：公开版素材替换、剩余剧情顾客与机器深度小游戏（3D 打印拼图、化学配比、DNA 操作）。

@@ -30,5 +30,69 @@
       "cartel": -5
     },
     "desc": "卡特尔派来收保护费的人。抓住他能换来治安部的信任。"
+  },
+  {
+    "id": "w_bailey",
+    "name": "詹姆斯·贝利",
+    "enemy": "thug",
+    "reward": 300,
+    "rep": {
+      "security": 4
+    },
+    "desc": "在下层区收“过路费”的混混头目，手底下养着几个打手。"
+  },
+  {
+    "id": "w_lafleur",
+    "name": "亚瑟·拉弗勒",
+    "enemy": "raider",
+    "reward": 350,
+    "rep": {
+      "security": 4,
+      "blackmarket": -3
+    },
+    "desc": "专偷医疗物资的惯犯，把救命的药倒卖给黑市。"
+  },
+  {
+    "id": "w_odin",
+    "name": "奥丁",
+    "enemy": "enforcer",
+    "reward": 500,
+    "rep": {
+      "security": 4,
+      "cartel": -4
+    },
+    "desc": "卡特尔的外围打手，负责“说服”不肯交保护费的店主。"
+  },
+  {
+    "id": "w_lou",
+    "name": "卢",
+    "enemy": "boss_lou",
+    "reward": 1500,
+    "rep": {
+      "security": 8,
+      "blackmarket": -6
+    },
+    "desc": "下层区最难缠的炸弹客。悬赏金额高得离谱，活下来的人不多。"
+  },
+  {
+    "id": "w_li",
+    "name": "李北文",
+    "enemy": "raider",
+    "reward": 400,
+    "rep": {
+      "security": 4,
+      "cartel": -3
+    },
+    "desc": "在夹层实验室里合成新型毒品，货流遍整个下层区。"
+  },
+  {
+    "id": "w_juan",
+    "name": "胡安",
+    "enemy": "thug",
+    "reward": 125,
+    "rep": {
+      "security": 2
+    },
+    "desc": "替人跑腿的小角色，知道不少不该知道的事。"
   }
 ]

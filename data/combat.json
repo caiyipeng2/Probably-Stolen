@@ -34,5 +34,17 @@
     "rep": {
       "cartel": -3
     }
+  },
+  {
+    "id": "boss_lou",
+    "name": "卢",
+    "hp": 80,
+    "atk_min": 10,
+    "atk_max": 14,
+    "sprite": "maleUpper_5.png",
+    "reward": 1500,
+    "rep": {
+      "blackmarket": -6
+    }
   }
 ]

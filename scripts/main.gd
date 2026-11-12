@@ -30,6 +30,7 @@ var customer_name_label: Label
 var customer_info_label: Label
 var dialogue_name: Label
 var dialogue_text: Label
+var dialogue_hint: Label
 var counter_icon: TextureRect
 var counter_name: Label
 var counter_price: Label
@@ -97,6 +98,14 @@ var rep_labels: Dictionary = {}
 var tab_buttons: Dictionary = {}
 var page_buttons: Array = []
 
+var music_player: AudioStreamPlayer
+var ambience_player: AudioStreamPlayer
+var sfx_players: Array = []
+var sfx_next := 0
+var sfx_cache: Dictionary = {}
+var audio_enabled := true
+var audio_toggle_btn: Button
+
 var selected_uid := -1
 var current_page := 0
 var filter_category := "all"
@@ -110,6 +119,7 @@ var last_summary: Dictionary = {}
 
 func _ready() -> void:
 	_setup_theme()
+	_setup_audio()
 	_build_ui()
 	GameState.state_changed.connect(_refresh)
 	GameState.customer_changed.connect(_on_customer_changed)
@@ -174,7 +184,14 @@ func _autotest_if_requested() -> void:
 	if not "--autotest" in OS.get_cmdline_args():
 		return
 	await get_tree().create_timer(0.4).timeout
-	_close_modal()
+	_welcome_done()
+	await get_tree().process_frame
+	var guard_story := 0
+	while story_layer.visible and guard_story < 40:
+		_story_advance()
+		guard_story += 1
+	if modal_layer.visible:
+		_close_modal()
 	var c := GameState.current_customer
 	print("AUTOTEST start day=", GameState.day, " cash=", GameState.cash, " intent=", c.get("intent", "?"))
 	if c.get("intent") == "buy":
@@ -206,6 +223,27 @@ func _autotest_if_requested() -> void:
 
 
 func _capture_if_requested() -> void:
+	if "--capturetutorial" in OS.get_cmdline_args():
+		await get_tree().create_timer(1.0).timeout
+		_welcome_done()
+		await get_tree().create_timer(0.2).timeout
+		var guard := 0
+		while story_layer.visible and guard < 40:
+			_story_advance()
+			guard += 1
+		await get_tree().create_timer(0.3).timeout
+		var timg := get_viewport().get_texture().get_image()
+		timg.save_png("res://_research/mockups/phone/m6_tutorial.png")
+		get_tree().quit()
+		return
+	if "--capturestory" in OS.get_cmdline_args():
+		await get_tree().create_timer(1.0).timeout
+		_welcome_done()
+		await get_tree().create_timer(0.3).timeout
+		var simg := get_viewport().get_texture().get_image()
+		simg.save_png("res://_research/mockups/phone/m6_story.png")
+		get_tree().quit()
+		return
 	if not "--capture" in OS.get_cmdline_args():
 		return
 	await get_tree().create_timer(1.0).timeout
@@ -224,6 +262,69 @@ func _setup_theme() -> void:
 		th.default_font = font
 		th.default_font_size = 30
 		theme = th
+
+func _setup_audio() -> void:
+	var cfg := FileAccess.open("user://audio.json", FileAccess.READ)
+	if cfg:
+		var data = JSON.parse_string(cfg.get_as_text())
+		if data is Dictionary:
+			audio_enabled = bool(data.get("enabled", true))
+	music_player = AudioStreamPlayer.new()
+	music_player.volume_db = -18.0
+	add_child(music_player)
+	var music_path := "res://assets_private/audio/music_main.ogg"
+	if ResourceLoader.exists(music_path):
+		music_player.stream = load(music_path)
+		if audio_enabled:
+			music_player.play()
+	ambience_player = AudioStreamPlayer.new()
+	ambience_player.volume_db = -22.0
+	add_child(ambience_player)
+	var amb_path := "res://assets_private/audio/ambience_station.ogg"
+	if ResourceLoader.exists(amb_path):
+		ambience_player.stream = load(amb_path)
+		if audio_enabled:
+			ambience_player.play()
+	for i in range(4):
+		var p := AudioStreamPlayer.new()
+		p.volume_db = -8.0
+		add_child(p)
+		sfx_players.append(p)
+
+func _play_sfx(key: String) -> void:
+	if not audio_enabled or sfx_players.is_empty():
+		return
+	var path := "res://assets_private/audio/sfx_%s.ogg" % key
+	if not ResourceLoader.exists(path):
+		return
+	if not sfx_cache.has(path):
+		sfx_cache[path] = load(path)
+	var p: AudioStreamPlayer = sfx_players[sfx_next % sfx_players.size()]
+	sfx_next += 1
+	p.stream = sfx_cache[path]
+	p.play()
+
+func _save_audio_setting() -> void:
+	var f := FileAccess.open("user://audio.json", FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify({"enabled": audio_enabled}))
+		f.close()
+
+func _on_audio_toggle() -> void:
+	audio_enabled = not audio_enabled
+	if music_player:
+		if audio_enabled and music_player.stream:
+			music_player.play()
+		else:
+			music_player.stop()
+	if ambience_player:
+		if audio_enabled and ambience_player.stream:
+			ambience_player.play()
+		else:
+			ambience_player.stop()
+	if audio_toggle_btn:
+		audio_toggle_btn.text = "音效 开" if audio_enabled else "音效 关"
+	_save_audio_setting()
 
 func _style(bg: Color, border: Color, bw: int = 2) -> StyleBoxFlat:
 	var sb := StyleBoxFlat.new()
@@ -272,6 +373,7 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, color: Col
 	b.add_theme_stylebox_override("disabled", _style(Color("#12151c"), Color("#252c38")))
 	b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 	b.pressed.connect(cb)
+	b.pressed.connect(_play_sfx.bind("click"))
 	parent.add_child(b)
 	return b
 
@@ -327,11 +429,12 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M1", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M6", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
-	cash_label = _label(self, "", Vector2(1580, 24), Vector2(420, 52), 48, C_AMBER, HORIZONTAL_ALIGNMENT_RIGHT)
+	cash_label = _label(self, "", Vector2(1560, 24), Vector2(350, 52), 48, C_AMBER, HORIZONTAL_ALIGNMENT_RIGHT)
+	audio_toggle_btn = _button(self, "音效 开" if audio_enabled else "音效 关", Vector2(1925, 14), Vector2(120, 52), C_MUTED, _on_audio_toggle)
 	_button(self, "存档", Vector2(2060, 14), Vector2(120, 52), C_CYAN, _on_save)
 	_button(self, "读档", Vector2(2190, 14), Vector2(120, 52), C_CYAN, _on_load)
 
@@ -386,7 +489,7 @@ func _build_dialogue() -> void:
 	var p := _panel(game_view, Vector2(1280, 170), Vector2(560, 220), C_PANEL, C_CYAN, 2)
 	dialogue_name = _label(p, "", Vector2(16, 10), Vector2(528, 32), 24, C_AMBER)
 	dialogue_text = _label(p, "", Vector2(16, 48), Vector2(528, 118), 28, C_TEXT)
-	_label(p, "右侧选择交涉动作 · 长按物品查看详情", Vector2(16, 178), Vector2(528, 26), 20, C_MUTED)
+	dialogue_hint = _label(p, "右侧选择交涉动作 · 长按物品查看详情", Vector2(16, 178), Vector2(528, 26), 20, C_MUTED)
 
 func _build_counter() -> void:
 	var p := _panel(game_view, Vector2(0, 560), Vector2(1920, 190), C_PANEL, C_RUST, 3)
@@ -611,6 +714,10 @@ func _refresh() -> void:
 	if not GameState.machine_jobs.is_empty():
 		status_label.text += " · 机器运行中"
 	status_label.add_theme_color_override("font_color", C_GREEN if GameState.phase != "endday" else C_AMBER)
+	if not GameState.tutorial_done and GameState.day == 1 and GameState.tutorial_step > 0:
+		dialogue_hint.text = _tutorial_text()
+	else:
+		dialogue_hint.text = "右侧选择交涉动作 · 长按物品查看详情"
 	for k in rep_labels.keys():
 		var v := int(GameState.rep.get(k, 0))
 		rep_labels[k].text = "%s %+d" % [_faction_short(k), v]
@@ -658,7 +765,7 @@ func _update_counter() -> void:
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var cip := GameState.item_icon_path(def)
 	counter_icon.texture = load(cip) if cip != "" else null
-	counter_name.text = String(def.get("name", ""))
+	counter_name.text = GameState.item_display_name(it)
 	if GameState.current_customer.get("intent") == "sell":
 		counter_price.text = "顾客开价 %d¥" % int(it.get("asking_price", 0))
 		counter_hint.text = "品相 %d%% · %s · %s" % [int(it.get("condition", 100)), "已鉴定" if it.get("known", false) else "未鉴定", "序列号可疑" if it.get("stolen", false) else "来源待确认"]
@@ -676,7 +783,7 @@ func _rebuild_display() -> void:
 			var dip := GameState.item_icon_path(def)
 			var icon := _texture_rect(p, Vector2(8, 6), Vector2(160, 80), dip)
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
-			_label(p, String(def.get("name", "")), Vector2(8, 88), Vector2(160, 22), 18, C_TEXT)
+			_label(p, GameState.item_display_name(it), Vector2(8, 88), Vector2(160, 22), 18, C_TEXT)
 			_label(p, "%d¥" % GameState.market_value(it, true), Vector2(8, 110), Vector2(160, 20), 18, C_AMBER)
 			var uid := int(it["uid"])
 			var btn := Button.new()
@@ -753,8 +860,8 @@ func _update_detail() -> void:
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var tip := GameState.item_icon_path(def)
 	detail_icon.texture = load(tip) if tip != "" else null
-	detail_name.text = String(def.get("name", ""))
-	detail_desc.text = String(def.get("description", ""))
+	detail_name.text = GameState.item_display_name(it)
+	detail_desc.text = GameState.item_description(it)
 	var tags: Array = def.get("tags", [])
 	var tags_text := ""
 	for t in tags:
@@ -901,6 +1008,8 @@ func _on_display_toggle() -> void:
 	if it.get("location") == "backpack":
 		if not GameState.add_to_display(selected_uid):
 			_toast("展示柜已经满了。")
+		elif GameState.tutorial_step == 3:
+			GameState.tutorial_step = 4
 	elif it.get("location") == "display":
 		GameState.take_from_display(selected_uid)
 	_refresh()
@@ -953,12 +1062,14 @@ func _on_action(key: String) -> void:
 			_do_dismiss()
 
 func _on_save() -> void:
+	_play_sfx("soft")
 	if GameState.save_game():
 		_toast("已保存到存档位 1。")
 	else:
 		_toast("存档失败。")
 
 func _on_load() -> void:
+	_play_sfx("soft")
 	if GameState.load_game():
 		selected_uid = -1
 		current_page = 0
@@ -977,6 +1088,10 @@ func _on_end_day_pressed() -> void:
 		else:
 			_toast("今天已经结束。")
 		return
+	if not GameState.tutorial_done and GameState.tutorial_step > 0:
+		GameState.tutorial_done = true
+		GameState.tutorial_step = 0
+	_play_sfx("shutter")
 	GameState.finish_day()
 
 func _on_day_finished(summary: Dictionary) -> void:
@@ -1145,6 +1260,8 @@ func _refresh_machine_jobs() -> void:
 
 func _start_selected_machine() -> void:
 	var res := GameState.start_machine(selected_machine_id)
+	if bool(res.get("ok", false)):
+		_play_sfx("machine")
 	_refresh_machine_panel()
 	machine_status_label.text = String(res.get("text", ""))
 
@@ -1412,12 +1529,12 @@ func _show_story(node_id: String) -> void:
 			var b := _button(story_choices, label, Vector2.ZERO, Vector2(1260, 60), C_AMBER, _story_choose.bind(i))
 			b.custom_minimum_size = Vector2(1260, 60)
 			b.add_theme_font_size_override("font_size", 24)
-			var req := int(choices[i].get("requires_cash", 0))
-			if req > 0 and GameState.cash < req:
-				b.text = "[现金不足] " + label
+			if not GameState.choice_available(choices[i]):
+				b.text = "[条件不足] " + label
 				b.disabled = true
 
 func _story_advance() -> void:
+	_play_sfx("page")
 	var node := GameState.story_node(story_node_id)
 	var nxt := String(node.get("next", ""))
 	GameState.mark_story_seen(story_node_id)
@@ -1427,14 +1544,14 @@ func _story_advance() -> void:
 		_close_story()
 
 func _story_choose(index: int) -> void:
+	_play_sfx("soft")
 	var node := GameState.story_node(story_node_id)
 	var choices: Array = node.get("choices", [])
 	if index < 0 or index >= choices.size():
 		return
 	var choice: Dictionary = choices[index]
-	var req := int(choice.get("requires_cash", 0))
-	if req > 0 and GameState.cash < req:
-		_toast("现金不足，需要 %d₵。" % req)
+	if not GameState.choice_available(choice):
+		_toast("条件不足，无法选择。")
 		return
 	GameState.apply_story_effects(choice.get("effects", {}))
 	var ending := String(choice.get("ending", ""))
@@ -1458,7 +1575,12 @@ func _show_ending(id: String) -> void:
 func _close_story() -> void:
 	story_layer.visible = false
 	story_node_id = ""
-	_refresh()
+	var nxt := GameState.take_queued_story()
+	if nxt != "" and not GameState.story_node(nxt).is_empty():
+		_show_story(nxt)
+	else:
+		_maybe_show_tutorial()
+		_refresh()
 
 func _on_combat_started() -> void:
 	combat_layer.visible = true
@@ -1468,6 +1590,7 @@ func _on_combat_updated() -> void:
 	_update_combat_ui()
 
 func _on_combat_finished(victory: bool, message: String) -> void:
+	_play_sfx("cash" if victory else "fail")
 	combat_layer.visible = false
 	_refresh()
 	_show_modal("战斗结果", message, [{"label": "关闭", "cb": _close_modal}])
@@ -1490,6 +1613,7 @@ func _update_combat_ui() -> void:
 func _combat_action(action: String) -> void:
 	if not GameState.combat_active:
 		return
+	_play_sfx("gun" if action == "attack" else "soft")
 	GameState.combat_action(action)
 	_update_combat_ui()
 
@@ -1499,6 +1623,7 @@ func _toast(text: String) -> void:
 func _show_modal(title: String, text: String, actions: Array) -> void:
 	modal_title.text = title
 	modal_text.add_theme_font_size_override("font_size", 26)
+	modal_text.add_theme_constant_override("line_spacing", 6)
 	modal_text.text = text
 	_clear_children(modal_actions)
 	var n := actions.size()
@@ -1550,7 +1675,55 @@ func _show_welcome() -> void:
 	if welcome_shown:
 		return
 	welcome_shown = true
-	_show_modal("欢迎来到下层区", "你盘下了一间当铺，欠着导师 200¥ 贷款，7 天后要交 200¥ 房租。\n\n流程：看顾客拿出什么 → 点「鉴定」验货 → 点「议价」或直接「成交」→ 结束营业结算。\n\n底部是你的异形格背包，展示柜里的商品才能卖给想买东西的顾客。", [{"label": "开始营业", "cb": _close_modal}])
+	_show_modal("欢迎来到下层区", "你盘下了一间当铺，欠着导师 200¥ 贷款，7 天后要交 200¥ 房租。\n\n流程：看顾客拿出什么 → 点「鉴定」验货 → 点「议价」或直接「成交」→ 结束营业结算。\n\n底部是你的异形格背包，展示柜里的商品才能卖给想买东西的顾客。", [{"label": "开始营业", "cb": _welcome_done}])
+
+func _welcome_done() -> void:
+	_close_modal()
+	if GameState.pending_story != "" and not story_layer.visible:
+		_show_story(GameState.pending_story)
+	else:
+		_maybe_show_tutorial()
+
+func _tutorial_text() -> String:
+	match GameState.tutorial_step:
+		1: return "教程 1/4：先点右侧「鉴定」检查顾客的物品。"
+		2: return "教程 2/4：点「议价」砍价，或直接「成交」。"
+		3: return "教程 3/4：选中背包物品点「上架」，展示柜商品才能卖给买家。"
+		4: return "教程 4/4：点左侧「结束营业」进入下一天。"
+	return "右侧选择交涉动作 · 长按物品查看详情"
+
+func _show_tutorial(step: int) -> void:
+	GameState.tutorial_step = step
+	var body := ""
+	match step:
+		1:
+			body = "顾客上门后，先把柜台上的物品看清楚。\n点右侧「鉴定」可以验出真伪、品相与赃物。\n鉴定会收费，两次以上才能得出结论。"
+		2:
+			body = "鉴定完可以点「议价」调整报价，也可以直接「成交」。\n压价太狠会让顾客失去耐心。"
+		3:
+			body = "收下的货要卖给买家，先选中物品点「上架」。\n只有展示柜里的商品才能放到交易台。"
+		4:
+			body = "今天的顾客接待完后，点左侧「结束营业」结算。\n房租每 7 天到期，贷款第 12 天到期。"
+		_:
+			body = "教程已完成。"
+	_show_modal("新手教程 %d/4" % step, body, [
+		{"label": "知道了", "cb": _close_modal},
+		{"label": "跳过教程", "cb": _skip_tutorial},
+	])
+
+func _maybe_show_tutorial() -> void:
+	if GameState.tutorial_done or GameState.day != 1:
+		return
+	if story_layer.visible or modal_layer.visible:
+		return
+	if GameState.tutorial_step <= 0:
+		_show_tutorial(1)
+
+func _skip_tutorial() -> void:
+	GameState.tutorial_done = true
+	GameState.tutorial_step = 0
+	_close_modal()
+	_refresh()
 
 func _open_inspection() -> void:
 	if GameState.current_customer.is_empty() or GameState.current_customer.get("intent") != "sell":
@@ -1559,6 +1732,10 @@ func _open_inspection() -> void:
 	if GameState.counter_item.is_empty():
 		_toast("柜台上没有物品。")
 		return
+	_play_sfx("page")
+	if GameState.tutorial_step == 1:
+		GameState.tutorial_step = 2
+		_refresh()
 	_refresh_inspection_modal()
 
 func _inspection_methods(itype: String) -> Array:
@@ -1576,7 +1753,7 @@ func _refresh_inspection_modal() -> void:
 		return
 	var def := GameState.get_item_def(it["def_id"])
 	var itype := String(def.get("inspect_type", "generic"))
-	var text := "物品：%s\n品相：%d%%\n\n选择鉴定方式。鉴定费从现金扣除，两次以上可得出结论。" % [def.get("name", ""), int(it.get("condition", 100))]
+	var text := "物品：%s\n品相：%d%%\n\n选择鉴定方式。鉴定费从现金扣除，两次以上可得出结论。" % [GameState.item_display_name(it), int(it.get("condition", 100))]
 	if not it.get("clues", []).is_empty():
 		var clue_text := ""
 		for c in it["clues"]:
@@ -1593,7 +1770,7 @@ func _refresh_inspection_modal() -> void:
 		for i in range(methods.size()):
 			actions.append({"label": methods[i], "cb": _inspect_method.bind(i)})
 		actions.append({"label": "关闭", "cb": _close_modal})
-	_show_modal("鉴定 · " + String(def.get("name", "")), text, actions)
+	_show_modal("鉴定 · " + GameState.item_display_name(it), text, actions)
 
 func _inspect_method(method: int) -> void:
 	var clue := GameState.inspect_item(int(GameState.counter_item.get("uid", -1)), method)
@@ -1607,6 +1784,7 @@ func _open_bargain() -> void:
 	if GameState.current_customer.is_empty() or GameState.counter_item.is_empty():
 		_toast("当前没有可议价的物品。")
 		return
+	_play_sfx("soft")
 	if GameState.current_customer.get("intent") == "sell":
 		bargain_price = int(GameState.counter_item.get("asking_price", 0))
 	else:
@@ -1633,7 +1811,7 @@ func _refresh_bargain_modal() -> void:
 		{"label": "报价", "cb": _bargain_confirm, "color": C_AMBER},
 		{"label": "威胁", "cb": _do_threaten, "color": C_RUST},
 	]
-	_show_modal("议价 · " + String(def.get("name", "")), text, actions)
+	_show_modal("议价 · " + GameState.item_display_name(it), text, actions)
 
 func _bargain_adjust(factor: float) -> void:
 	bargain_price = maxi(1, int(round(float(bargain_price) * factor)))
@@ -1653,12 +1831,16 @@ func _bargain_confirm() -> void:
 	_show_modal("议价结果", String(res.get("text", "")), actions)
 
 func _do_threaten() -> void:
+	_play_sfx("hit")
 	var res := GameState.threaten()
 	_refresh()
 	_show_modal("威胁", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
 func _do_deal() -> void:
 	var res := GameState.accept_current()
+	_play_sfx("cash" if bool(res.get("accepted", false)) else "fail")
+	if bool(res.get("accepted", false)) and GameState.tutorial_step == 2:
+		GameState.tutorial_step = 3
 	_refresh()
 	_show_modal("成交", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
@@ -1677,6 +1859,7 @@ func _on_event_started(event: Dictionary) -> void:
 	_show_modal(String(event.get("title", "夜间事件")), text, actions)
 
 func _on_event_choice(index: int, result: String) -> void:
+	_play_sfx("page")
 	var ev: Dictionary = GameState.pending_event
 	var choice: Dictionary = {}
 	var choices: Array = ev.get("choices", [])

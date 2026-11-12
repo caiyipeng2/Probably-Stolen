@@ -149,9 +149,9 @@
     "text": "十天了。房东、治安部、黑市都在盯着你。\n现在，你打算怎么结束这一切？",
     "choices": [
       {
-        "text": "买下店铺（需要 5000₵）",
+        "text": "买下店铺（需要 2000₵）",
         "next": "",
-        "requires_cash": 5000,
+        "requires_cash": 2000,
         "ending": "owner"
       },
       {

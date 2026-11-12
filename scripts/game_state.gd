@@ -34,6 +34,9 @@ var story_nodes: Dictionary = {}
 var story_seen: Array = []
 var story_flags: Dictionary = {}
 var pending_story := ""
+var story_queue: Array = []
+var story_scenes: Array = []
+var scene_seen: Array = []
 var combat_data: Array = []
 var wanted: Array = []
 var endings: Array = []
@@ -73,6 +76,7 @@ var uid_counter := 1
 var rng := RandomNumberGenerator.new()
 var pending_event: Dictionary = {}
 var tutorial_done := false
+var tutorial_step := 0
 
 func _ready() -> void:
 	rng.randomize()
@@ -189,6 +193,7 @@ func _load_defs() -> void:
 		if data is Array:
 			for node in data:
 				story_nodes[String(node.get("id", ""))] = node
+	_load_story_scenes()
 	f = FileAccess.open("res://data/combat.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -389,6 +394,7 @@ func new_game() -> void:
 	max_pages_unlocked = 2
 	pending_event = {}
 	tutorial_done = false
+	tutorial_step = 0
 	var start_items := [
 		["water_bottle_full", 92, true, false],
 		["cig_red", 88, true, false],
@@ -418,6 +424,8 @@ func new_game() -> void:
 	story_seen = []
 	story_flags = {}
 	pending_story = ""
+	story_queue = []
+	scene_seen = []
 	wanted_defeated = []
 	combat_active = false
 	ending_id = ""
@@ -436,10 +444,10 @@ func start_day() -> void:
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	customers_today = []
 	_gen_commissions()
-	_queue_story_for_day()
 	var count := rng.randi_range(3, 5)
 	for i in range(count):
 		customers_today.append(_gen_customer())
+	_queue_story_for_day()
 	emit_signal("state_changed")
 	if pending_story != "":
 		emit_signal("story_available", pending_story)
@@ -450,7 +458,6 @@ func _gen_customer() -> Dictionary:
 	var forced_tutorial := day == 1 and not tutorial_done and customers_today.is_empty()
 	if forced_tutorial:
 		arche = customer_defs[1].duplicate(true)
-		tutorial_done = true
 	var intent: String = arche.get("intent", "both")
 	if forced_tutorial:
 		intent = "sell"
@@ -669,7 +676,7 @@ func make_offer(price: int) -> Dictionary:
 		daily["bought"] = int(daily.get("bought", 0)) + 1
 		add_rep(current_customer["arche"].get("faction", "lower"), 2)
 		complete_customer(true)
-		return {"accepted": true, "text": "成交。你花 %d₵ 收下了 %s。" % [price, get_item_def(item["def_id"]).get("name", "")]}
+		return {"accepted": true, "text": "成交。你花 %d₵ 收下了 %s。" % [price, item_display_name(item)]}
 	current_customer["patience"] = int(current_customer.get("patience", 0)) - 1
 	if int(current_customer["patience"]) >= 0:
 		item["asking_price"] = int(item["min_price"])
@@ -1010,19 +1017,217 @@ func set_ending(id: String) -> void:
 func story_node(id: String) -> Dictionary:
 	return story_nodes.get(id, {})
 
+func _load_story_scenes() -> void:
+	story_scenes = []
+	var paths := ["res://data/story_scenes.json", "res://data_private/story_scenes_full.json"]
+	for path in paths:
+		var f := FileAccess.open(String(path), FileAccess.READ)
+		if not f:
+			continue
+		var data = JSON.parse_string(f.get_as_text())
+		if not data is Array:
+			continue
+		for scene in data:
+			if not scene is Dictionary:
+				continue
+			var sid := String(scene.get("id", ""))
+			if sid == "":
+				continue
+			var replaced := false
+			for i in range(story_scenes.size()):
+				if String(story_scenes[i].get("id", "")) == sid:
+					story_scenes[i] = scene
+					replaced = true
+					break
+			if not replaced:
+				story_scenes.append(scene)
+	for scene in story_scenes:
+		_build_scene_nodes(scene)
+
+func _build_scene_nodes(scene: Dictionary) -> void:
+	var sid := String(scene.get("id", ""))
+	var lines: Array = scene.get("lines", [])
+	var ids: Array = []
+	for i in range(lines.size()):
+		var line: Dictionary = lines[i]
+		var nid := "sc_%s_%d" % [sid, i]
+		story_nodes[nid] = {
+			"id": nid,
+			"speaker": String(line.get("speaker", scene.get("name", ""))),
+			"text": String(line.get("text", "")),
+			"portrait": String(line.get("portrait", scene.get("portrait", ""))),
+			"next": "",
+			"scene_id": sid,
+		}
+		ids.append(nid)
+	for i in range(ids.size() - 1):
+		story_nodes[ids[i]]["next"] = ids[i + 1]
+	if ids.is_empty():
+		return
+	var last := String(ids[ids.size() - 1])
+	var choices: Array = scene.get("choices", [])
+	if choices.is_empty():
+		story_nodes[last]["scene_end"] = sid
+		story_nodes[last]["on_done"] = scene.get("on_done", {})
+		return
+	var built: Array = []
+	var any_branch := false
+	for ci in range(choices.size()):
+		var choice: Dictionary = choices[ci]
+		var branch: Array = choice.get("next_lines", [])
+		var branch_ids: Array = []
+		for j in range(branch.size()):
+			var bline: Dictionary = branch[j]
+			var bid := "sc_%s_c%d_%d" % [sid, ci, j]
+			story_nodes[bid] = {
+				"id": bid,
+				"speaker": String(bline.get("speaker", scene.get("name", ""))),
+				"text": String(bline.get("text", "")),
+				"portrait": String(bline.get("portrait", scene.get("portrait", ""))),
+				"next": "",
+				"scene_id": sid,
+			}
+			branch_ids.append(bid)
+		for j in range(branch_ids.size() - 1):
+			story_nodes[branch_ids[j]]["next"] = branch_ids[j + 1]
+		if not branch_ids.is_empty():
+			any_branch = true
+			var bend := String(branch_ids[branch_ids.size() - 1])
+			story_nodes[bend]["scene_end"] = sid
+			story_nodes[bend]["on_done"] = scene.get("on_done", {})
+		built.append({
+			"text": String(choice.get("text", "选择")),
+			"effects": choice.get("effects", {}),
+			"requires_cash": int(choice.get("requires_cash", 0)),
+			"requires_rep": choice.get("requires_rep", {}),
+			"requires_flag": String(choice.get("requires_flag", "")),
+			"next": String(branch_ids[0]) if not branch_ids.is_empty() else "",
+			"ending": String(choice.get("ending", "")),
+		})
+	story_nodes[last]["choices"] = built
+	if not any_branch:
+		story_nodes[last]["scene_end"] = sid
+		story_nodes[last]["on_done"] = scene.get("on_done", {})
+
 func _queue_story_for_day() -> void:
 	pending_story = ""
+	story_queue.clear()
+	for nid in _queue_story_scenes():
+		story_queue.append(nid)
 	var map := {2: "mentor_day2", 3: "side_scavenger", 4: "security_day4", 6: "faction_day6", 7: "side_church", 8: "buyout_day8", 10: "finale_day10"}
 	if map.has(day):
 		var sid := String(map[day])
 		if not story_seen.has(sid):
-			pending_story = sid
+			story_queue.append(sid)
+	if not story_queue.is_empty():
+		pending_story = String(story_queue.pop_front())
+
+func _queue_story_scenes() -> Array:
+	var firsts: Array = []
+	for scene in story_scenes:
+		var sid := String(scene.get("id", ""))
+		if sid == "" or scene_seen.has(sid):
+			continue
+		if int(scene.get("day", 0)) != day:
+			continue
+		if not _scene_available(scene):
+			continue
+		var intent := String(scene.get("intent", "dialogue"))
+		if intent in ["sell", "buy"]:
+			customers_today.insert(0, _make_scene_customer(scene))
+		var nid := "sc_%s_0" % sid
+		if story_nodes.has(nid):
+			firsts.append(nid)
+	while customers_today.size() > 5:
+		customers_today.pop_back()
+	return firsts
+
+func _scene_available(scene: Dictionary) -> bool:
+	var flag := String(scene.get("requires_flag", ""))
+	if flag != "" and not story_flags.has(flag):
+		return false
+	if cash < int(scene.get("requires_cash", 0)):
+		return false
+	var req_rep: Dictionary = scene.get("requires_rep", {})
+	for k in req_rep.keys():
+		if int(rep.get(String(k), 0)) < int(req_rep[k]):
+			return false
+	return true
+
+func _make_scene_customer(scene: Dictionary) -> Dictionary:
+	var sid := String(scene.get("id", ""))
+	var intent := String(scene.get("intent", "dialogue"))
+	var arche := {
+		"name": String(scene.get("name", "顾客")),
+		"sprite": String(scene.get("portrait", "maleUpper_0.png")),
+		"faction": String(scene.get("faction", "lower")),
+		"greet": "",
+		"ask": "",
+		"price_mod": 1.0,
+		"budget": [0, 0],
+		"prefer_tags": scene.get("want_tags", []),
+	}
+	var c := {"arche": arche, "intent": intent, "patience": 99, "done": false, "line": "", "story_scene": sid}
+	if intent == "sell":
+		var item := make_item(String(scene.get("item_id", "scrap_metal")), int(scene.get("item_condition", 100)), true, bool(scene.get("stolen", false)))
+		item["known"] = false
+		item["custom_name"] = String(scene.get("item_name", ""))
+		item["custom_desc"] = String(scene.get("item_desc", ""))
+		var asking := int(scene.get("asking_price", 0))
+		if asking <= 0:
+			asking = int(round(market_value(item, false, String(arche["faction"])) * 1.3))
+		item["asking_price"] = asking
+		item["min_price"] = int(scene.get("min_price", int(round(asking * 0.75))))
+		c["item"] = item
+	elif intent == "buy":
+		c["budget"] = int(scene.get("budget", 100))
+		c["want_tags"] = scene.get("want_tags", [])
+		c["offer"] = 0
+		c["max_price"] = 0
+	return c
+
+func take_queued_story() -> String:
+	if story_queue.is_empty():
+		pending_story = ""
+		return ""
+	var sid := String(story_queue.pop_front())
+	pending_story = sid
+	return sid
+
+func choice_available(choice: Dictionary) -> bool:
+	if cash < int(choice.get("requires_cash", 0)):
+		return false
+	var req_rep: Dictionary = choice.get("requires_rep", {})
+	for k in req_rep.keys():
+		if int(rep.get(String(k), 0)) < int(req_rep[k]):
+			return false
+	var req_flag := String(choice.get("requires_flag", ""))
+	if req_flag != "" and not story_flags.has(req_flag):
+		return false
+	return true
+
+func item_display_name(item: Dictionary) -> String:
+	var custom := String(item.get("custom_name", ""))
+	if custom != "":
+		return custom
+	return String(get_item_def(String(item.get("def_id", ""))).get("name", ""))
+
+func item_description(item: Dictionary) -> String:
+	var custom := String(item.get("custom_desc", ""))
+	if custom != "":
+		return custom
+	return String(get_item_def(String(item.get("def_id", ""))).get("description", ""))
 
 func mark_story_seen(id: String) -> void:
 	if not story_seen.has(id):
 		story_seen.append(id)
 	if pending_story == id:
 		pending_story = ""
+	var node: Dictionary = story_nodes.get(id, {})
+	var sid := String(node.get("scene_end", ""))
+	if sid != "" and not scene_seen.has(sid):
+		scene_seen.append(sid)
+		apply_story_effects(node.get("on_done", {}))
 	emit_signal("state_changed")
 
 func apply_story_effects(effects: Dictionary) -> void:
@@ -1202,7 +1407,8 @@ func save_game() -> bool:
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
-		"wanted_defeated": wanted_defeated, "ending_id": ending_id,
+		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
+		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -1250,7 +1456,10 @@ func load_game() -> bool:
 	commissions = data.get("commissions", []).duplicate(true)
 	story_seen = data.get("story_seen", []).duplicate(true)
 	story_flags = data.get("story_flags", {}).duplicate(true)
+	scene_seen = data.get("scene_seen", []).duplicate(true)
 	wanted_defeated = data.get("wanted_defeated", []).duplicate(true)
+	tutorial_done = bool(data.get("tutorial_done", false))
+	tutorial_step = int(data.get("tutorial_step", 0))
 	ending_id = String(data.get("ending_id", ""))
 	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)
