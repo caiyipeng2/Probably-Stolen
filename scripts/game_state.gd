@@ -50,6 +50,7 @@ var combat_log: Array = []
 var combat_skill_cd := 0
 var combat_guarding := false
 var combat_wanted_id := ""
+var combat_context := ""
 var ending_id := ""
 var machine_jobs: Array = []
 var power := 10
@@ -796,7 +797,20 @@ func finish_day() -> Dictionary:
 			summary["loan_paid"] = loan
 			loan_due = 12
 		else:
-			summary["gameover"] = "loan"
+			summary["gameover"] = "repo"
+	if summary["gameover"] == "":
+		if int(rep.get("security", 0)) <= -35:
+			summary["gameover"] = "sec"
+		elif int(rep.get("blackmarket", 0)) <= -35:
+			summary["gameover"] = "hitman"
+		elif int(rep.get("cartel", 0)) <= -35:
+			summary["gameover"] = "mob"
+		elif int(rep.get("upper", 0)) <= -35:
+			summary["gameover"] = "execution"
+		elif int(rep.get("rev", 0)) <= -35:
+			summary["gameover"] = "sentinel"
+	if String(summary["gameover"]) != "":
+		ending_id = String(summary["gameover"])
 	summary["cash"] = cash
 	summary["rent"] = rent
 	summary["rent_due"] = rent_due
@@ -828,17 +842,24 @@ func apply_event(choice_index: int) -> void:
 	var changes: Dictionary = ch.get("rep", {})
 	for k in changes.keys():
 		add_rep(k, int(changes[k]))
+	var confiscated := 0
 	if bool(ch.get("confiscate", false)):
 		for i in range(inventory.size() - 1, -1, -1):
 			if int(get_item_def(inventory[i].get("def_id", "")).get("contraband", 0)) > 0:
 				inventory.remove_at(i)
+				confiscated += 1
 		for i in range(display.size() - 1, -1, -1):
 			if int(get_item_def(display[i].get("def_id", "")).get("contraband", 0)) > 0:
 				display.remove_at(i)
+				confiscated += 1
 		_refresh_pages()
 	pending_event = {}
-	if cash < 0:
+	if confiscated > 0 and int(rep.get("security", 0)) <= -20:
 		phase = "gameover"
+		ending_id = "arrest"
+	elif cash < 0:
+		phase = "gameover"
+		ending_id = "rent"
 	emit_signal("state_changed")
 
 func upgrade_total(effect: String) -> int:
@@ -924,7 +945,7 @@ func ending_def(id: String) -> Dictionary:
 			return e
 	return {}
 
-func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "") -> Dictionary:
+func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "", context: String = "") -> Dictionary:
 	var e := enemy_def(enemy_id)
 	if e.is_empty():
 		return {"ok": false, "text": "敌人不存在。"}
@@ -941,6 +962,7 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	combat_skill_cd = 0
 	combat_guarding = false
 	combat_wanted_id = wanted_id
+	combat_context = context
 	combat_log = ["遭遇：%s" % e.get("name", enemy_id)]
 	emit_signal("combat_started")
 	emit_signal("state_changed")
@@ -1002,6 +1024,16 @@ func combat_action(action: String) -> Dictionary:
 		cash = maxi(0, cash - 100)
 		add_rep("lower", -3)
 		combat_active = false
+		var end_id := ""
+		if combat_context == "security_raid":
+			end_id = "sec"
+		elif combat_context == "street_ambush":
+			end_id = "mob"
+		elif String(combat_enemy.get("id", "")) == "boss_lou":
+			end_id = "lou_bombed"
+		if end_id != "":
+			phase = "gameover"
+			ending_id = end_id
 		emit_signal("combat_finished", false, "你被打倒了，损失 100₵。")
 		emit_signal("state_changed")
 		return {"ok": true, "text": "战斗失败。"}

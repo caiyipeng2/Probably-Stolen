@@ -503,7 +503,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M8", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M9", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -1420,8 +1420,13 @@ func _show_day_summary(s: Dictionary) -> void:
 		text += "贷款还款：-%d¥\n" % int(s["loan_paid"])
 	text += "\n当前现金：%d¥\n下次房租：%d¥（%d 天后）\n下次贷款：%d 天后" % [int(s.get("cash", 0)), int(s.get("rent", 0)), int(s.get("rent_due", 0)), int(s.get("loan_due", 0))]
 	var actions: Array = []
-	if String(s.get("gameover", "")) != "":
-		text += "\n\n你没能付清%s，店铺被收走了。" % ("房租" if s["gameover"] == "rent" else "贷款")
+	var go := String(s.get("gameover", ""))
+	if go != "":
+		var e := GameState.ending_def(go)
+		if not e.is_empty():
+			text += "\n\n【%s】\n%s" % [e.get("title", "结局"), e.get("text", "")]
+		else:
+			text += "\n\n你没能付清%s，店铺被收走了。" % ("房租" if go == "rent" else "贷款")
 		actions.append({"label": "重新开始", "cb": _restart_game, "color": C_RUST})
 	else:
 		actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
@@ -1918,6 +1923,13 @@ func _on_combat_finished(victory: bool, message: String) -> void:
 	_play_sfx("cash" if victory else "fail")
 	combat_layer.visible = false
 	_refresh()
+	if not victory and GameState.phase == "gameover" and GameState.ending_id != "":
+		var e := GameState.ending_def(GameState.ending_id)
+		var body := message
+		if not e.is_empty():
+			body += "\n\n【%s】\n%s" % [e.get("title", "结局"), e.get("text", "")]
+		_show_modal("结局", body, [{"label": "重新开始", "cb": _restart_game, "color": C_RUST}, {"label": "关闭", "cb": _close_modal}])
+		return
 	_show_modal("战斗结果", message, [{"label": "关闭", "cb": _close_modal}])
 
 func _update_combat_ui() -> void:
@@ -2192,9 +2204,13 @@ func _on_event_choice(index: int, result: String) -> void:
 		choice = choices[index]
 	GameState.apply_event(index)
 	_refresh()
+	if GameState.phase == "gameover" and GameState.ending_id != "":
+		_close_modal()
+		_show_ending(GameState.ending_id)
+		return
 	if choice.has("combat"):
 		_close_modal()
-		GameState.start_combat(String(choice.get("combat", "")), "security", "")
+		GameState.start_combat(String(choice.get("combat", "")), "security", "", String(ev.get("id", "")))
 	else:
 		_show_modal("事件结果", result, [{"label": "继续", "cb": _close_modal}])
 
