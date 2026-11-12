@@ -1,10 +1,11 @@
-# 深空当铺手机版（M16）
+# 深空当铺手机版（M17）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M1–M15 已完成；当前为 **M16 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、公开版音频/图标替换、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成；当前为 **M17 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、447+ 公开物品图标/公开音频、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M16 私有构建）：`build/probably_stolen_m16.apk`
+- APK（M17 私有构建）：`build/probably_stolen_m17.apk`
+- M16 APK：`build/probably_stolen_m16.apk`
 - M15 APK：`build/probably_stolen_m15.apk`
 - M14 APK：`build/probably_stolen_m14.apk`
 - M13 APK：`build/probably_stolen_m13.apk`
@@ -80,6 +81,7 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M15 已完成
   - `57_m15_growth.png` 水培种植成熟与收获
   - `58_m16_archive.png` 全量对话档案
   - `59_m16_machine_catalog.png` 26 台机器目录
+  - `60_m17_welcome.png` M17 欢迎界面
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -248,6 +250,13 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **测试**：`test_archive.gd` 验证 34 组 / 2544 条加载；机器目录/配方回归通过。
 - **边界**：对话档案是全文浏览，不是逐条剧情图；新增机器为代表性配方，不覆盖原版全部变体/装饰类。
 
+## M17 已完成（全量公开物品图标）
+
+- **逐物品图标**：公开素材扩展到 **447 个私有目录物品 + 12 个公开独有物品**，每个物品一个原创占位图标（类别符号 + 物品色 + 初始字母）。
+- **回退链**：私有图标优先；私有/旧素材缺失时按物品 ID 使用 `assets_public/items/<id>.png`，再回退分类图标。
+- **验证**：Godot 导入通过；公开预览与私有构建均无资源错误。
+- **边界**：图标为占位设计，不追求与原版逐物品一致；后续可替换为精细原创图标。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -263,7 +272,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m16.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m17.apk
 ```
 
 开发调试参数：
@@ -328,4 +337,6 @@ godot --path . --dumpinspect
 - M15 边界：生长周期为固定 3 次收获，未模拟疾病/水质/饲料配比；难度只调整资金/房租/预算/伤害，不改剧情与结局条件。
 - M16 已完成：2544 条对话档案（34 组）、机器目录 26 台、配方原料显示。
 - M16 边界：对话档案为全文浏览而非逐条剧情图；机器新增代表性配方，原版装饰/变体类未逐一复制。
-- 后续：完整对话剧情图、原版机器变体/装饰类、精细公开立绘/图标。
+- M17 已完成：447+12 个公开物品独立图标，公开图标回退链完整。
+- M17 边界：公开图标为占位设计；完整对话剧情图、原版机器变体/装饰类、精细公开立绘仍为长期工作。
+- 后续：完整对话剧情图、原版机器变体/装饰类、精细公开立绘。
