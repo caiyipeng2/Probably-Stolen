@@ -15,6 +15,11 @@ const GRID_H := 3
 const GRID_PAGES := 3
 const DISPLAY_SLOTS := 6
 const RETAIL_MARKUP := 15.0
+const MACHINE_FAULTS := {
+	"jam": {"name": "卡料", "fee": 30},
+	"surge": {"name": "电压浪涌", "fee": 60},
+	"contamination": {"name": "污染", "fee": 80},
+}
 
 var items_def: Dictionary = {}
 var tradable_pool: Array = []
@@ -58,6 +63,7 @@ var max_power := 10
 var machine_modules: Dictionary = {}
 var machine_temps: Dictionary = {}
 var machine_durability: Dictionary = {}
+var machine_faults: Dictionary = {}
 
 var day := 1
 var cash := 600
@@ -436,6 +442,7 @@ func new_game() -> void:
 	machine_modules = {}
 	machine_temps = {}
 	machine_durability = {}
+	machine_faults = {}
 	start_day()
 
 func start_day() -> void:
@@ -860,6 +867,9 @@ func apply_event(choice_index: int) -> void:
 	var changes: Dictionary = ch.get("rep", {})
 	for k in changes.keys():
 		add_rep(k, int(changes[k]))
+	if bool(ch.get("repair_all", false)):
+		machine_durability = {}
+		machine_faults = {}
 	var end_id := String(ch.get("ending", ""))
 	if end_id != "" and rng.randf() < float(ch.get("ending_chance", 1.0)):
 		phase = "gameover"
@@ -1399,6 +1409,9 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 	for j in machine_jobs:
 		if String(j.get("machine_id", "")) == machine_id:
 			return {"ok": false, "text": "%s 正在运行。" % m.get("name", machine_id)}
+	if machine_faults.has(machine_id):
+		var fault := String(machine_faults[machine_id])
+		return {"ok": false, "text": "%s 故障：%s，请先维修。" % [m.get("name", machine_id), machine_fault_name(fault)]}
 	if int(machine_durability.get(machine_id, 100)) <= 0:
 		return {"ok": false, "text": "%s 已损坏，请先维修。" % m.get("name", machine_id)}
 	var lvl := int(machine_temps.get(machine_id, 2))
@@ -1449,21 +1462,42 @@ func set_machine_temp(machine_id: String, level: int) -> void:
 	machine_temps[machine_id] = clampi(level, 1, 3)
 	emit_signal("state_changed")
 
+func machine_fault_name(fault: String) -> String:
+	return String(MACHINE_FAULTS.get(fault, {}).get("name", fault))
+
+func machine_fault_fee(fault: String) -> int:
+	return int(MACHINE_FAULTS.get(fault, {}).get("fee", 0))
+
+func _roll_machine_fault(machine_id: String) -> String:
+	var temp := clampi(int(machine_temps.get(machine_id, 2)), 1, 3)
+	var chance: float = [0.03, 0.06, 0.12][temp - 1]
+	if int(machine_durability.get(machine_id, 100)) < 30:
+		chance += 0.05
+	if rng.randf() >= chance:
+		return ""
+	var keys := MACHINE_FAULTS.keys()
+	return String(keys[rng.randi_range(0, keys.size() - 1)])
+
 func machine_repair_cost(machine_id: String) -> int:
 	var m := machine_def(machine_id)
-	return 60 + int(m.get("power", 2)) * 20
+	var cost := 60 + int(m.get("power", 2)) * 20
+	if machine_faults.has(machine_id):
+		cost += machine_fault_fee(String(machine_faults[machine_id]))
+	return cost
 
 func repair_machine(machine_id: String) -> Dictionary:
 	var m := machine_def(machine_id)
 	if m.is_empty():
 		return {"ok": false, "text": "没有这台机器。"}
-	if int(machine_durability.get(machine_id, 100)) >= 100:
+	var has_fault := machine_faults.has(machine_id)
+	if int(machine_durability.get(machine_id, 100)) >= 100 and not has_fault:
 		return {"ok": false, "text": "%s 状态良好，不需要维修。" % m.get("name", machine_id)}
 	var cost := machine_repair_cost(machine_id)
 	if cash < cost:
 		return {"ok": false, "text": "维修需要 %d₵，现金不足。" % cost}
 	cash -= cost
 	machine_durability[machine_id] = 100
+	machine_faults.erase(machine_id)
 	emit_signal("state_changed")
 	return {"ok": true, "text": "%s 已维修，花费 %d₵。" % [m.get("name", machine_id), cost]}
 
@@ -1496,6 +1530,10 @@ func _process(delta: float) -> void:
 		var msg := "%s 完成：+%s" % [j.get("name", ""), "、".join(got)]
 		if dur <= 0:
 			msg += "（机器损坏，需要维修）"
+		var fault := _roll_machine_fault(mid)
+		if fault != "":
+			machine_faults[mid] = fault
+			msg += "（故障：%s）" % machine_fault_name(fault)
 		emit_signal("machine_finished", msg)
 	emit_signal("state_changed")
 
@@ -1504,7 +1542,7 @@ func save_game() -> bool:
 		"version": 1, "day": day, "cash": cash, "rent": rent, "rent_due": rent_due,
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
-		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability,
+		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
@@ -1565,6 +1603,7 @@ func load_game() -> bool:
 	machine_modules = data.get("machine_modules", {}).duplicate(true)
 	machine_temps = data.get("machine_temps", {}).duplicate(true)
 	machine_durability = data.get("machine_durability", {}).duplicate(true)
+	machine_faults = data.get("machine_faults", {}).duplicate(true)
 	machine_jobs = data.get("machine_jobs", []).duplicate(true)
 	for j in machine_jobs:
 		j["remaining"] = float(j.get("remaining", 0.0))

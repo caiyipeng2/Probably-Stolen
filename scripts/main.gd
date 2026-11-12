@@ -545,7 +545,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M13", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M14", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -1542,8 +1542,10 @@ func _rebuild_machine_list() -> void:
 	for m in GameState.machines:
 		var mid := String(m.get("id", ""))
 		var dur := int(GameState.machine_durability.get(mid, 100))
+		var fault := String(GameState.machine_faults.get(mid, ""))
+		var suffix := "（损坏）" if dur <= 0 else ("（故障）" if fault != "" else "")
 		var text := "%s
-%d电 · %.0fs · 耐久%d%s" % [m.get("name", mid), int(m.get("power", 0)), float(m.get("time", 0.0)), dur, "（损坏）" if dur <= 0 else ""]
+%d电 · %.0fs · 耐久%d%s" % [m.get("name", mid), int(m.get("power", 0)), float(m.get("time", 0.0)), dur, suffix]
 		var b := _button(machine_list_box, text, Vector2.ZERO, Vector2(480, 64), C_TEXT, _select_machine.bind(mid))
 		b.custom_minimum_size = Vector2(480, 64)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1572,7 +1574,9 @@ func _refresh_machine_panel() -> void:
 		use_power = maxi(1, use_power - 1)
 	machine_name_label.text = String(m.get("name", ""))
 	var dur := int(GameState.machine_durability.get(selected_machine_id, 100))
-	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_time, int(m.get("temp", 24)), dur, "（已损坏）" if dur <= 0 else ""]
+	var fault := String(GameState.machine_faults.get(selected_machine_id, ""))
+	var state_text := "（已损坏）" if dur <= 0 else ("（故障：%s）" % GameState.machine_fault_name(fault) if fault != "" else "")
+	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_time, int(m.get("temp", 24)), dur, state_text]
 	var ins: Array = []
 	for i in m.get("inputs", []):
 		var d := GameState.get_item_def(String(i.get("id", "")))
@@ -1592,13 +1596,13 @@ func _refresh_machine_panel() -> void:
 	for i in range(temp_buttons.size()):
 		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
 	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
-	machine_start_btn.disabled = dur <= 0
+	machine_start_btn.disabled = dur <= 0 or fault != ""
 	for j in GameState.machine_jobs:
 		if String(j.get("machine_id", "")) == selected_machine_id:
 			machine_start_btn.disabled = true
 	if machine_repair_btn:
 		machine_repair_btn.text = "维修 %d₵" % GameState.machine_repair_cost(selected_machine_id)
-		machine_repair_btn.disabled = dur >= 100
+		machine_repair_btn.disabled = dur >= 100 and fault == ""
 	_refresh_machine_jobs()
 	_refresh_machine_selection()
 
