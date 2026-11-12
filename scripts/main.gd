@@ -122,6 +122,7 @@ var sfx_next := 0
 var sfx_cache: Dictionary = {}
 var audio_enabled := true
 var audio_toggle_btn: Button
+var force_public_assets := false
 
 var selected_uid := -1
 var current_page := 0
@@ -135,6 +136,7 @@ var welcome_shown := false
 var last_summary: Dictionary = {}
 
 func _ready() -> void:
+	force_public_assets = "--publicassets" in OS.get_cmdline_args()
 	_setup_theme()
 	_setup_audio()
 	_build_ui()
@@ -448,6 +450,26 @@ func _button(parent: Node, text: String, pos: Vector2, size: Vector2, color: Col
 	parent.add_child(b)
 	return b
 
+func _art_path(name: String) -> String:
+	var private_path := "res://assets/art/" + name
+	var public_path := "res://assets_public/art/" + name
+	if force_public_assets:
+		return public_path if ResourceLoader.exists(public_path) else private_path
+	return private_path if ResourceLoader.exists(private_path) else public_path
+
+func _customer_path(sprite: String) -> String:
+	if sprite == "":
+		return ""
+	var private_path := "res://assets/customers/" + sprite
+	var public_path := "res://assets_public/customers/" + sprite
+	if force_public_assets or not ResourceLoader.exists(private_path):
+		if ResourceLoader.exists(public_path):
+			return public_path
+		var fallback := "res://assets_public/customers/default.png"
+		if ResourceLoader.exists(fallback):
+			return fallback
+	return private_path
+
 func _texture_rect(parent: Node, pos: Vector2, size: Vector2, path: String) -> TextureRect:
 	var tr := TextureRect.new()
 	tr.position = pos
@@ -474,9 +496,9 @@ func _build_ui() -> void:
 	back.color = Color("#0b0e14")
 	back.size = Vector2(1920, 1080)
 	game_view.add_child(back)
-	bg_window = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), ART_BG)
-	customer_rect = _texture_rect(game_view, Vector2(635, 5), Vector2(677, 496), "res://assets/customers/maleUpper_0.png")
-	fg = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), ART_FG)
+	bg_window = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_bg_window.png"))
+	customer_rect = _texture_rect(game_view, Vector2(635, 5), Vector2(677, 496), _customer_path("maleUpper_0.png"))
+	fg = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_fg.png"))
 	var glass := ColorRect.new()
 	glass.position = Vector2(650, 5)
 	glass.size = Vector2(630, 515)
@@ -503,7 +525,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M10", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M11", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -1057,7 +1079,7 @@ func _update_customer() -> void:
 	var intent_text := "出售物品" if c.get("intent") == "sell" else "想买东西"
 	customer_info_label.text = "阵营：%s\n意图：%s\n今日第 %d / %d 位" % [_faction_name(arche.get("faction", "lower")), intent_text, GameState.current_index + 1, GameState.customers_today.size()]
 	var sprite := String(arche.get("sprite", "maleUpper_0.png"))
-	var path := "res://assets/customers/" + sprite
+	var path := _customer_path(sprite)
 	if ResourceLoader.exists(path):
 		customer_rect.texture = load(path)
 	dialogue_name.text = "%s · %s" % [arche.get("name", "顾客"), intent_text]
@@ -1840,7 +1862,7 @@ func _show_story(node_id: String) -> void:
 	story_name.text = String(node.get("speaker", "剧情"))
 	story_text.text = String(node.get("text", ""))
 	var portrait := String(node.get("portrait", ""))
-	var path := "res://assets/customers/" + portrait
+	var path := _customer_path(portrait)
 	if ResourceLoader.exists(path):
 		story_portrait.texture = load(path)
 		story_portrait.visible = true
@@ -1937,7 +1959,7 @@ func _update_combat_ui() -> void:
 		return
 	var e := GameState.combat_enemy
 	combat_enemy_name.text = String(e.get("name", ""))
-	var path := "res://assets/customers/" + String(e.get("sprite", ""))
+	var path := _customer_path(String(e.get("sprite", "")))
 	combat_enemy_sprite.texture = load(path) if ResourceLoader.exists(path) else null
 	combat_enemy_bar.max_value = maxi(1, int(e.get("hp", 40)))
 	combat_enemy_bar.value = clampi(GameState.combat_enemy_hp, 0, int(e.get("hp", 40)))

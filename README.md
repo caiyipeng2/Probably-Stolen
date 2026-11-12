@@ -1,10 +1,11 @@
-# 深空当铺手机版（M10）
+# 深空当铺手机版（M11）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M1–M9 已完成；当前为 **M10 私有构建**：后日谈剧情池、机器小游戏、17 种失败/终局结局全部接入、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M10 已完成；当前为 **M11 私有构建**：后日谈剧情池、机器小游戏、17 种失败/终局结局、公开版替换素材回退、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M10 私有构建）：`build/probably_stolen_m10.apk`
+- APK（M11 私有构建）：`build/probably_stolen_m11.apk`
+- M10 APK：`build/probably_stolen_m10.apk`
 - M9 APK：`build/probably_stolen_m9.apk`
 - M8 APK：`build/probably_stolen_m8.apk`
 - M7 APK：`build/probably_stolen_m7.apk`
@@ -64,6 +65,8 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M9 已完成�
   - `47_m8_dna_started.png` DNA 不匹配重试
   - `48_m9_welcome.png` M9 欢迎界面
   - `49_m10_welcome.png` M10 欢迎界面
+  - `50_m11_public_preview.png` 公开版素材预览（--publicassets）
+  - `51_m11_welcome.png` M11 欢迎界面
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -181,6 +184,14 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **测试**：`test_endings.gd` 覆盖欠租、贷款、声望、查抄、夜间战斗、Boss、事件结局、动态买店/卡特尔、债务 Boss，共 12 条路径全部通过。
 - **真机**：M10 APK 安装启动正常；结局数据与事件加载无报错。
 
+## M11 已完成（公开版素材替换第一批）
+
+- **原创替换素材**：程序化生成 `assets_public/`，包含店铺背景/前景框、9 类顾客头像 + 默认头像、17 个分类物品图标；不包含原版贴图、Logo、角色或音频。
+- **回退链**：`assets_private/` → `assets/` → `assets_public/` → 通用分类图标；私有素材缺失时公开版仍可运行。
+- **预览开关**：`--publicassets` 强制跳过私有/旧素材路径，桌面截图验证通过（背景、Georgio 头像、分类图标均正常）。
+- **文档**：`docs/公开版素材清单.md` 列出已替换/未替换项与回退顺序。
+- **边界**：公开版音频仍为空，物品图标为分类占位而非逐物品原创；后续继续替换逐物品图标与音频。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -196,7 +207,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m10.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m11.apk
 ```
 
 开发调试参数：
@@ -217,10 +228,12 @@ godot --path . --dumpinspect
 - `scripts/main.gd`：触屏 UI、背包、展示柜、弹窗、交互。
 - `data/`：物品、顾客、事件 JSON。
 - `assets/`：像素场景、顾客立绘、物品图标、像素字体。
+- `assets_public/`：公开版原创替换素材（背景/头像/分类图标）。
 - `docs/立项方案.md`：全量 1:1 目标与 M1–M6 路线。
 - `docs/内容对齐清单.md`：原版/当前内容量对照与缺口。
 - `docs/剧情场景清单.md`：已导入剧情场景、触发日期与效果。
 - `docs/平衡报告.md`：30 局经济模拟与战斗胜率。
+- `docs/公开版素材清单.md`：公开版替换素材、回退顺序与未替换项。
 - `_research/`：拆包、反编译、效果图与测试截图，已排除在 APK 与公开仓库之外。
 
 ## 素材与版权
@@ -247,4 +260,6 @@ godot --path . --dumpinspect
 - M9 边界：当时 17 种原版结局 id 中 7 条专属触发仍为数据待接入；M10 已补齐。
 - M10 已完成：4 个结局触发事件、买店按揭/卡特尔退休动态结局、Boss 债务结局；17 种原版失败/终局 id 全部接入，21 条结局数据。
 - M10 边界：部分结局为压缩改编（反应堆/义体/售货机无独立系统，以夜间事件表现）；战斗仍为简化回合制。
-- 后续：公开版素材替换、机器损坏/维修、剩余机器深度玩法。
+- M11 已完成：公开版原创背景/前景/9 顾客头像/17 分类图标、素材回退链、`--publicassets` 预览、公开版素材清单。
+- M11 边界：公开版音频为空，物品图标为分类占位；逐物品图标与音频替换仍在后续。
+- 后续：逐物品公开图标、公开版音频替换、机器损坏/维修、剩余机器深度玩法。

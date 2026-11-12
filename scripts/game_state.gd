@@ -520,17 +520,27 @@ func next_customer() -> void:
 	emit_signal("customer_changed")
 	emit_signal("state_changed")
 
+func _public_item_icon(def: Dictionary) -> String:
+	var cat := String(def.get("category", "misc"))
+	var p := "res://assets_public/icons/" + cat + ".png"
+	if ResourceLoader.exists(p):
+		return p
+	p = "res://assets_public/icons/generic.png"
+	if ResourceLoader.exists(p):
+		return p
+	return ""
+
 func item_icon_path(def: Dictionary) -> String:
 	var icon := String(def.get("icon", ""))
-	if icon == "":
-		return "res://assets/items/magnifier.png"
-	var p := "res://assets_private/items/" + icon
-	if ResourceLoader.exists(p):
-		return p
-	p = "res://assets/items/" + icon
-	if ResourceLoader.exists(p):
-		return p
-	return "res://assets/items/magnifier.png"
+	var force_public := "--publicassets" in OS.get_cmdline_args()
+	if not force_public and icon != "":
+		var p := "res://assets_private/items/" + icon
+		if ResourceLoader.exists(p):
+			return p
+		p = "res://assets/items/" + icon
+		if ResourceLoader.exists(p):
+			return p
+	return _public_item_icon(def)
 
 func effective_value(item: Dictionary) -> int:
 	if item.is_empty():
