@@ -66,6 +66,18 @@ var temp_buttons: Array = []
 var machine_list_buttons: Dictionary = {}
 var selected_machine_id := ""
 var machine_ui_timer := 0.0
+var info_layer: Control
+var info_title: Label
+var info_tab := "network"
+var info_list_box: VBoxContainer
+var info_list_buttons: Dictionary = {}
+var info_selected_id := ""
+var info_name: Label
+var info_meta: Label
+var info_body: Label
+var info_action: Button
+var info_status: Label
+var info_tab_buttons: Dictionary = {}
 var action_buttons: Dictionary = {}
 var rail_buttons: Dictionary = {}
 var rep_labels: Dictionary = {}
@@ -291,6 +303,7 @@ func _build_ui() -> void:
 	_build_drawer()
 	_build_modal()
 	_build_machine_bay()
+	_build_info_bay()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
@@ -467,6 +480,42 @@ func _build_machine_bay() -> void:
 	var jobs_panel := _panel(panel, Vector2(570, 700), Vector2(1280, 250), C_PANEL2, C_LINE, 2)
 	_label(jobs_panel, "运行队列", Vector2(24, 12), Vector2(300, 32), 24, C_AMBER)
 	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 180), 22, C_TEXT)
+
+func _build_info_bay() -> void:
+	info_layer = Control.new()
+	info_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	info_layer.visible = false
+	info_layer.z_index = 120
+	info_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(info_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.8)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	info_layer.add_child(dim)
+	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
+	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
+	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
+	var tabs := [["网络", "network"], ["专精", "professions"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"]]
+	for i in range(tabs.size()):
+		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 156, 70), Vector2(144, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
+		info_tab_buttons[tabs[i][1]] = tb
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(24, 130)
+	scroll.size = Vector2(520, 790)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.add_theme_stylebox_override("panel", _style(C_PANEL2, C_LINE, 2))
+	panel.add_child(scroll)
+	info_list_box = VBoxContainer.new()
+	info_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	info_list_box.add_theme_constant_override("separation", 8)
+	scroll.add_child(info_list_box)
+	var detail := _panel(panel, Vector2(570, 130), Vector2(1280, 760), C_PANEL2, C_LINE, 2)
+	info_name = _label(detail, "", Vector2(24, 16), Vector2(1000, 44), 34, C_TEXT)
+	info_meta = _label(detail, "", Vector2(24, 64), Vector2(1230, 30), 22, C_AMBER)
+	info_body = _label(detail, "", Vector2(24, 108), Vector2(1230, 500), 20, C_TEXT)
+	info_action = _button(detail, "操作", Vector2(24, 630), Vector2(280, 64), C_AMBER, _info_action)
+	info_status = _label(detail, "", Vector2(330, 640), Vector2(900, 52), 20, C_MUTED)
 
 func _refresh() -> void:
 	if not is_inside_tree():
@@ -798,7 +847,7 @@ func _on_customer_changed() -> void:
 func _on_rail(key: String) -> void:
 	match key:
 		"customers":
-			_toast("今日共 %d 位顾客，当前第 %d 位。" % [GameState.customers_today.size(), GameState.current_index + 1])
+			_open_info_tab("customers")
 		"inventory":
 			_toast("底部就是你的异形格背包。点选物品查看详情，拖动可以换位置。")
 		"network":
@@ -806,7 +855,7 @@ func _on_rail(key: String) -> void:
 		"factions":
 			_open_factions()
 		"phone":
-			_toast("手机/短信系统将在 M4 模块开放。M1 先跑通经营循环。")
+			_open_info_tab("phone")
 		"machines":
 			_open_machines()
 		"ledger":
@@ -1017,45 +1066,186 @@ func _process(delta: float) -> void:
 		_refresh_machine_jobs()
 		machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
 
-func _open_factions() -> void:
-	var text := "派系声望
+func _open_info_tab(tab: String) -> void:
+	info_layer.visible = true
+	info_tab = tab
+	info_selected_id = ""
+	_refresh_info_tabs()
+	_rebuild_info_list()
+	_refresh_info_detail()
 
-"
-	for f in GameState.factions:
-		var fid := String(f.get("id", ""))
-		var v := int(GameState.rep.get(fid, 0))
-		var next := GameState.faction_next_perk(fid)
-		var next_text := "已满"
-		if not next.is_empty():
-			next_text = "下一档 %d：%s" % [int(next.get("threshold", 0)), next.get("name", "")]
-		text += "%s  %+d  %s
-" % [f.get("name", fid), v, next_text]
-	_show_modal("派系声望", text, [{"label": "关闭", "cb": _close_modal}])
-	modal_text.add_theme_font_size_override("font_size", 19)
+func _close_info() -> void:
+	info_layer.visible = false
+
+func _switch_info_tab(tab: String) -> void:
+	info_tab = tab
+	info_selected_id = ""
+	_refresh_info_tabs()
+	_rebuild_info_list()
+	_refresh_info_detail()
+
+func _refresh_info_tabs() -> void:
+	for k in info_tab_buttons.keys():
+		info_tab_buttons[k].modulate = Color(1.25, 1.12, 0.72) if k == info_tab else Color.WHITE
+
+func _rebuild_info_list() -> void:
+	_clear_children(info_list_box)
+	info_list_buttons.clear()
+	match info_tab:
+		"network":
+			for u in GameState.upgrades:
+				var uid := String(u.get("id", ""))
+				var owned := GameState.owned_upgrades.has(uid)
+				var text := "%s · %s" % [u.get("name", uid), "已拥有" if owned else "%d₵" % int(u.get("cost", 0))]
+				_add_info_button(text, uid)
+		"professions":
+			for p in GameState.professions:
+				_add_info_button(String(p.get("name", p.get("id", ""))), String(p.get("id", "")))
+		"factions":
+			for f in GameState.factions:
+				var fid := String(f.get("id", ""))
+				_add_info_button("%s  %+d" % [f.get("name", fid), int(GameState.rep.get(fid, 0))], fid)
+		"customers":
+			for c in GameState.customer_defs:
+				var cid := String(c.get("id", ""))
+				_add_info_button("%s · %s" % [c.get("name", cid), _faction_short(String(c.get("faction", "")))], cid)
+		"phone":
+			for c in GameState.commissions:
+				var d := GameState.get_item_def(String(c.get("item_id", "")))
+				_add_info_button("%s x%d · %d₵" % [d.get("name", c.get("item_id", "")), int(c.get("count", 1)), int(c.get("reward", 0))], String(c.get("id", "")))
+	if info_selected_id == "" and not info_list_buttons.is_empty():
+		info_selected_id = String(info_list_buttons.keys()[0])
+	_refresh_info_selection()
+
+func _add_info_button(text: String, id: String) -> void:
+	var b := _button(info_list_box, text, Vector2.ZERO, Vector2(480, 56), C_TEXT, _select_info_entry.bind(id))
+	b.custom_minimum_size = Vector2(480, 56)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 18)
+	info_list_buttons[id] = b
+
+func _refresh_info_selection() -> void:
+	for k in info_list_buttons.keys():
+		info_list_buttons[k].modulate = Color(1.25, 1.12, 0.72) if k == info_selected_id else Color.WHITE
+
+func _select_info_entry(id: String) -> void:
+	info_selected_id = id
+	_refresh_info_selection()
+	_refresh_info_detail()
+
+func _refresh_info_detail() -> void:
+	info_name.text = ""
+	info_meta.text = ""
+	info_body.text = ""
+	info_status.text = ""
+	info_action.visible = false
+	info_action.disabled = false
+	match info_tab:
+		"network":
+			var u := GameState.upgrade_def(info_selected_id)
+			if u.is_empty():
+				return
+			info_name.text = String(u.get("name", ""))
+			var owned := GameState.owned_upgrades.has(info_selected_id)
+			info_meta.text = "%d₵ · 效果：%s" % [int(u.get("cost", 0)), u.get("desc", "")]
+			info_body.text = String(u.get("desc", "")) + "
+
+" + ("已拥有" if owned else "购买后立即生效，状态随存档保存。")
+			info_action.visible = true
+			info_action.text = "购买 %d₵" % int(u.get("cost", 0))
+			info_action.disabled = owned or GameState.cash < int(u.get("cost", 0))
+			info_status.text = "已拥有" if owned else ("现金不足" if GameState.cash < int(u.get("cost", 0)) else "可购买")
+		"professions":
+			var p := {}
+			for x in GameState.professions:
+				if String(x.get("id", "")) == info_selected_id:
+					p = x
+					break
+			if p.is_empty():
+				return
+			var items: Array = []
+			for entry in p.get("items", []):
+				var d := GameState.get_item_def(String(entry[0]))
+				items.append("%sx%d" % [d.get("name", entry[0]), int(entry[1])])
+			info_name.text = String(p.get("name", ""))
+			info_meta.text = "启动资金 +%d₵ · %s" % [int(p.get("cash", 0)), "、".join(items) if not items.is_empty() else "无额外物品"]
+			info_body.text = String(p.get("desc", ""))
+			info_action.visible = true
+			info_action.text = "选择专精"
+			info_action.disabled = GameState.profession_chosen
+			info_status.text = "已选择：%s" % GameState.profession_id if GameState.profession_chosen else "仅本局第一次选择生效"
+		"factions":
+			var f := GameState.faction_def(info_selected_id)
+			if f.is_empty():
+				return
+			var v := int(GameState.rep.get(info_selected_id, 0))
+			var tier := GameState.faction_tier(info_selected_id)
+			info_name.text = String(f.get("name", ""))
+			info_meta.text = "声望 %+d · 已解锁 %d/%d 档" % [v, tier, f.get("perks", []).size()]
+			var body := ""
+			for perk in f.get("perks", []):
+				var unlocked := v >= int(perk.get("threshold", 999))
+				body += "%s %d · %s — %s
+" % ["[已解锁]" if unlocked else "[未解锁]", int(perk.get("threshold", 0)), perk.get("name", ""), perk.get("desc", "")]
+			info_body.text = body
+		"customers":
+			var c := {}
+			for x in GameState.customer_defs:
+				if String(x.get("id", "")) == info_selected_id:
+					c = x
+					break
+			if c.is_empty():
+				return
+			info_name.text = String(c.get("name", ""))
+			info_meta.text = "%s · %s · 预算 %d-%d₵" % [_faction_name(String(c.get("faction", ""))), "出售" if c.get("intent") == "sell" else "购买", int(c.get("budget", [0, 0])[0]), int(c.get("budget", [0, 0])[1])]
+			info_body.text = String(c.get("greet", "")) + "
+
+偏好：" + "、".join(c.get("prefer_tags", []))
+		"phone":
+			var c := {}
+			for x in GameState.commissions:
+				if String(x.get("id", "")) == info_selected_id:
+					c = x
+					break
+			if c.is_empty():
+				return
+			var d := GameState.get_item_def(String(c.get("item_id", "")))
+			info_name.text = "委托 · " + String(d.get("name", ""))
+			info_meta.text = "%s · 报酬 %d₵ · 声望 +%d" % [_faction_name(String(c.get("faction", ""))), int(c.get("reward", 0)), int(c.get("rep", 0))]
+			info_body.text = "需求：%s x%d
+
+交付后从背包扣除物品，现金与派系声望立即结算。" % [d.get("name", c.get("item_id", "")), int(c.get("count", 1))]
+			info_action.visible = true
+			info_action.text = "交付委托"
+			info_action.disabled = GameState.inventory_count(String(c.get("item_id", ""))) < int(c.get("count", 1))
+			info_status.text = "背包数量不足" if info_action.disabled else "可交付"
+
+func _info_action() -> void:
+	match info_tab:
+		"network":
+			var res := GameState.buy_upgrade(info_selected_id)
+			_refresh()
+			_rebuild_info_list()
+			_refresh_info_detail()
+			info_status.text = String(res.get("text", ""))
+		"professions":
+			var res := GameState.apply_profession(info_selected_id)
+			_refresh()
+			_refresh_info_detail()
+			info_status.text = String(res.get("text", ""))
+		"phone":
+			var res := GameState.deliver_commission(info_selected_id)
+			_refresh()
+			info_selected_id = ""
+			_rebuild_info_list()
+			_refresh_info_detail()
+			info_status.text = String(res.get("text", ""))
 
 func _open_network() -> void:
-	var text := "网络升级 · 现金 %d₵
+	_open_info_tab("network")
 
-" % GameState.cash
-	var actions: Array = []
-	for u in GameState.upgrades:
-		var uid := String(u.get("id", ""))
-		var owned := GameState.owned_upgrades.has(uid)
-		text += "%s  %d₵  %s
-" % [u.get("name", uid), int(u.get("cost", 0)), "已拥有" if owned else u.get("desc", "")]
-		if not owned:
-			actions.append({"label": "%s %d" % [u.get("name", uid), int(u.get("cost", 0))], "cb": _buy_upgrade.bind(uid), "color": C_AMBER})
-	actions.append({"label": "关闭", "cb": _close_modal})
-	_show_modal("网络升级", text, actions)
-	modal_text.add_theme_font_size_override("font_size", 17)
-
-func _buy_upgrade(uid: String) -> void:
-	var res := GameState.buy_upgrade(uid)
-	_refresh()
-	if res.get("ok", false):
-		_show_modal("网络升级", String(res.get("text", "")), [{"label": "继续", "cb": _open_network}, {"label": "关闭", "cb": _close_modal}])
-	else:
-		_toast(String(res.get("text", "购买失败")))
+func _open_factions() -> void:
+	_open_info_tab("factions")
 
 func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])

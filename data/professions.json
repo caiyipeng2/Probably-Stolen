@@ -1,0 +1,235 @@
+[
+  {
+    "id": "apprentice",
+    "name": "学徒",
+    "desc": "适合初次游玩。你精打细算，盘下店铺时省下一笔启动资金。",
+    "cash": 150,
+    "items": [],
+    "rep": {}
+  },
+  {
+    "id": "junker",
+    "name": "废料客",
+    "desc": "拾荒出身，带着废料和旧工具开始经营。",
+    "cash": 0,
+    "items": [
+      [
+        "scrap_metal",
+        4
+      ],
+      [
+        "radio_on",
+        1
+      ]
+    ],
+    "rep": {
+      "lower": 10
+    }
+  },
+  {
+    "id": "water_merchant",
+    "name": "水商",
+    "desc": "懂水质检测与净水，在下层区卖水是稳赚生意。",
+    "cash": 0,
+    "items": [
+      [
+        "water_tablet",
+        3
+      ],
+      [
+        "water_jug",
+        1
+      ]
+    ],
+    "rep": {
+      "lower": 5
+    }
+  },
+  {
+    "id": "fence",
+    "name": "销赃人",
+    "desc": "黑市出身，擅长处理来路不明的货物。",
+    "cash": 100,
+    "items": [
+      [
+        "command_keycard",
+        1
+      ]
+    ],
+    "rep": {
+      "blackmarket": 10
+    }
+  },
+  {
+    "id": "hydroponics",
+    "name": "水培农场主",
+    "desc": "会种营养果，能自产食物原料。",
+    "cash": 0,
+    "items": [
+      [
+        "nutrifruit_seed",
+        3
+      ],
+      [
+        "water_jug",
+        1
+      ]
+    ],
+    "rep": {
+      "lower": 5
+    }
+  },
+  {
+    "id": "chemist",
+    "name": "化学家",
+    "desc": "懂化学品与配方，能生产高价值化学制品。",
+    "cash": 0,
+    "items": [
+      [
+        "common_chemical",
+        3
+      ],
+      [
+        "chem_scanner",
+        1
+      ]
+    ],
+    "rep": {
+      "blackmarket": 5
+    }
+  },
+  {
+    "id": "organ_trader",
+    "name": "器官贩子",
+    "desc": "熟悉器官交易，利润高但风险也高。",
+    "cash": 0,
+    "items": [
+      [
+        "organ_heart",
+        1
+      ],
+      [
+        "water_tablet",
+        1
+      ]
+    ],
+    "rep": {
+      "blackmarket": 5,
+      "security": -5
+    }
+  },
+  {
+    "id": "pharma",
+    "name": "药商",
+    "desc": "经营药品与急救物资，顾客稳定。",
+    "cash": 0,
+    "items": [
+      [
+        "bandage_item",
+        3
+      ],
+      [
+        "nutrient_tablet",
+        1
+      ]
+    ],
+    "rep": {
+      "lower": 5
+    }
+  },
+  {
+    "id": "food_vendor",
+    "name": "街头小吃摊贩",
+    "desc": "懂食材与烹饪，能用加热板加工食品。",
+    "cash": 0,
+    "items": [
+      [
+        "nutrifruit",
+        3
+      ],
+      [
+        "processed_meat",
+        1
+      ]
+    ],
+    "rep": {
+      "lower": 5
+    }
+  },
+  {
+    "id": "moonshiner",
+    "name": "私酒贩子",
+    "desc": "会酿酒，私酒在下层区很受欢迎。",
+    "cash": 0,
+    "items": [
+      [
+        "red_beer",
+        3
+      ],
+      [
+        "water_jug",
+        1
+      ]
+    ],
+    "rep": {
+      "blackmarket": 5
+    }
+  },
+  {
+    "id": "gunsmith",
+    "name": "枪械匠",
+    "desc": "持有武器许可证，擅长枪械与弹药。",
+    "cash": 0,
+    "items": [
+      [
+        "handmade_pistol",
+        1
+      ],
+      [
+        "scrap_metal",
+        3
+      ]
+    ],
+    "rep": {
+      "security": 5
+    }
+  },
+  {
+    "id": "rat_farmer",
+    "name": "养鼠人",
+    "desc": "养殖肉用鼠，能稳定提供肉类原料。",
+    "cash": 0,
+    "items": [
+      [
+        "small_raw_meat",
+        3
+      ],
+      [
+        "meat_scrap",
+        2
+      ]
+    ],
+    "rep": {
+      "lower": 5
+    }
+  },
+  {
+    "id": "aquafarmer",
+    "name": "水产养殖户",
+    "desc": "掌握循环水养殖，能生产鱼片。",
+    "cash": 0,
+    "items": [
+      [
+        "industrial_fish_feed",
+        3
+      ],
+      [
+        "water_jug",
+        1
+      ]
+    ],
+    "rep": {
+      "lower": 5
+    }
+  }
+]

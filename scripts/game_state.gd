@@ -22,6 +22,10 @@ var machines: Array = []
 var factions: Array = []
 var upgrades: Array = []
 var owned_upgrades: Dictionary = {}
+var professions: Array = []
+var profession_id := ""
+var profession_chosen := false
+var commissions: Array = []
 var machine_jobs: Array = []
 var power := 10
 var max_power := 10
@@ -152,6 +156,11 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			upgrades = data
+	f = FileAccess.open("res://data/professions.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			professions = data
 
 func get_item_def(id: String) -> Dictionary:
 	return items_def.get(id, {})
@@ -360,6 +369,9 @@ func new_game() -> void:
 				it2["known"] = true
 				add_item(it2)
 	owned_upgrades = {}
+	profession_id = ""
+	profession_chosen = false
+	commissions = []
 	_refresh_upgrades()
 	machine_jobs = []
 	machine_modules = {}
@@ -374,6 +386,7 @@ func start_day() -> void:
 	counter_item = {}
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	customers_today = []
+	_gen_commissions()
 	var count := rng.randi_range(3, 5)
 	for i in range(count):
 		customers_today.append(_gen_customer())
@@ -423,7 +436,7 @@ func _gen_customer() -> Dictionary:
 		c["line"] = arche.get("greet", "") + "\n" + arche.get("ask", "")
 	else:
 		c["want_tags"] = arche.get("prefer_tags", [])
-		var bmult := 1.1 if owned_upgrades.has("market_contacts") else 1.0
+		var bmult := 1.0 + float(upgrade_total("budget")) / 100.0
 		c["budget"] = int(round(float(rng.randi_range(int(arche["budget"][0]), int(arche["budget"][1]))) * bmult))
 		c["offer"] = 0
 		c["max_price"] = 0
@@ -476,10 +489,15 @@ func effective_value(item: Dictionary) -> int:
 
 func market_value(item: Dictionary, for_sale: bool = false, faction: String = "") -> int:
 	var v := float(effective_value(item))
+	var def2 := get_item_def(item.get("def_id", ""))
 	if for_sale:
-		v *= 1.0 + (RETAIL_MARKUP + (5.0 if owned_upgrades.has("retail_training") else 0.0)) / 100.0
+		v *= 1.0 + (RETAIL_MARKUP + float(upgrade_total("retail"))) / 100.0
+	if int(def2.get("contraband", 0)) > 0:
+		v *= 1.0 + float(upgrade_total("contraband")) / 100.0
+	if String(def2.get("category", "")) == "water":
+		v *= 1.0 + float(upgrade_total("water")) / 100.0
 	var r := clampf(float(rep.get(faction, 0)), -50.0, 50.0)
-	v *= 1.0 + r * 0.003
+	v *= 1.0 + r * 0.003 + float(faction_tier(faction)) * 0.01
 	return int(round(v))
 
 func put_display_on_counter(uid: int) -> bool:
@@ -545,8 +563,7 @@ func inspect_item(uid: int, method: int) -> String:
 		return "已经鉴定过了：%s" % _true_desc(it)
 	var itype: String = get_item_def(it["def_id"]).get("inspect_type", "generic")
 	var cost := 10 if itype in ["cyber", "weapon"] else 5
-	if owned_upgrades.has("inspector_friend"):
-		cost = maxi(1, int(round(float(cost) * 0.5)))
+	cost = maxi(1, int(round(float(cost) * (1.0 - minf(50.0, float(upgrade_total("inspect"))) / 100.0))))
 	if cash < cost:
 		return "现金不足，鉴定费 %d₵。" % cost
 	cash -= cost
@@ -693,8 +710,8 @@ func add_rep(faction: String, amount: int) -> void:
 	if not rep.has(faction):
 		rep[faction] = 0
 	var final_amount := amount
-	if amount > 0 and owned_upgrades.has("rep_boost"):
-		final_amount = int(round(float(amount) * 1.2))
+	if amount > 0:
+		final_amount = int(round(float(amount) * (1.0 + float(upgrade_total("rep")) / 100.0)))
 	rep[faction] = clampi(int(rep[faction]) + final_amount, -100, 100)
 
 func finish_day() -> Dictionary:
@@ -706,9 +723,10 @@ func finish_day() -> Dictionary:
 		"rent": rent, "rent_due": rent_due, "loan_due": loan_due, "cash": cash, "gameover": ""
 	}
 	if rent_due <= 0:
-		if cash >= rent:
-			cash -= rent
-			summary["rent_paid"] = rent
+		var rent_cost := int(round(float(rent) * (1.0 - minf(50.0, float(upgrade_total("rent"))) / 100.0)))
+		if cash >= rent_cost:
+			cash -= rent_cost
+			summary["rent_paid"] = rent_cost
 			rent = int(round(float(rent) * 1.1))
 			rent_due = 7
 		else:
@@ -755,6 +773,71 @@ func apply_event(choice_index: int) -> void:
 	if cash < 0:
 		phase = "gameover"
 	emit_signal("state_changed")
+
+func upgrade_total(effect: String) -> int:
+	var total := 0
+	for uid in owned_upgrades.keys():
+		var u := upgrade_def(String(uid))
+		if String(u.get("effect", "")) == effect:
+			total += int(u.get("value", 0))
+	return total
+
+func apply_profession(pid: String) -> Dictionary:
+	if profession_chosen:
+		return {"ok": false, "text": "本局已经选择过专精。"}
+	var p := {}
+	for x in professions:
+		if String(x.get("id", "")) == pid:
+			p = x
+			break
+	if p.is_empty():
+		return {"ok": false, "text": "没有这个专精。"}
+	profession_id = pid
+	profession_chosen = true
+	cash += int(p.get("cash", 0))
+	for entry in p.get("items", []):
+		var iid := String(entry[0]); var cnt := int(entry[1])
+		if not items_def.has(iid):
+			continue
+		for n in range(cnt):
+			var it := make_item(iid, 100, true, false)
+			it["known"] = true
+			add_item(it)
+	var reps: Dictionary = p.get("rep", {})
+	for k in reps.keys():
+		add_rep(String(k), int(reps[k]))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已选择专精：%s。" % p.get("name", pid)}
+
+func _gen_commissions() -> void:
+	commissions = []
+	if tradable_pool.is_empty():
+		return
+	var fs := ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]
+	for i in range(3):
+		var iid: String = tradable_pool[rng.randi_range(0, tradable_pool.size() - 1)]
+		var cnt := rng.randi_range(1, 2)
+		var faction: String = fs[rng.randi_range(0, fs.size() - 1)]
+		var sample := make_item(iid, 100, true, false)
+		var reward := int(round(float(market_value(sample, false, faction)) * float(cnt) * 1.35))
+		commissions.append({"id": "c%d" % i, "item_id": iid, "count": cnt, "faction": faction, "reward": reward, "rep": 5})
+
+func deliver_commission(cid: String) -> Dictionary:
+	for i in range(commissions.size()):
+		var c: Dictionary = commissions[i]
+		if String(c.get("id", "")) != cid:
+			continue
+		var iid := String(c.get("item_id", ""))
+		var cnt := int(c.get("count", 1))
+		if inventory_count(iid) < cnt:
+			return {"ok": false, "text": "背包里的数量不足。"}
+		remove_inventory(iid, cnt)
+		cash += int(c.get("reward", 0))
+		add_rep(String(c.get("faction", "lower")), int(c.get("rep", 0)))
+		commissions.remove_at(i)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "委托完成，获得 %d₵。" % int(c.get("reward", 0))}
+	return {"ok": false, "text": "没有这个委托。"}
 
 func faction_def(id: String) -> Dictionary:
 	for f in factions:
@@ -803,7 +886,7 @@ func buy_upgrade(id: String) -> Dictionary:
 	return {"ok": true, "text": "已购买：%s。" % u.get("name", id)}
 
 func _refresh_upgrades() -> void:
-	max_power = 10 + (2 if owned_upgrades.has("power_grid") else 0)
+	max_power = 10 + upgrade_total("power")
 	power = mini(power, max_power)
 
 func machine_def(id: String) -> Dictionary:
@@ -847,8 +930,7 @@ func start_machine(machine_id: String) -> Dictionary:
 	if machine_modules.has(machine_id):
 		use_time *= 0.8
 		use_power = maxi(1, use_power - 1)
-	if owned_upgrades.has("machine_efficiency"):
-		use_time *= 0.9
+	use_time *= 1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
 	for inp in m.get("inputs", []):
@@ -917,7 +999,8 @@ func save_game() -> bool:
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps,
-		"owned_upgrades": owned_upgrades,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
+		"commissions": commissions,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -960,6 +1043,9 @@ func load_game() -> bool:
 	max_pages_unlocked = pages_unlocked
 	power = int(data.get("power", 10))
 	owned_upgrades = data.get("owned_upgrades", {}).duplicate(true)
+	profession_id = String(data.get("profession_id", ""))
+	profession_chosen = bool(data.get("profession_chosen", false))
+	commissions = data.get("commissions", []).duplicate(true)
 	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)
 	machine_temps = data.get("machine_temps", {}).duplicate(true)

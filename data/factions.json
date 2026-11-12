@@ -10,9 +10,19 @@
         "desc": "下层区售价 +2%"
       },
       {
+        "threshold": 40,
+        "name": "夜市人脉",
+        "desc": "下层区顾客预算 +5%"
+      },
+      {
         "threshold": 50,
         "name": "熟客网络",
         "desc": "下层区顾客预算 +10%"
+      },
+      {
+        "threshold": 60,
+        "name": "社区守护",
+        "desc": "下层区售价 +3%"
       },
       {
         "threshold": 80,
@@ -32,9 +42,19 @@
         "desc": "上层区售价 +2%"
       },
       {
+        "threshold": 40,
+        "name": "橱窗陈列",
+        "desc": "上层区售价 +3%"
+      },
+      {
         "threshold": 50,
         "name": "会员名录",
         "desc": "上层区顾客预算 +15%"
+      },
+      {
+        "threshold": 60,
+        "name": "私人订制",
+        "desc": "上层区预算 +10%"
       },
       {
         "threshold": 80,
@@ -54,9 +74,19 @@
         "desc": "查抄损失 -10%"
       },
       {
+        "threshold": 40,
+        "name": "登记在册",
+        "desc": "查抄损失 -15%"
+      },
+      {
         "threshold": 50,
         "name": "线人",
         "desc": "提前获知查抄"
+      },
+      {
+        "threshold": 60,
+        "name": "合作商户",
+        "desc": "治安部顾客增加"
       },
       {
         "threshold": 80,
@@ -76,8 +106,18 @@
         "desc": "违禁品售价 +3%"
       },
       {
+        "threshold": 40,
+        "name": "暗线",
+        "desc": "违禁品售价 +3%"
+      },
+      {
         "threshold": 50,
         "name": "销赃网络",
+        "desc": "赃物折价减少"
+      },
+      {
+        "threshold": 60,
+        "name": "洗货渠道",
         "desc": "赃物折价减少"
       },
       {
@@ -98,9 +138,19 @@
         "desc": "医疗物资售价 +2%"
       },
       {
+        "threshold": 40,
+        "name": "联络站",
+        "desc": "医疗物资售价 +3%"
+      },
+      {
         "threshold": 50,
         "name": "补给线",
         "desc": "武器订单增加"
+      },
+      {
+        "threshold": 60,
+        "name": "补给网络",
+        "desc": "革命军预算 +10%"
       },
       {
         "threshold": 80,
@@ -120,8 +170,18 @@
         "desc": "奢侈品售价 +2%"
       },
       {
+        "threshold": 40,
+        "name": "打卡点",
+        "desc": "奢侈品售价 +3%"
+      },
+      {
         "threshold": 50,
         "name": "旅行推荐",
+        "desc": "游客顾客增加"
+      },
+      {
+        "threshold": 60,
+        "name": "旅行团",
         "desc": "游客顾客增加"
       },
       {
@@ -142,8 +202,18 @@
         "desc": "医疗/器官售价 +2%"
       },
       {
+        "threshold": 40,
+        "name": "慈善",
+        "desc": "医疗/器官售价 +3%"
+      },
+      {
         "threshold": 50,
         "name": "庇护",
+        "desc": "声望损失 -10%"
+      },
+      {
+        "threshold": 60,
+        "name": "庇护所",
         "desc": "声望损失 -10%"
       },
       {
@@ -164,9 +234,19 @@
         "desc": "违禁品进价 -3%"
       },
       {
+        "threshold": 40,
+        "name": "运输",
+        "desc": "违禁品进价 -3%"
+      },
+      {
         "threshold": 50,
         "name": "运输线",
         "desc": "违禁品售价 +5%"
+      },
+      {
+        "threshold": 60,
+        "name": "分销",
+        "desc": "违禁品售价 +3%"
       },
       {
         "threshold": 80,

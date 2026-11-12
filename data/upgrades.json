@@ -1,5 +1,437 @@
 [
   {
+    "id": "BREWER",
+    "name": "红魔鬼酿酒厂",
+    "desc": "王尔德会将你引荐给红魔鬼酿酒厂的销售代表，让你能立刻且持续地获得他们的啤酒供应。你将获得一张用于联系该供货商的名片。",
+    "cost": 150,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "CHEMIST",
+    "name": "下层区化学家",
+    "desc": "王尔德会将你引荐给一位下层区化学家，他生产用于娱乐和医疗的廉价违禁药物。你将获得一张用于联系该供货商的名片。",
+    "cost": 200,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "PHARMA",
+    "name": "上层区药商",
+    "desc": "王尔德会将你引荐给一位匿名上层区药商的库存管理员，让你能及时且稳定地获取合法但难以采购的药物。你将获得一张用于联系该供货商的名片。",
+    "cost": 250,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "MINER",
+    "name": "GP采矿合作社",
+    "desc": "王尔德会将你引荐给GP采矿合作社的负责人，允许你订购大量矿石。你将获得一张用于联系该供货商的名片。",
+    "cost": 300,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "BREWER_SHAREHOLDER",
+    "name": "小股东：红魔鬼酿酒厂",
+    "desc": "买下红魔鬼酿酒厂的一小部分股份。快递员给你的批发优惠会增加{0}%，每周四早上，你还会在柜台上收到{1}箱啤酒作为分红。",
+    "cost": 350,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "MINER_SHAREHOLDER",
+    "name": "小股东：GP采矿合作社",
+    "desc": "买下GP采矿合作社的一小部分股份。快递员给你的批发折扣会增加{0}%，每周五早上，你还会在柜台上收到{1}份矿石作为分红。",
+    "cost": 400,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "CHEMIST_SHAREHOLDER",
+    "name": "小股东：下层区化学家",
+    "desc": "入股下层区化学家的生意，成为小股东。快递员给你的批发折扣会增加{0}%，每周六早上，你还会在柜台上收到{1}份街头级梦尘作为分红。",
+    "cost": 190,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "PHARMA_SHAREHOLDER",
+    "name": "小股东：上层区药商",
+    "desc": "入股上层区药商的生意，成为小股东。快递员给你的批发折扣会增加{0}%，每周日早上，你还会在柜台上收到{1}支奥克西莫注射器作为分红。",
+    "cost": 240,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "LANDLORD_GRACE",
+    "name": "租金宽限",
+    "desc": "王尔德会出面摆平房东，如果你错过了一次租金支付，可以接受你将欠款与下周的租金一并缴纳。这个恩惠是一次性的。",
+    "cost": 290,
+    "effect": "rent",
+    "value": 5
+  },
+  {
+    "id": "SEC_GRACE",
+    "name": "豁免权",
+    "desc": "王尔德将利用他的政治影响力，确保当治安部检查员查获了通常会导致监禁的违禁品时，你只会受到警告处理。这个恩惠是一次性的。",
+    "cost": 340,
+    "effect": "passive",
+    "value": 0
+  },
+  {
+    "id": "INSPECTION_INFORMANT",
+    "name": "盘查预警服务",
+    "desc": "王尔德会将你引荐给他在治安部内部的线人。只要你每晚支付一笔费用，线人就会提前通知你任何常规的盘查。但线人无法对突击检查提供帮助。",
+    "cost": 390,
+    "effect": "inspect",
+    "value": 25
+  },
+  {
+    "id": "BUY_REFERAL",
+    "name": "买家推荐服务",
+    "desc": "只要支付每晚的费用，王尔德便会动用其人脉将买家推荐到你的店铺。此外，展示柜中的物品会吸引更多顾客。",
+    "cost": 440,
+    "effect": "budget",
+    "value": 5
+  },
+  {
+    "id": "SELL_REFERAL",
+    "name": "卖家推荐服务",
+    "desc": "只要支付每晚的费用，王尔德便会动用其人脉将卖家推荐到你的店铺。",
+    "cost": 230,
+    "effect": "budget",
+    "value": 5
+  },
+  {
+    "id": "CRIMINEL_NETWORK",
+    "name": "罪犯人脉",
+    "desc": "只要支付每晚的费用，王尔德便会动用其人脉将财力雄厚的违禁品买家推荐到你的店铺。使用此服务还能为你提供少量黑市声望（冷却时间：{0}天）",
+    "cost": 280,
+    "effect": "contraband",
+    "value": 5
+  },
+  {
+    "id": "POWER_HIJACK",
+    "name": "偷接私电",
+    "desc": "你的电力将由外面某块太阳能板供应，反正原主人（多半）也不差这点电。每晚的电力服务现在免费。这块面板带不动电流转换器，所以它们仍需付费，但费用降低15%。停电不会再影响你的店铺和电流转换器。",
+    "cost": 330,
+    "effect": "power",
+    "value": 2
+  },
+  {
+    "id": "POWER_HIJACK2",
+    "name": "偷接私电 II",
+    "desc": "王尔德的人往你的线路里接进了一组更大的太阳能板。它现在能分担电流转换器的部分负载：运行费用降低{0}%。",
+    "cost": 380,
+    "effect": "power",
+    "value": 2
+  },
+  {
+    "id": "POWER_HIJACK3",
+    "name": "偷接私电 III",
+    "desc": "王尔德的人为你接上了一整片屋顶的太阳能板。你的电流转换器运行费用现在总共降低{0}%。",
+    "cost": 430,
+    "effect": "power",
+    "value": 2
+  },
+  {
+    "id": "COMMERCIAL_POWER",
+    "name": "商用级供电单元",
+    "desc": "你的供电单元将得到升级以容纳更多电力。充能器和能量阵列的充电速度将提升{0}%。",
+    "cost": 480,
+    "effect": "power",
+    "value": 2
+  },
+  {
+    "id": "SHOWCASE_I",
+    "name": "展示柜扩建 I",
+    "desc": "你的展示柜将得到扩建以展示更多物品。每天将有额外{0}名顾客来购买展示柜中的物品。",
+    "cost": 270,
+    "effect": "display",
+    "value": 1
+  },
+  {
+    "id": "SHOWCASE_II",
+    "name": "展示柜扩建 II",
+    "desc": "你的展示柜将得到进一步扩建。每天将有额外{0}名顾客来购买展示柜中的物品。",
+    "cost": 320,
+    "effect": "display",
+    "value": 1
+  },
+  {
+    "id": "WILD_FIXER",
+    "name": "王尔德的善后人",
+    "desc": "王尔德将允许你雇佣他的善后人。只要你每晚支付一笔费用，善后人就会让目击者闭嘴，并清理尚未被治安部收集的证据，以更快的速度降低你的犯罪嫌疑度。",
+    "cost": 370,
+    "effect": "rep",
+    "value": 10
+  },
+  {
+    "id": "WILD_FIXER2",
+    "name": "王尔德的善后人 II",
+    "desc": "王尔德会给你派来更有经验的善后人。他们清理证据更快，你的犯罪嫌疑度每晚会降得更多。每晚的费用也会提高。",
+    "cost": 420,
+    "effect": "rep",
+    "value": 10
+  },
+  {
+    "id": "WILD_FIXER3",
+    "name": "王尔德的善后人 III",
+    "desc": "王尔德把他最好的人手派到你的店里。目击者会忘事，证据会消失，你的犯罪嫌疑度每晚降得更快。每晚的费用也会提高。",
+    "cost": 470,
+    "effect": "rep",
+    "value": 10
+  },
+  {
+    "id": "EVIDENCE_REMOVAL",
+    "name": "清除证据",
+    "desc": "王尔德将命令他在治安部的联络人销毁所有已收集到的证据，并暗中破坏任何针对你的正在进行的调查。此恩惠有{0}天的冷却时间。",
+    "cost": 520,
+    "effect": "contraband",
+    "value": 5
+  },
+  {
+    "id": "GUTTERFLOW_TAP",
+    "name": "沟渠水直供",
+    "desc": "王尔德会将你的水管连接到下水道，让你能无限制地获取沟渠水。水质纯度每天都会发生变化。",
+    "cost": 310,
+    "effect": "water",
+    "value": 5
+  },
+  {
+    "id": "RUSTWATER_TAP",
+    "name": "铁锈水直供",
+    "desc": "王尔德会将你的水管连接到工业排放管，让你能无限制地获取铁锈水。水质纯度每天都会发生变化。",
+    "cost": 360,
+    "effect": "water",
+    "value": 5
+  },
+  {
+    "id": "RUINED_MACHINE_UNLOCK",
+    "name": "废弃机器拆解",
+    "desc": "一位会教你如何将废弃机器拆解成零件的废料客将在第二天到访。（解锁废弃机器内容）",
+    "cost": 410,
+    "effect": "passive",
+    "value": 0
+  },
+  {
+    "id": "RETIRED_FARMER",
+    "name": "退休农夫",
+    "desc": "立即获取一套入门级水培设备。一名退休农夫将在第二天到访，随后每周到访一次，出售种子和水培设备。（解锁进阶农业内容。）",
+    "cost": 460,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "RETIRED_GUNSMITH",
+    "name": "退休枪匠",
+    "desc": "立即获取一套入门级武器改装设备。一名退休枪匠将在第二天到访，随后每周到访一次，出售枪械模组和弹药。（解锁进阶枪械改装内容。）",
+    "cost": 510,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "RETIRED_CHEMIST",
+    "name": "退休化学家",
+    "desc": "立即获取一套入门级化学家设备。一名退休化学家将在第二天到访，随后每周到访一次，出售化学用品和设备。（解锁进阶化学内容。）",
+    "cost": 560,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "RETIRED_RANCHER",
+    "name": "养殖",
+    "desc": "王尔德会为你引荐一位养鼠人，他会每周到访一次。立即获得一套入门级养鼠设备。（解锁养殖内容）",
+    "cost": 350,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "WATER_TRADER",
+    "name": "水资源交易",
+    "desc": "立即获取一套入门级水资源交易设备。一名水贩将开始定期造访你的店铺。（解锁水资源交易内容。）",
+    "cost": 400,
+    "effect": "water",
+    "value": 5
+  },
+  {
+    "id": "GUN_PERMIT_I",
+    "name": "武器许可证 I",
+    "desc": "王尔德将替你疏通关系，为你争取一张通常仅限下层区商人持有的枪械许可证，允许你合法交易低级违禁枪械和弹药。治安部声望达到{0}时许可证即会下发，若声望跌破0则会被吊销。获得霰弹枪后，治安部允许你保留它用于自卫。",
+    "cost": 450,
+    "effect": "license",
+    "value": 1
+  },
+  {
+    "id": "GUN_PERMIT_II",
+    "name": "武器许可证 II",
+    "desc": "王尔德将替你疏通关系，为你争取一张通常仅限上层区商人持有的枪械许可证，允许你合法交易中级违禁枪械和弹药。只有当治安部声望至少达到{0}时，许可证才会下发。",
+    "cost": 500,
+    "effect": "license",
+    "value": 1
+  },
+  {
+    "id": "GUN_PERMIT_III",
+    "name": "武器许可证 III",
+    "desc": "王尔德会替你疏通关系，为你争取一张通常仅限空间站治安部军需官持有的武器许可证，允许你合法交易高级违禁枪械和弹药。只有当治安部声望至少达到{0}时，许可证才会下发。",
+    "cost": 550,
+    "effect": "license",
+    "value": 1
+  },
+  {
+    "id": "MARKETPLACE_REQUESTS",
+    "name": "市场委托",
+    "desc": "王尔德会将你接入市场委托网络，允许你浏览并完成买家的各类需求。委托物品的报酬通常高于常规市场价值。",
+    "cost": 600,
+    "effect": "budget",
+    "value": 5
+  },
+  {
+    "id": "JACKSON1",
+    "name": "杰克逊投资 I",
+    "desc": "王尔德会说服杰克逊博士接受你的一小笔投资，从而永久增加他的预算以及你拜访他时的可用库存。杰克逊博士将始终有模组在售。",
+    "cost": 390,
+    "effect": "budget",
+    "value": 5
+  },
+  {
+    "id": "JACKSON2",
+    "name": "杰克逊投资 II",
+    "desc": "王尔德会说服杰克逊博士接受你的另一笔投资，从而永久增加他的预算以及你拜访他时的可用库存。杰克逊博士将始终有额外的模组在售。",
+    "cost": 440,
+    "effect": "budget",
+    "value": 5
+  },
+  {
+    "id": "JACKSON_SPECIAL_STOCK",
+    "name": "周一特供",
+    "desc": "杰克逊博士会在周一专门为你营业，提供一批价格较高的稀有物品。",
+    "cost": 490,
+    "effect": "budget",
+    "value": 5
+  },
+  {
+    "id": "RENOVATION1",
+    "name": "店铺翻新 I",
+    "desc": "王尔德将雇佣承包商对店铺进行适度翻新，使其基础吸引力提升{0}点。",
+    "cost": 540,
+    "effect": "retail",
+    "value": 3
+  },
+  {
+    "id": "RENOVATION2",
+    "name": "店铺翻新 II",
+    "desc": "王尔德将雇佣承包商对店铺进行大幅翻新，使其基础吸引力再提升{0}点。",
+    "cost": 590,
+    "effect": "retail",
+    "value": 3
+  },
+  {
+    "id": "RENOVATION3",
+    "name": "店铺翻新 III",
+    "desc": "王尔德将雇佣承包商对店铺进行脱胎换骨的翻新，使其基础吸引力再提升{0}点。",
+    "cost": 640,
+    "effect": "retail",
+    "value": 3
+  },
+  {
+    "id": "VENDING_MACHINE",
+    "name": "自动售货机",
+    "desc": "立即在店内安装一台自动贩卖机，让你能在夜间售卖商品。",
+    "cost": 430,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "VENDING_FOUNTAIN",
+    "name": "自动售水机",
+    "desc": "立即在店内安装一台自动售水机，让你能在夜间售水。",
+    "cost": 480,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "WINEMAKER",
+    "name": "退休酿酒师",
+    "desc": "立即获取一套入门级酿酒设备。一名退休酿酒师将在第二天到访，随后每周到访一次，出售酿酒用品和设备。（解锁酿酒玩法。）",
+    "cost": 530,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "AQUACULTURE",
+    "name": "水产养殖",
+    "desc": "王尔德会为你引荐一位退休水产养殖户，对方会每周到访一次，出售养鱼设备和受精鱼卵。立即获得一套入门级水产养殖设备。（解锁水产养殖内容。）",
+    "cost": 580,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "AQUACULTURE_II",
+    "name": "水产养殖 II",
+    "desc": "退休水产养殖户每次来访时，还会带来体型更大、收益更高的鱼种供你养殖。立即获得两条幼年鳗鱼。",
+    "cost": 630,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "PLANT_DNA",
+    "name": "植物基因",
+    "desc": "立即获得一台DNA编辑器、一台基因扫描仪和一些空白DNA数据盘。此后，杰克逊博士会常备DNA编辑设备供你购买。",
+    "cost": 680,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "DOSSIER_UPGRADE",
+    "name": "档案箱升级",
+    "desc": "扩大档案箱的容量。",
+    "cost": 470,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "TRASHCAN_UPGRADE",
+    "name": "垃圾桶升级",
+    "desc": "扩大垃圾桶的容量。",
+    "cost": 520,
+    "effect": "machine",
+    "value": 5
+  },
+  {
+    "id": "HYPERTECH_SMUGGLER",
+    "name": "超科技走私贩",
+    "desc": "乔·王尔德会把你介绍给一个倒卖超科技物品的走私贩，那是远超空间站工业水平的技术。解锁“超科技走私贩”夜间服务。",
+    "cost": 570,
+    "effect": "contraband",
+    "value": 5
+  },
+  {
+    "id": "ENDORSEMENT1",
+    "name": "王尔德的背书 I",
+    "desc": "乔·王尔德亲自为你的店铺背书。来店顾客的预算增加{0}%。",
+    "cost": 620,
+    "effect": "rep",
+    "value": 10
+  },
+  {
+    "id": "ENDORSEMENT2",
+    "name": "王尔德的背书 II",
+    "desc": "乔·王尔德向他最好的人脉大力推荐你的店铺。来店顾客的预算再增加{0}%。",
+    "cost": 670,
+    "effect": "rep",
+    "value": 10
+  },
+  {
+    "id": "ENDORSEMENT3",
+    "name": "王尔德的背书 III",
+    "desc": "乔·王尔德用自己的名声为你的店铺担保。来店顾客的预算再增加{0}%。",
+    "cost": 720,
+    "effect": "rep",
+    "value": 10
+  },
+  {
     "id": "retail_training",
     "name": "零售训练",
     "cost": 300,
