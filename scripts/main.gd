@@ -52,6 +52,20 @@ var modal_panel: Panel
 var modal_title: Label
 var modal_text: Label
 var modal_actions: HBoxContainer
+var machine_layer: Control
+var machine_list_box: VBoxContainer
+var machine_name_label: Label
+var machine_meta_label: Label
+var machine_io_label: Label
+var machine_module_label: Label
+var machine_status_label: Label
+var machine_jobs_label: Label
+var machine_power_label: Label
+var machine_start_btn: Button
+var temp_buttons: Array = []
+var machine_list_buttons: Dictionary = {}
+var selected_machine_id := ""
+var machine_ui_timer := 0.0
 var action_buttons: Dictionary = {}
 var rail_buttons: Dictionary = {}
 var rep_labels: Dictionary = {}
@@ -276,6 +290,7 @@ func _build_ui() -> void:
 	_build_counter()
 	_build_drawer()
 	_build_modal()
+	_build_machine_bay()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
@@ -409,6 +424,49 @@ func _build_modal() -> void:
 	modal_actions.add_theme_constant_override("separation", 16)
 	modal_panel.add_child(modal_actions)
 	_button(modal_panel, "关闭", Vector2(1080, 16), Vector2(90, 44), C_MUTED, _close_modal)
+
+func _build_machine_bay() -> void:
+	machine_layer = Control.new()
+	machine_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	machine_layer.visible = false
+	machine_layer.z_index = 110
+	machine_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(machine_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.78)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	machine_layer.add_child(dim)
+	var panel := _panel(machine_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
+	_label(panel, "机器 · MACHINE BAY", Vector2(30, 18), Vector2(700, 52), 36, C_AMBER)
+	machine_power_label = _label(panel, "", Vector2(1480, 26), Vector2(220, 32), 22, C_AMBER)
+	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_machines)
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(24, 84)
+	scroll.size = Vector2(520, 840)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.add_theme_stylebox_override("panel", _style(C_PANEL2, C_LINE, 2))
+	panel.add_child(scroll)
+	machine_list_box = VBoxContainer.new()
+	machine_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	machine_list_box.add_theme_constant_override("separation", 8)
+	scroll.add_child(machine_list_box)
+	var detail := _panel(panel, Vector2(570, 80), Vector2(1280, 600), C_PANEL2, C_LINE, 2)
+	machine_name_label = _label(detail, "", Vector2(24, 16), Vector2(900, 44), 36, C_TEXT)
+	machine_meta_label = _label(detail, "", Vector2(24, 66), Vector2(1230, 30), 22, C_AMBER)
+	machine_io_label = _label(detail, "", Vector2(24, 108), Vector2(1230, 200), 22, C_TEXT)
+	machine_module_label = _label(detail, "", Vector2(24, 322), Vector2(1230, 30), 22, C_CYAN)
+	var install := _button(detail, "安装模块", Vector2(24, 362), Vector2(220, 54), C_CYAN, _install_module)
+	install.name = "InstallModule"
+	var temps := [["低温", 1], ["标准", 2], ["高温", 3]]
+	for t in temps:
+		var tb := _button(detail, t[0], Vector2(270 + (int(t[1]) - 1) * 136, 362), Vector2(124, 54), C_MUTED, _set_temp.bind(int(t[1])))
+		temp_buttons.append(tb)
+	machine_start_btn = _button(detail, "启动生产", Vector2(24, 440), Vector2(300, 72), C_AMBER, _start_selected_machine)
+	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(350, 454), Vector2(900, 70), 22, C_MUTED)
+	var jobs_panel := _panel(panel, Vector2(570, 700), Vector2(1280, 250), C_PANEL2, C_LINE, 2)
+	_label(jobs_panel, "运行队列", Vector2(24, 12), Vector2(300, 32), 24, C_AMBER)
+	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 180), 22, C_TEXT)
 
 func _refresh() -> void:
 	if not is_inside_tree():
@@ -831,32 +889,76 @@ func _show_ledger_modal() -> void:
 	_show_modal("店铺档案", text, [{"label": "关闭", "cb": _close_modal}])
 
 func _open_machines() -> void:
-	var text := "电力 %d/%d
-" % [GameState.power, GameState.max_power]
-	if not GameState.machine_jobs.is_empty():
-		for j in GameState.machine_jobs:
-			text += "运行中：%s %.1fs
-" % [j.get("name", ""), float(j.get("remaining", 0.0))]
-	text += "可用机器：
-"
+	machine_layer.visible = true
+	_rebuild_machine_list()
+	if selected_machine_id == "" or GameState.machine_def(selected_machine_id).is_empty():
+		if not GameState.machines.is_empty():
+			selected_machine_id = String(GameState.machines[0].get("id", ""))
+	_refresh_machine_panel()
+
+func _close_machines() -> void:
+	machine_layer.visible = false
+
+func _rebuild_machine_list() -> void:
+	_clear_children(machine_list_box)
+	machine_list_buttons.clear()
 	for m in GameState.machines:
-		var ins: Array = []
-		for i in m.get("inputs", []):
-			var d := GameState.get_item_def(String(i.get("id", "")))
-			ins.append("%sx%d" % [_short_item_name(String(i.get("id", "")), String(d.get("name", ""))), int(i.get("count", 1))])
-		var outs: Array = []
-		for o in m.get("outputs", []):
-			var od := GameState.get_item_def(String(o.get("id", "")))
-			outs.append("%sx%d" % [_short_item_name(String(o.get("id", "")), String(od.get("name", ""))), int(o.get("count", 1))])
-		text += "· %s：%s → %s（%.0fs / %d电）
-" % [m.get("name", ""), " + ".join(ins), " + ".join(outs), float(m.get("time", 0.0)), int(m.get("power", 0))]
-	text += "原料：废金属x%d 打印塑料x%d 金属锭x%d" % [GameState.inventory_count("scrap_metal"), GameState.inventory_count("printer_plastic"), GameState.inventory_count("metal_ingot")]
-	var actions: Array = []
-	for m in GameState.machines:
-		actions.append({"label": "启动 " + String(m.get("name", "")), "cb": _start_machine.bind(String(m.get("id", ""))), "color": C_AMBER})
-	actions.append({"label": "关闭", "cb": _close_modal})
-	_show_modal("机器 · MACHINE BAY", text, actions)
-	modal_text.add_theme_font_size_override("font_size", 21)
+		var mid := String(m.get("id", ""))
+		var text := "%s
+%d电 · %.0fs" % [m.get("name", mid), int(m.get("power", 0)), float(m.get("time", 0.0))]
+		var b := _button(machine_list_box, text, Vector2.ZERO, Vector2(480, 64), C_TEXT, _select_machine.bind(mid))
+		b.custom_minimum_size = Vector2(480, 64)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		machine_list_buttons[mid] = b
+	_refresh_machine_selection()
+
+func _refresh_machine_selection() -> void:
+	for mid in machine_list_buttons.keys():
+		machine_list_buttons[mid].modulate = Color(1.25, 1.12, 0.72) if mid == selected_machine_id else Color.WHITE
+
+func _select_machine(machine_id: String) -> void:
+	selected_machine_id = machine_id
+	_refresh_machine_panel()
+
+func _refresh_machine_panel() -> void:
+	var m := GameState.machine_def(selected_machine_id)
+	if m.is_empty():
+		return
+	var lvl := int(GameState.machine_temps.get(selected_machine_id, 2))
+	var time_mul: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
+	var power_mul: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
+	var use_time: float = float(m.get("time", 1.0)) * time_mul
+	var use_power: int = maxi(1, int(round(float(m.get("power", 0)) * power_mul)))
+	if GameState.machine_modules.has(selected_machine_id):
+		use_time *= 0.8
+		use_power = maxi(1, use_power - 1)
+	machine_name_label.text = String(m.get("name", ""))
+	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C" % [use_power, use_time, int(m.get("temp", 24))]
+	var ins: Array = []
+	for i in m.get("inputs", []):
+		var d := GameState.get_item_def(String(i.get("id", "")))
+		ins.append("%sx%d" % [_short_item_name(String(i.get("id", "")), String(d.get("name", ""))), int(i.get("count", 1))])
+	var outs: Array = []
+	for o in m.get("outputs", []):
+		var od := GameState.get_item_def(String(o.get("id", "")))
+		outs.append("%sx%d" % [_short_item_name(String(o.get("id", "")), String(od.get("name", ""))), int(o.get("count", 1))])
+	machine_io_label.text = "输入：%s
+输出：%s
+原料持有：废金属x%d 打印塑料x%d 金属锭x%d 化学品x%d" % [" + ".join(ins), " + ".join(outs), GameState.inventory_count("scrap_metal"), GameState.inventory_count("printer_plastic"), GameState.inventory_count("metal_ingot"), GameState.inventory_count("common_chemical")]
+	var mod_id := String(GameState.machine_modules.get(selected_machine_id, ""))
+	if mod_id == "":
+		machine_module_label.text = "模块：无（安装模块：耗时 -20%，电力 -1）"
+	else:
+		machine_module_label.text = "模块：%s（耗时 -20%%，电力 -1）" % GameState.get_item_def(mod_id).get("name", mod_id)
+	for i in range(temp_buttons.size()):
+		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
+	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
+	machine_start_btn.disabled = false
+	for j in GameState.machine_jobs:
+		if String(j.get("machine_id", "")) == selected_machine_id:
+			machine_start_btn.disabled = true
+	_refresh_machine_jobs()
+	_refresh_machine_selection()
 
 func _short_item_name(id: String, fallback: String) -> String:
 	match id:
@@ -871,17 +973,47 @@ func _short_item_name(id: String, fallback: String) -> String:
 		return fallback
 	return fallback.substr(0, 8)
 
-func _start_machine(machine_id: String) -> void:
-	var res := GameState.start_machine(machine_id)
-	_refresh()
-	if res.get("ok", false):
-		_show_modal("机器", String(res.get("text", "")), [{"label": "返回机器", "cb": _open_machines}, {"label": "关闭", "cb": _close_modal}])
-	else:
-		_toast(String(res.get("text", "启动失败")))
+func _refresh_machine_jobs() -> void:
+	if GameState.machine_jobs.is_empty():
+		machine_jobs_label.text = "无"
+		return
+	var text := ""
+	for j in GameState.machine_jobs:
+		text += "· %s  剩余 %.1fs
+" % [j.get("name", ""), float(j.get("remaining", 0.0))]
+	machine_jobs_label.text = text
+
+func _start_selected_machine() -> void:
+	var res := GameState.start_machine(selected_machine_id)
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _install_module() -> void:
+	var res := GameState.install_module(selected_machine_id)
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _set_temp(level: int) -> void:
+	GameState.set_machine_temp(selected_machine_id, level)
+	_refresh_machine_panel()
+	machine_status_label.text = "温度已切换，耗时与电力已更新。"
 
 func _on_machine_finished(message: String) -> void:
 	_refresh()
-	_toast(message)
+	if machine_layer and machine_layer.visible:
+		_refresh_machine_panel()
+		machine_status_label.text = message
+	else:
+		_toast(message)
+
+func _process(delta: float) -> void:
+	if machine_layer == null or not machine_layer.visible:
+		return
+	machine_ui_timer += delta
+	if machine_ui_timer >= 0.25:
+		machine_ui_timer = 0.0
+		_refresh_machine_jobs()
+		machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
 
 func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
