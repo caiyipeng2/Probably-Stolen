@@ -1124,14 +1124,21 @@ func _queue_story_for_day() -> void:
 
 func _queue_story_scenes() -> Array:
 	var firsts: Array = []
+	var postgame_count := 0
 	for scene in story_scenes:
 		var sid := String(scene.get("id", ""))
 		if sid == "" or scene_seen.has(sid):
 			continue
-		if int(scene.get("day", 0)) != day:
+		var sday := int(scene.get("day", 0))
+		if sday == 0:
+			if day < 11 or postgame_count >= 2:
+				continue
+		elif sday != day:
 			continue
 		if not _scene_available(scene):
 			continue
+		if sday == 0:
+			postgame_count += 1
 		var intent := String(scene.get("intent", "dialogue"))
 		if intent in ["sell", "buy"]:
 			customers_today.insert(0, _make_scene_customer(scene))
@@ -1321,7 +1328,7 @@ func remove_inventory(def_id: String, count: int) -> bool:
 			i += 1
 	return need == 0
 
-func start_machine(machine_id: String) -> Dictionary:
+func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = false) -> Dictionary:
 	var m := machine_def(machine_id)
 	if m.is_empty():
 		return {"ok": false, "text": "没有这台机器。"}
@@ -1337,12 +1344,15 @@ func start_machine(machine_id: String) -> Dictionary:
 		use_time *= 0.8
 		use_power = maxi(1, use_power - 1)
 	use_time *= 1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0
+	use_time *= 1.0 - clampf(quality, 0.0, 1.0) * 0.2
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
 	for inp in m.get("inputs", []):
 		if inventory_count(String(inp.get("id", ""))) < int(inp.get("count", 1)):
 			var d := get_item_def(String(inp.get("id", "")))
 			return {"ok": false, "text": "缺少原料：%s x%d。" % [d.get("name", inp.get("id", "")), int(inp.get("count", 1))]}
+	if dry_run:
+		return {"ok": true, "text": "%s 可以启动。" % String(m.get("name", machine_id))}
 	for inp in m.get("inputs", []):
 		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
 	power -= use_power

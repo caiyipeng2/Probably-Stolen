@@ -63,6 +63,12 @@ var machine_status_label: Label
 var machine_jobs_label: Label
 var machine_power_label: Label
 var machine_start_btn: Button
+var minigame_layer: Control
+var minigame_target_cells: Array = []
+var minigame_cells: Array = []
+var minigame_target: Array = []
+var minigame_selected: Array = []
+var minigame_status: Label
 var temp_buttons: Array = []
 var machine_list_buttons: Dictionary = {}
 var selected_machine_id := ""
@@ -136,6 +142,7 @@ func _ready() -> void:
 	_autotest_if_requested()
 	_dumpui_if_requested()
 	_dumpinspect_if_requested()
+	_testminigame_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -222,7 +229,48 @@ func _autotest_if_requested() -> void:
 	get_tree().quit()
 
 
+func _testminigame_if_requested() -> void:
+	if not "--testminigame" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	if GameState.inventory_count("metal_ingot") < 1:
+		GameState.add_item(GameState.make_item("metal_ingot", 100, true, false))
+	selected_machine_id = "printer"
+	_open_printer_minigame()
+	_confirm_minigame()
+	print("MINIGAME fail_status=", minigame_status.text, " jobs=", GameState.machine_jobs.size())
+	for i in range(16):
+		minigame_selected[i] = int(minigame_target[i]) == 1
+		minigame_cells[i].button_pressed = minigame_selected[i]
+	_confirm_minigame()
+	print("MINIGAME ok_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
+	get_tree().quit()
+
 func _capture_if_requested() -> void:
+	if "--captureminigame" in OS.get_cmdline_args():
+		await get_tree().create_timer(1.0).timeout
+		_welcome_done()
+		await get_tree().create_timer(0.2).timeout
+		var mguard := 0
+		while story_layer.visible and mguard < 40:
+			_story_advance()
+			mguard += 1
+		if modal_layer.visible:
+			_close_modal()
+		_open_printer_minigame()
+		await get_tree().create_timer(0.3).timeout
+		var mimg := get_viewport().get_texture().get_image()
+		mimg.save_png("res://_research/mockups/phone/m7_minigame.png")
+		get_tree().quit()
+		return
 	if "--capturetutorial" in OS.get_cmdline_args():
 		await get_tree().create_timer(1.0).timeout
 		_welcome_done()
@@ -425,11 +473,12 @@ func _build_ui() -> void:
 	_build_info_bay()
 	_build_story_layer()
 	_build_combat_layer()
+	_build_minigame_layer()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M6", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M7", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -695,6 +744,102 @@ func _build_combat_layer() -> void:
 	var buttons := [["攻击", "attack", C_RUST], ["防御", "guard", C_CYAN], ["技能", "skill", C_AMBER], ["逃跑", "flee", C_MUTED]]
 	for i in range(buttons.size()):
 		_button(panel, buttons[i][0], Vector2(420 + i * 220, 590), Vector2(200, 68), buttons[i][2], _combat_action.bind(buttons[i][1]))
+
+func _build_minigame_layer() -> void:
+	minigame_layer = Control.new()
+	minigame_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	minigame_layer.visible = false
+	minigame_layer.z_index = 150
+	minigame_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(minigame_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.84)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	minigame_layer.add_child(dim)
+	var panel := _panel(minigame_layer, Vector2(420, 160), Vector2(1500, 760), C_PANEL, C_CYAN, 3)
+	_label(panel, "3D 打印 · 形状校准", Vector2(30, 18), Vector2(800, 48), 34, C_AMBER)
+	_label(panel, "对照左侧目标图案，在右侧点亮相同格子。匹配度 ≥75%（12/16）才能启动；完美匹配可缩短打印时间。", Vector2(30, 76), Vector2(1420, 40), 20, C_MUTED)
+	_label(panel, "目标图案", Vector2(90, 130), Vector2(300, 34), 24, C_CYAN)
+	var target_grid := GridContainer.new()
+	target_grid.columns = 4
+	target_grid.position = Vector2(90, 180)
+	target_grid.add_theme_constant_override("h_separation", 8)
+	target_grid.add_theme_constant_override("v_separation", 8)
+	panel.add_child(target_grid)
+	for i in range(16):
+		var cell := Panel.new()
+		cell.custom_minimum_size = Vector2(90, 90)
+		target_grid.add_child(cell)
+		minigame_target_cells.append(cell)
+	_label(panel, "你的图案（点按切换）", Vector2(820, 130), Vector2(500, 34), 24, C_AMBER)
+	var grid := GridContainer.new()
+	grid.columns = 4
+	grid.position = Vector2(820, 180)
+	grid.add_theme_constant_override("h_separation", 8)
+	grid.add_theme_constant_override("v_separation", 8)
+	panel.add_child(grid)
+	for i in range(16):
+		var b := Button.new()
+		b.toggle_mode = true
+		b.custom_minimum_size = Vector2(90, 90)
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_stylebox_override("normal", _style(C_PANEL2, C_LINE))
+		b.add_theme_stylebox_override("hover", _style(Color("#252c38"), C_AMBER))
+		b.add_theme_stylebox_override("pressed", _style(Color("#6b5526"), C_AMBER, 3))
+		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
+		b.pressed.connect(_toggle_minigame_cell.bind(i))
+		grid.add_child(b)
+		minigame_cells.append(b)
+	minigame_status = _label(panel, "", Vector2(90, 610), Vector2(700, 40), 24, C_MUTED)
+	_button(panel, "启动打印", Vector2(900, 620), Vector2(240, 72), C_AMBER, _confirm_minigame)
+	_button(panel, "取消", Vector2(1170, 620), Vector2(200, 72), C_MUTED, _close_minigame)
+
+func _open_printer_minigame() -> void:
+	var patterns := [
+		[0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0, 0, 0, 0, 0],
+		[1, 1, 1, 1, 1, 0, 0, 1, 1, 0, 0, 1, 1, 1, 1, 1],
+		[0, 0, 1, 0, 0, 1, 1, 0, 1, 1, 1, 1, 0, 1, 1, 0],
+		[0, 1, 0, 1, 1, 0, 1, 0, 1, 1, 1, 1, 0, 1, 0, 1],
+		[1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 0, 1, 0, 0, 1],
+	]
+	minigame_target = patterns[randi() % patterns.size()].duplicate()
+	minigame_selected = []
+	for i in range(16):
+		minigame_selected.append(false)
+		minigame_cells[i].button_pressed = false
+		var on := int(minigame_target[i]) == 1
+		minigame_target_cells[i].add_theme_stylebox_override("panel", _style(Color(0.39, 0.85, 0.82, 0.4) if on else C_PANEL2, C_CYAN if on else C_LINE))
+	minigame_status.text = "匹配度 0/16（至少 12）"
+	minigame_layer.visible = true
+	_play_sfx("page")
+
+func _toggle_minigame_cell(idx: int) -> void:
+	if idx < 0 or idx >= minigame_selected.size():
+		return
+	minigame_selected[idx] = not bool(minigame_selected[idx])
+	minigame_cells[idx].button_pressed = minigame_selected[idx]
+	var matched := 0
+	for i in range(16):
+		if (1 if minigame_selected[i] else 0) == int(minigame_target[i]):
+			matched += 1
+	minigame_status.text = "匹配度 %d/16（至少 12）" % matched
+
+func _confirm_minigame() -> void:
+	var matched := 0
+	for i in range(16):
+		if (1 if minigame_selected[i] else 0) == int(minigame_target[i]):
+			matched += 1
+	if matched < 12:
+		minigame_status.text = "校准失败：%d/16，需要至少 12。调整后重试。" % matched
+		_play_sfx("fail")
+		return
+	minigame_layer.visible = false
+	_play_sfx("machine")
+	_start_selected_machine(float(matched) / 16.0)
+
+func _close_minigame() -> void:
+	minigame_layer.visible = false
+	_play_sfx("soft")
 
 func _refresh() -> void:
 	if not is_inside_tree():
@@ -1258,8 +1403,16 @@ func _refresh_machine_jobs() -> void:
 " % [j.get("name", ""), float(j.get("remaining", 0.0))]
 	machine_jobs_label.text = text
 
-func _start_selected_machine() -> void:
-	var res := GameState.start_machine(selected_machine_id)
+func _start_selected_machine(quality: float = -1.0) -> void:
+	if selected_machine_id == "printer" and quality < 0.0:
+		var check := GameState.start_machine("printer", 0.0, true)
+		if not bool(check.get("ok", false)):
+			machine_status_label.text = String(check.get("text", ""))
+			_play_sfx("fail")
+			return
+		_open_printer_minigame()
+		return
+	var res := GameState.start_machine(selected_machine_id, maxf(quality, 0.0))
 	if bool(res.get("ok", false)):
 		_play_sfx("machine")
 	_refresh_machine_panel()
