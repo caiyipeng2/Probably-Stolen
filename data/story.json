@@ -134,10 +134,17 @@
     "text": "你已经撑过一周了。房东开始盯着你的账本。\n想真正拥有这家店，就攒够钱把产权买下来。",
     "choices": [
       {
-        "text": "我会买下这家店",
+        "text": "我会攒钱全款买下",
         "next": "",
         "effects": {
           "flag": "buyout_goal"
+        }
+      },
+      {
+        "text": "我准备走按揭（首付 500₵）",
+        "next": "",
+        "effects": {
+          "flag": "buyout_mortgage_plan"
         }
       }
     ]
@@ -152,7 +159,7 @@
         "text": "买下店铺（需要 2000₵）",
         "next": "",
         "requires_cash": 2000,
-        "ending": "owner"
+        "ending": "buyout_dynamic"
       },
       {
         "text": "离开空间站",
@@ -174,7 +181,7 @@
       {
         "text": "与卡特尔合作（卡特尔结局）",
         "next": "",
-        "ending": "cartel"
+        "ending": "cartel_dynamic"
       },
       {
         "text": "向治安部自首（被捕结局）",

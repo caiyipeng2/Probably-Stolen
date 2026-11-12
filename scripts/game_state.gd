@@ -842,6 +842,13 @@ func apply_event(choice_index: int) -> void:
 	var changes: Dictionary = ch.get("rep", {})
 	for k in changes.keys():
 		add_rep(k, int(changes[k]))
+	var end_id := String(ch.get("ending", ""))
+	if end_id != "" and rng.randf() < float(ch.get("ending_chance", 1.0)):
+		phase = "gameover"
+		ending_id = end_id
+		pending_event = {}
+		emit_signal("state_changed")
+		return
 	var confiscated := 0
 	if bool(ch.get("confiscate", false)):
 		for i in range(inventory.size() - 1, -1, -1):
@@ -945,6 +952,13 @@ func ending_def(id: String) -> Dictionary:
 			return e
 	return {}
 
+func resolve_ending(id: String) -> String:
+	if id == "buyout_dynamic":
+		return "buyout_mortgage" if story_flags.has("buyout_mortgage_plan") else "buyout"
+	if id == "cartel_dynamic":
+		return "cartel_retired" if int(rep.get("cartel", 0)) >= 20 else "cartel"
+	return id
+
 func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "", context: String = "") -> Dictionary:
 	var e := enemy_def(enemy_id)
 	if e.is_empty():
@@ -1030,7 +1044,7 @@ func combat_action(action: String) -> Dictionary:
 		elif combat_context == "street_ambush":
 			end_id = "mob"
 		elif String(combat_enemy.get("id", "")) == "boss_lou":
-			end_id = "lou_bombed"
+			end_id = "lou_bombed_debt" if cash < loan else "lou_bombed"
 		if end_id != "":
 			phase = "gameover"
 			ending_id = end_id

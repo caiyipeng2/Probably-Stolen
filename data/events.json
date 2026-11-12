@@ -211,5 +211,126 @@
         "result": "中间人冷笑一声走了。"
       }
     ]
+  },
+  {
+    "id": "reactor_scare",
+    "title": "反应堆异常",
+    "text": "空间站的应急灯变成了红色。广播说只是“例行波动”，但走廊里已经有人在跑。",
+    "choices": [
+      {
+        "label": "立刻撤离（-120₵）",
+        "cash": -120,
+        "rep": {},
+        "result": "你在避难舱里坐了一夜，店没事，钱少了一截。"
+      },
+      {
+        "label": "留下看店",
+        "cash": 0,
+        "rep": {},
+        "ending": "reactor",
+        "ending_chance": 0.35,
+        "result": "你决定赌一把。警报声越来越近……"
+      },
+      {
+        "label": "帮忙检修（-60₵）",
+        "cash": -60,
+        "rep": {
+          "lower": 3
+        },
+        "result": "你跟着维修队跑了一夜，街区保住了。"
+      }
+    ]
+  },
+  {
+    "id": "aug_rejection",
+    "title": "义体排异",
+    "text": "你手臂里的旧义体突然发热，指尖开始不听使唤。柜台上的水杯被碰倒了。",
+    "choices": [
+      {
+        "label": "去诊所（-150₵）",
+        "cash": -150,
+        "rep": {},
+        "result": "医生给你换了一根便宜的导线，至少还能用。"
+      },
+      {
+        "label": "硬扛",
+        "cash": 0,
+        "rep": {},
+        "ending": "aug",
+        "ending_chance": 0.3,
+        "result": "你咬着牙继续营业。热度从手臂爬上了肩膀……"
+      },
+      {
+        "label": "找黑市医生（-80₵）",
+        "cash": -80,
+        "rep": {
+          "blackmarket": 5
+        },
+        "result": "黑市医生手脚很快，收钱也很快。"
+      }
+    ]
+  },
+  {
+    "id": "vendor_permit_check",
+    "title": "售货许可检查",
+    "text": "治安部带着一叠表格上门，说你的自动售货许可“需要重新审核”。",
+    "choices": [
+      {
+        "label": "打点一下（-200₵）",
+        "cash": -200,
+        "rep": {
+          "security": 5
+        },
+        "result": "表格被收回去了，许可暂时没事。"
+      },
+      {
+        "label": "配合检查",
+        "cash": 0,
+        "rep": {},
+        "ending": "vendor_permit",
+        "ending_chance": 0.35,
+        "result": "他们翻看着许可文件，表情越来越难看……"
+      },
+      {
+        "label": "关门避检",
+        "cash": 0,
+        "rep": {
+          "security": -5,
+          "lower": 2
+        },
+        "result": "你拉下卷帘门，假装今天不营业。"
+      }
+    ]
+  },
+  {
+    "id": "street_bombing",
+    "title": "街角炸弹",
+    "text": "街角传来一声闷响，玻璃震得嗡嗡作响。有人倒在烟雾里。",
+    "choices": [
+      {
+        "label": "冲出去救人",
+        "cash": 0,
+        "rep": {
+          "lower": 5
+        },
+        "ending": "bombed",
+        "ending_chance": 0.25,
+        "result": "你冲进烟尘里……"
+      },
+      {
+        "label": "躲进柜台",
+        "cash": -50,
+        "rep": {},
+        "result": "你躲在柜台后面，等警笛声响起。"
+      },
+      {
+        "label": "破财消灾（-100₵）",
+        "cash": -100,
+        "rep": {
+          "blackmarket": -2
+        },
+        "result": "你塞钱给巡街的人，让他们别再往这边看。"
+      }
+    ]
   }
 ]

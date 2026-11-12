@@ -4,7 +4,11 @@ func _init() -> void:
 	var gs = load("res://scripts/game_state.gd").new()
 	gs._load_defs()
 	gs.new_game()
-	print("endings=", gs.endings.size(), " defs=", gs.ending_def("sec").get("title", ""))
+	print("endings=", gs.endings.size(), " events=", gs.events.size(), " defs=", gs.ending_def("sec").get("title", ""))
+	print("dynamic buyout=", gs.resolve_ending("buyout_dynamic"), " cartel=", gs.resolve_ending("cartel_dynamic"))
+	gs.story_flags["buyout_mortgage_plan"] = true
+	gs.rep["cartel"] = 20
+	print("dynamic2 buyout=", gs.resolve_ending("buyout_dynamic"), " cartel=", gs.resolve_ending("cartel_dynamic"))
 	# rent
 	gs.cash = 0
 	gs.rent_due = 1
@@ -44,4 +48,17 @@ func _init() -> void:
 	gs.combat_player_hp = 1
 	gs.combat_action("guard")
 	print("boss phase=", gs.phase, " ending=", gs.ending_id)
+	# event ending
+	gs.new_game()
+	gs.pending_event = {"id": "reactor_scare", "choices": [{"cash": 0, "rep": {}, "ending": "reactor", "ending_chance": 1.0, "result": "test"}]}
+	gs.apply_event(0)
+	print("event phase=", gs.phase, " ending=", gs.ending_id)
+	# boss debt
+	gs.new_game()
+	gs.cash = 0
+	gs.loan = 200
+	gs.start_combat("boss_lou", "lower", "w_lou", "")
+	gs.combat_player_hp = 1
+	gs.combat_action("guard")
+	print("boss_debt phase=", gs.phase, " ending=", gs.ending_id)
 	quit()

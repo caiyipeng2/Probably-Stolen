@@ -1,10 +1,11 @@
-# 深空当铺手机版（M9）
+# 深空当铺手机版（M10）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M1–M8 已完成；当前为 **M9 私有构建**：后日谈剧情池、机器小游戏、失败结局系统、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M9 已完成；当前为 **M10 私有构建**：后日谈剧情池、机器小游戏、17 种失败/终局结局全部接入、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M9 私有构建）：`build/probably_stolen_m9.apk`
+- APK（M10 私有构建）：`build/probably_stolen_m10.apk`
+- M9 APK：`build/probably_stolen_m9.apk`
 - M8 APK：`build/probably_stolen_m8.apk`
 - M7 APK：`build/probably_stolen_m7.apk`
 - M6 APK：`build/probably_stolen_m6.apk`
@@ -62,6 +63,7 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M8 已完成�
   - `46_m8_dna_filled.png` DNA 序列输入
   - `47_m8_dna_started.png` DNA 不匹配重试
   - `48_m9_welcome.png` M9 欢迎界面
+  - `49_m10_welcome.png` M10 欢迎界面
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -170,6 +172,15 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **测试**：新增 `scripts/test_endings.gd`，7 条触发路径全部通过；M1/M4/M5/M6 与经济/战斗模拟回归通过。
 - **边界**：`aug`、`reactor`、`vendor_permit`、`buyout`、`buyout_mortgage`、`cartel_retired`、`lou_bombed_debt` 目前为结局数据，尚未接入专属触发；后续结合义体、反应堆、售货机与剧情条件补齐。
 
+## M10 已完成（17 种结局全部接入）
+
+- **新增夜间事件**：反应堆异常（`reactor`）、义体排异（`aug`）、售货许可检查（`vendor_permit`）、街角炸弹（`bombed`），风险选项按概率触发对应结局。
+- **终章动态结局**：买店在第 8 天选择按揭计划 → `buyout_mortgage`，否则 → `buyout`；卡特尔声望 ≥20 → `cartel_retired`，否则 → `cartel`。
+- **Boss 债务分支**：挑战「卢」失败时，若现金低于贷款 → `lou_bombed_debt`，否则 → `lou_bombed`。
+- **覆盖率**：原版 17 种失败/终局 id 全部具备触发路径；`data/endings.json` 共 21 条。
+- **测试**：`test_endings.gd` 覆盖欠租、贷款、声望、查抄、夜间战斗、Boss、事件结局、动态买店/卡特尔、债务 Boss，共 12 条路径全部通过。
+- **真机**：M10 APK 安装启动正常；结局数据与事件加载无报错。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -185,7 +196,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m9.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m10.apk
 ```
 
 开发调试参数：
@@ -233,5 +244,7 @@ godot --path . --dumpinspect
 - M8 已完成：化学混合器配比校准、DNA 操作台序列复制、三台机器统一启动预检、M8 APK。
 - M8 边界：化学/DNA 小游戏只影响耗时，不改变产出与配方；机器损坏/维修、种植/养殖周期、3D 打印形状拼图仍为简化实现。
 - M9 已完成：21 条结局数据、欠租/贷款/声望/查抄/夜间战斗/Boss 等失败结局触发、日结与战斗结算展示、M9 APK。
-- M9 边界：17 种原版结局 id 中 7 条专属触发（aug/reactor/vendor_permit/buyout/buyout_mortgage/cartel_retired/lou_bombed_debt）仍为数据待接入；战斗仍为简化回合制。
-- 后续：公开版素材替换、剩余结局触发、机器损坏/维修、剩余机器深度玩法。
+- M9 边界：当时 17 种原版结局 id 中 7 条专属触发仍为数据待接入；M10 已补齐。
+- M10 已完成：4 个结局触发事件、买店按揭/卡特尔退休动态结局、Boss 债务结局；17 种原版失败/终局 id 全部接入，21 条结局数据。
+- M10 边界：部分结局为压缩改编（反应堆/义体/售货机无独立系统，以夜间事件表现）；战斗仍为简化回合制。
+- 后续：公开版素材替换、机器损坏/维修、剩余机器深度玩法。
