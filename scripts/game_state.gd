@@ -7,10 +7,14 @@ signal event_started(event)
 
 const GRID_W := 16
 const GRID_H := 3
+const GRID_PAGES := 3
 const DISPLAY_SLOTS := 6
+const RETAIL_MARKUP := 15.0
 
 var items_def: Dictionary = {}
 var tradable_pool: Array = []
+var pages_unlocked := 2
+var max_pages_unlocked := 2
 var customer_defs: Array = []
 var events: Array = []
 
@@ -138,11 +142,36 @@ func make_item(def_id: String, condition: int = 100, authentic: bool = true, sto
 		"known": false,
 		"inspect_count": 0,
 		"clues": [],
+		"features": _roll_features(def_id),
 		"x": -1,
 		"y": -1,
+		"page": 0,
 		"rotated": false,
 		"location": "backpack",
 	}
+
+func _roll_features(def_id: String) -> Array:
+	var def := get_item_def(def_id)
+	var itype := String(def.get("inspect_type", "generic"))
+	var pool: Array = []
+	match itype:
+		"water":
+			pool = [{"id":"clean","name":"清澈","mod":6},{"id":"mineral","name":"矿物质偏高","mod":-4},{"id":"contaminated","name":"有沉淀","mod":-12}]
+		"cig":
+			pool = [{"id":"sealed","name":"封口完好","mod":5},{"id":"resealed","name":"二次封装","mod":-15},{"id":"stale","name":"受潮","mod":-8}]
+		"cyber", "weapon":
+			pool = [{"id":"serial_intact","name":"序列号完整","mod":8},{"id":"serial_ground","name":"序列号磨损","mod":-12},{"id":"polished","name":"翻新过","mod":3}]
+		"organ":
+			pool = [{"id":"cold_chain","name":"冷链完好","mod":10},{"id":"warm","name":"冷链中断","mod":-20}]
+		"food":
+			pool = [{"id":"fresh","name":"新鲜","mod":5},{"id":"expired","name":"临近过期","mod":-10}]
+		_:
+			pool = [{"id":"clean","name":"成色不错","mod":4},{"id":"worn","name":"使用痕迹","mod":-6},{"id":"engraved","name":"有刻字","mod":3},{"id":"bloody","name":"血渍","mod":-10}]
+	var out: Array = []
+	var n := rng.randi_range(0, 2)
+	for i in range(n):
+		out.append(pool[rng.randi_range(0, pool.size() - 1)].duplicate(true))
+	return out
 
 func next_uid() -> int:
 	uid_counter += 1
@@ -165,7 +194,7 @@ func item_cells(item: Dictionary, ox: int = -1, oy: int = -1) -> Array:
 			out.append(Vector2i(x + dx, y + dy))
 	return out
 
-func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int = -1) -> bool:
+func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int = -1, page: int = 0) -> bool:
 	var s = get_item_def(item["def_id"]).get("shape", [1, 1])
 	var w: int = s[1] if rotated else s[0]
 	var h: int = s[0] if rotated else s[1]
@@ -180,30 +209,49 @@ func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int 
 			continue
 		if other.get("location", "backpack") != "backpack":
 			continue
+		if int(other.get("page", 0)) != page:
+			continue
 		for c in item_cells(other):
 			if test.has(c):
 				return false
 	return true
 
-func auto_place(item: Dictionary) -> bool:
-	for y in range(GRID_H):
-		for x in range(GRID_W):
-			for rot in [false, true]:
-				if can_place(item, x, y, rot):
-					item["x"] = x
-					item["y"] = y
-					item["rotated"] = rot
-					item["location"] = "backpack"
-					return true
+func auto_place(item: Dictionary, page: int = -1) -> bool:
+	var pages: Array = [page] if page >= 0 else range(pages_unlocked)
+	for pg in pages:
+		for y in range(GRID_H):
+			for x in range(GRID_W):
+				for rot in [false, true]:
+					if can_place(item, x, y, rot, -1, pg):
+						item["x"] = x
+						item["y"] = y
+						item["page"] = pg
+						item["rotated"] = rot
+						item["location"] = "backpack"
+						return true
 	return false
 
 func add_item(item: Dictionary) -> bool:
-	if auto_place(item):
-		inventory.append(item)
-		return true
-	item["location"] = "overflow"
+	var ok := auto_place(item)
+	if not ok:
+		item["location"] = "overflow"
 	inventory.append(item)
-	return false
+	_refresh_pages()
+	return ok
+
+func _refresh_pages() -> void:
+	var owned := 0
+	for it in inventory:
+		var sid := String(it.get("def_id", "")).to_lower()
+		if String(get_item_def(it.get("def_id", "")).get("category", "")) == "container" and (sid.contains("backpack") or (sid.contains("bag") and not sid.contains("save_bag"))):
+			owned += 1
+	for it in display:
+		var sid2 := String(it.get("def_id", "")).to_lower()
+		if String(get_item_def(it.get("def_id", "")).get("category", "")) == "container" and (sid2.contains("backpack") or (sid2.contains("bag") and not sid2.contains("save_bag"))):
+			owned += 1
+	var target := 2 + (1 if owned >= 1 else 0) + (1 if owned >= 2 else 0)
+	max_pages_unlocked = clampi(max(max_pages_unlocked, target), 1, GRID_PAGES)
+	pages_unlocked = max_pages_unlocked
 
 func find_item(uid: int) -> Dictionary:
 	for it in inventory:
@@ -216,13 +264,14 @@ func find_item(uid: int) -> Dictionary:
 		return counter_item
 	return {}
 
-func move_item(uid: int, x: int, y: int) -> bool:
+func move_item(uid: int, x: int, y: int, page: int = 0) -> bool:
 	var it := find_item(uid)
 	if it.is_empty() or it.get("location") != "backpack":
 		return false
-	if can_place(it, x, y, it.get("rotated", false), uid):
+	if can_place(it, x, y, it.get("rotated", false), uid, page):
 		it["x"] = x
 		it["y"] = y
+		it["page"] = page
 		emit_signal("state_changed")
 		return true
 	return false
@@ -234,8 +283,9 @@ func rotate_item(uid: int) -> bool:
 	var old_rot: bool = it.get("rotated", false)
 	it["rotated"] = not old_rot
 	if it.get("location") == "backpack":
-		if not can_place(it, it["x"], it["y"], it["rotated"], uid):
-			if not auto_place(it):
+		var pg := int(it.get("page", 0))
+		if not can_place(it, it["x"], it["y"], it["rotated"], uid, pg):
+			if not auto_place(it, pg):
 				it["rotated"] = old_rot
 				return false
 	emit_signal("state_changed")
@@ -258,6 +308,8 @@ func new_game() -> void:
 	phase = "open"
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	uid_counter = 1
+	pages_unlocked = 2
+	max_pages_unlocked = 2
 	pending_event = {}
 	tutorial_done = false
 	var start_items := [
@@ -313,15 +365,21 @@ func _gen_customer() -> Dictionary:
 		var pool: Array = tradable_pool if not tradable_pool.is_empty() else ["cig_red", "cig_black", "water_bottle_full", "water_jug", "nutrifruit", "hand_steel", "hand_carbon", "hand_gold", "aug_chip", "handmade_pistol", "revolver_short", "organ_heart", "organ_liver", "command_keycard", "chem_scanner"]
 		var def_id: String = pool[rng.randi_range(0, pool.size() - 1)]
 		var cond := rng.randi_range(40, 100)
+		var def := get_item_def(def_id)
+		var cat := String(def.get("category", "misc"))
+		var contra := int(def.get("contraband", 0))
 		var auth := true
 		var stolen := false
-		if def_id in ["cig_red", "cig_black"]:
+		if "cig" in def_id:
 			auth = rng.randf() < 0.55
-		elif def_id in ["hand_gold", "aug_chip", "handmade_pistol", "revolver_short", "organ_heart", "organ_liver", "command_keycard"]:
-			auth = rng.randf() < 0.65
-			stolen = rng.randf() < 0.25
+		elif cat in ["cyber", "weapon", "organ", "document", "medical", "chem"]:
+			auth = rng.randf() < 0.8
+		if cat in ["cyber", "weapon", "organ"] or contra >= 2:
+			stolen = rng.randf() < 0.18
+		elif contra >= 1:
+			stolen = rng.randf() < 0.08
 		var item := make_item(def_id, cond, auth, stolen)
-		var val := effective_value(item)
+		var val := market_value(item, false, arche.get("faction", "lower"))
 		item["asking_price"] = int(round(val * rng.randf_range(1.15, 1.45)))
 		item["min_price"] = int(round(val * rng.randf_range(0.7, 0.9)))
 		c["item"] = item
@@ -371,7 +429,20 @@ func effective_value(item: Dictionary) -> int:
 	var cond := clampf(float(item.get("condition", 100)) / 100.0, 0.2, 1.0)
 	var auth := 1.0 if item.get("authentic", true) else 0.35
 	var stolen := 0.9 if item.get("stolen", false) else 1.0
-	return int(round(base * cond * auth * stolen))
+	var contra := 1.0 + float(def.get("contraband", 0)) * 0.12
+	var feat_mod := 0
+	for f in item.get("features", []):
+		feat_mod += int(f.get("mod", 0))
+	var feat_mult := clampf(1.0 + float(feat_mod) / 100.0, 0.5, 1.5)
+	return int(round(base * cond * auth * stolen * contra * feat_mult))
+
+func market_value(item: Dictionary, for_sale: bool = false, faction: String = "") -> int:
+	var v := float(effective_value(item))
+	if for_sale:
+		v *= 1.0 + RETAIL_MARKUP / 100.0
+	var r := clampf(float(rep.get(faction, 0)), -50.0, 50.0)
+	v *= 1.0 + r * 0.003
+	return int(round(v))
 
 func put_display_on_counter(uid: int) -> bool:
 	if current_customer.is_empty() or current_customer.get("intent") != "buy":
@@ -391,8 +462,8 @@ func put_display_on_counter(uid: int) -> bool:
 			match_tag = true
 			break
 	var factor := 1.0 if match_tag else 0.55
-	var val := effective_value(it)
 	var arche: Dictionary = current_customer["arche"]
+	var val := market_value(it, true, arche.get("faction", "lower"))
 	var pm := float(arche.get("price_mod", 1.0))
 	current_customer["offer"] = int(round(val * factor * pm * rng.randf_range(0.75, 0.95)))
 	current_customer["max_price"] = int(min(float(current_customer["budget"]), val * factor * pm * 1.05))
@@ -413,6 +484,7 @@ func add_to_display(uid: int) -> bool:
 	inventory.remove_at(idx)
 	it["location"] = "display"
 	display.append(it)
+	_refresh_pages()
 	emit_signal("state_changed")
 	return true
 
@@ -423,6 +495,7 @@ func take_from_display(uid: int) -> void:
 			display.remove_at(i)
 			it["location"] = "backpack"
 			add_item(it)
+			_refresh_pages()
 			emit_signal("state_changed")
 			return
 
@@ -451,6 +524,8 @@ func inspect_item(uid: int, method: int) -> String:
 		clue = ["材质做工%s。" % ("正常" if it["authentic"] else "粗糙"), "磨损程度约 %d%%。" % (100 - it["condition"]), serial][clamp(method, 0, 2)]
 	else:
 		clue = ["外观看起来%s。" % ("正常" if it["authentic"] else "有问题"), "标签印刷%s。" % ("清晰" if it["authentic"] else "模糊"), "来源%s。" % ("说不清" if it["stolen"] else "基本清楚")][clamp(method, 0, 2)]
+	if method < it.get("features", []).size():
+		clue += "；特征：" + String(it["features"][method].get("name", ""))
 	it["clues"].append(clue)
 	it["inspect_count"] = int(it.get("inspect_count", 0)) + 1
 	if int(it["inspect_count"]) >= 2:
@@ -463,7 +538,12 @@ func _true_desc(it: Dictionary) -> String:
 	var cond := int(it.get("condition", 100))
 	var auth := "真品" if it.get("authentic", true) else "假货"
 	var stolen := "，序列号被磨掉" if it.get("stolen", false) else ""
-	return "%s，品相 %d%%%s，估值 %d₵" % [auth, cond, stolen, effective_value(it)]
+	var feat_text := ""
+	for f in it.get("features", []):
+		feat_text += ("、" if feat_text != "" else "") + String(f.get("name", ""))
+	if feat_text != "":
+		feat_text = "，特征：" + feat_text
+	return "%s，品相 %d%%%s%s，估值 %d₵" % [auth, cond, stolen, feat_text, effective_value(it)]
 
 func make_offer(price: int) -> Dictionary:
 	if current_customer.is_empty() or current_customer.get("intent") != "sell":
@@ -637,7 +717,7 @@ func save_game() -> bool:
 	var data := {
 		"version": 1, "day": day, "cash": cash, "rent": rent, "rent_due": rent_due,
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
-		"display": display, "uid_counter": uid_counter,
+		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -669,10 +749,15 @@ func load_game() -> bool:
 	inventory = data.get("inventory", []).duplicate(true)
 	display = data.get("display", []).duplicate(true)
 	uid_counter = int(data.get("uid_counter", 1))
+	pages_unlocked = int(data.get("pages_unlocked", 2))
+	max_pages_unlocked = pages_unlocked
 	for it in inventory:
 		_normalize_item(it)
+		max_pages_unlocked = max(max_pages_unlocked, int(it.get("page", 0)) + 1)
 	for it in display:
 		_normalize_item(it)
+	pages_unlocked = clampi(max_pages_unlocked, 2, GRID_PAGES)
+	max_pages_unlocked = pages_unlocked
 	pending_event = {}
 	phase = "open"
 	start_day()
@@ -683,6 +768,7 @@ func _normalize_item(it: Dictionary) -> void:
 	it["condition"] = int(it.get("condition", 100))
 	it["x"] = int(it.get("x", -1))
 	it["y"] = int(it.get("y", -1))
+	it["page"] = int(it.get("page", 0))
 	it["inspect_count"] = int(it.get("inspect_count", 0))
 	it["authentic"] = bool(it.get("authentic", true))
 	it["stolen"] = bool(it.get("stolen", false))
@@ -690,5 +776,7 @@ func _normalize_item(it: Dictionary) -> void:
 	it["rotated"] = bool(it.get("rotated", false))
 	if not it.has("clues") or not it["clues"] is Array:
 		it["clues"] = []
+	if not it.has("features") or not it["features"] is Array:
+		it["features"] = []
 
 

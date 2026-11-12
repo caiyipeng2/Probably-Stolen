@@ -56,8 +56,10 @@ var action_buttons: Dictionary = {}
 var rail_buttons: Dictionary = {}
 var rep_labels: Dictionary = {}
 var tab_buttons: Dictionary = {}
+var page_buttons: Array = []
 
 var selected_uid := -1
+var current_page := 0
 var filter_category := "all"
 var dragging_uid := -1
 var drag_icon: TextureButton
@@ -359,11 +361,14 @@ func _build_drawer() -> void:
 	top.size = Vector2(2340, 6)
 	p.add_child(top)
 	_label(p, "柜台 · COUNTER", Vector2(24, 12), Vector2(300, 40), 30, C_TEXT)
-	var tabs := [["全部", "all"], ["武器", "weapon"], ["化学品", "chem"], ["义体", "cyber"], ["文书", "document"], ["杂物", "misc"]]
+	var tabs := [["全部", "all"], ["武器", "weapon"], ["改装", "weapon_mod"], ["义体", "cyber"], ["医疗", "medical"], ["化学", "chem"], ["食物", "food"], ["文书", "document"], ["材料", "material"], ["模块", "module"], ["杂物", "misc"]]
 	for i in range(tabs.size()):
-		var b := _button(p, tabs[i][0], Vector2(300 + i * 130, 10), Vector2(120, 44), C_MUTED, _set_filter.bind(tabs[i][1]))
+		var b := _button(p, tabs[i][0], Vector2(300 + i * 106, 10), Vector2(100, 44), C_MUTED, _set_filter.bind(tabs[i][1]))
 		tab_buttons[tabs[i][1]] = b
-	capacity_label = _label(p, "", Vector2(1740, 18), Vector2(200, 28), 22, C_MUTED)
+	for i in range(3):
+		var pb := _button(p, str(i + 1), Vector2(1480 + i * 52, 10), Vector2(44, 44), C_MUTED, _on_page.bind(i))
+		page_buttons.append(pb)
+	capacity_label = _label(p, "", Vector2(1640, 18), Vector2(250, 28), 22, C_MUTED)
 	_button(p, "整理", Vector2(2140, 8), Vector2(160, 48), C_CYAN, _auto_sort)
 	var ledger := _panel(p, Vector2(24, 64), Vector2(330, 250), C_PAPER, Color("#b9a98a"), 3)
 	_label(ledger, "今日流水", Vector2(16, 10), Vector2(200, 36), 26, C_INK)
@@ -486,7 +491,7 @@ func _rebuild_display() -> void:
 			var icon := _texture_rect(p, Vector2(8, 6), Vector2(160, 80), dip)
 			icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
 			_label(p, String(def.get("name", "")), Vector2(8, 88), Vector2(160, 22), 18, C_TEXT)
-			_label(p, "%d¥" % GameState.effective_value(it), Vector2(8, 110), Vector2(160, 20), 18, C_AMBER)
+			_label(p, "%d¥" % GameState.market_value(it, true), Vector2(8, 110), Vector2(160, 20), 18, C_AMBER)
 			var uid := int(it["uid"])
 			var btn := Button.new()
 			btn.flat = true
@@ -506,6 +511,8 @@ func _rebuild_grid() -> void:
 			cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for it in GameState.inventory:
 		if it.get("location", "backpack") != "backpack":
+			continue
+		if int(it.get("page", 0)) != current_page:
 			continue
 		if not _matches_filter(it):
 			continue
@@ -528,7 +535,11 @@ func _rebuild_grid() -> void:
 		if uid == selected_uid:
 			icon.self_modulate = Color(1.3, 1.2, 0.85)
 		grid_root.add_child(icon)
-	capacity_label.text = "容量 %d / 48" % GameState.inventory.size()
+	if current_page >= GameState.pages_unlocked:
+		current_page = GameState.pages_unlocked - 1
+	for i in range(page_buttons.size()):
+		page_buttons[i].disabled = i >= GameState.pages_unlocked
+	capacity_label.text = "容量 %d / %d" % [GameState.inventory.size(), GameState.GRID_W * GameState.GRID_H * GameState.pages_unlocked]
 
 func _selected_item() -> Dictionary:
 	for it in GameState.inventory:
@@ -567,9 +578,17 @@ func _update_detail() -> void:
 	var cond := int(it.get("condition", 100))
 	var auth_text := "真品" if it.get("authentic", true) else "假货"
 	var stolen_text := " · 序列号被磨掉" if it.get("stolen", false) else ""
-	detail_meta.text = "品相 %d%% · %s%s\n%s\n位置：%s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, ", ".join(tags), _loc_name(loc)]
+	var loc_text := _loc_name(loc)
+	if loc == "backpack":
+		loc_text += " · 第%d页" % (int(it.get("page", 0)) + 1)
+	var feat_text := ""
+	for f in it.get("features", []):
+		feat_text += ("、" if feat_text != "" else "") + String(f.get("name", ""))
+	if feat_text == "":
+		feat_text = "无"
+	detail_meta.text = "品相 %d%% · %s%s\n%s\n特征：%s · %s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, tags_text, feat_text, loc_text]
 	if known or loc == "backpack":
-		detail_price.text = "%d¥" % GameState.effective_value(it)
+		detail_price.text = "%d¥" % GameState.market_value(it, false)
 	else:
 		var base := int(def.get("base_value", 0))
 		detail_price.text = "%d-%d¥" % [int(base * 0.5), int(base * 1.1)]
@@ -603,10 +622,15 @@ func _matches_filter(it: Dictionary) -> bool:
 	var cat := String(def.get("category", "misc"))
 	match filter_category:
 		"weapon": return cat == "weapon"
+		"weapon_mod": return cat == "weapon_mod"
 		"chem": return cat == "chem"
 		"cyber": return cat == "cyber"
+		"medical": return cat == "medical"
+		"food": return cat in ["food", "plant", "animal", "water"]
 		"document": return cat == "document"
-		"misc": return cat in ["food", "misc", "tool", "container", "organ", "medical", "water", "furniture"]
+		"material": return cat == "material"
+		"module": return cat == "module"
+		"misc": return cat in ["misc", "tool", "container", "furniture"]
 	return true
 
 func _set_filter(cat: String) -> void:
@@ -615,12 +639,19 @@ func _set_filter(cat: String) -> void:
 		tab_buttons[k].modulate = Color(1.25, 1.12, 0.72) if k == cat else Color.WHITE
 	_rebuild_grid()
 
+func _on_page(page: int) -> void:
+	current_page = clampi(page, 0, GameState.pages_unlocked - 1)
+	selected_uid = -1
+	_rebuild_grid()
+	_update_detail()
+
 func _auto_sort() -> void:
 	var list: Array = []
 	for it in GameState.inventory:
 		if it.get("location", "backpack") == "backpack":
 			it["x"] = -1
 			it["y"] = -1
+			it["page"] = -1
 			list.append(it)
 	list.sort_custom(func(a, b):
 		var da := GameState.get_item_def(a["def_id"])
@@ -657,7 +688,7 @@ func _on_item_gui_input(event: InputEvent, uid: int, icon: TextureButton) -> voi
 				if did_drag:
 					var gx := int(round(local.x / 66.0))
 					var gy := int(round(local.y / 66.0))
-					GameState.move_item(uid, gx, gy)
+					GameState.move_item(uid, gx, gy, current_page)
 					_refresh()
 				else:
 					call_deferred("_on_item_selected", uid)
@@ -740,6 +771,7 @@ func _on_save() -> void:
 func _on_load() -> void:
 	if GameState.load_game():
 		selected_uid = -1
+		current_page = 0
 		_refresh()
 		_toast("已读取存档位 1。")
 	else:
@@ -785,6 +817,7 @@ func _restart_game() -> void:
 	_close_modal()
 	GameState.new_game()
 	selected_uid = -1
+	current_page = 0
 	last_summary = {}
 	_refresh()
 

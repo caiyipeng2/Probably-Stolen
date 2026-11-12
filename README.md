@@ -1,6 +1,6 @@
-# 深空当铺手机版（M1）
+# 深空当铺手机版（M2）
 
-Steam《深空当铺：可能是偷的》手机移植项目。当前为 M1 首个可玩版本：核心经营循环、触屏 UI、Android APK。
+Steam《深空当铺：可能是偷的》手机移植项目。当前为 **M2 私有构建**：全量物品目录、分类页签、容器背包、完整市价公式与物品特征，Android APK 已真机验证。
 
 ## 当前交付
 
@@ -14,13 +14,15 @@ Steam《深空当铺：可能是偷的》手机移植项目。当前为 M1 首�
   - `05_dayend.png` 日结
   - `06_m2_full_catalog.png` M2 全量物品目录
   - `07_m2_catalog_expanded.png` M2 扩展目录（模块类物品）
+  - `08_m2_final.png` M2 最终主界面
+  - `09_m2_detail.png` 物品详情/特征
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
 ## 安装
 
 ```bash
-adb install -r build/probably_stolen_m1.apk
+adb install -r build/probably_stolen_m2.apk
 adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.category.LAUNCHER 1
 ```
 
@@ -37,21 +39,25 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - 存档：3 个槽位中的槽位 1 已接入，顶栏存档/读档；日结自动存档。
 - 新手引导：首次进入说明经营流程；第一天首位顾客固定为拾荒客卖家，便于上手。
 
-## M2 首增量（进行中）
+## M2 已完成（私有构建）
 
-- 从反编译物品工厂方法抽取 **447 个物品定义、411 件可交易物品、389 个图标**。
-- 私有数据层：`data_private/items_full.json` + `assets_private/items/`，已加入 `.gitignore`，不进入公开仓库。
-- 顾客生成池已切换到全量目录；M2 APK 在真机验证，顾客会出售原版目录中的物品（截图中的“美工刀”）。
-- 名称覆盖 412/447、数值覆盖 369/447；缺口主要是模块/机器/角色类，部分使用回退值。
-- M2 剩余：补齐名称与数值、完整物品特征/容器、完整价格公式、公开版素材替换。
+- **物品目录**：447 个物品定义、422 件可交易物品、389 个原版图标 + 缺失图标占位，0 个无图标物品。
+- **私有数据层**：`data_private/items_full.json` + `assets_private/items/`，已加入 `.gitignore`，不进入公开仓库。
+- **分类**：全部、武器、改装、义体、医疗、化学、食物、文书、材料、模块、杂物，共 11 个页签。
+- **容器背包**：初始 2 页（96 格），购买背包类物品解锁第 3 页（144 格）；支持跨页自动放置与分页整理。
+- **价格公式**：基础价 × 品相 × 真伪 × 赃物折价 × 违禁品溢价 × 物品特征 × 零售加价 × 派系声望。
+- **物品特征**：水质、封口、序列号、冷链、新鲜度、成色等随机特征，参与估值并在鉴定/详情中显示。
+- **假货/赃物**：义体、武器、器官、文书、化学品按概率生成假货/赃物；鉴定可揭示。
+- **数据质量**：354/422 件使用原值，68 件按品类估算；20 件无中文名使用可读英文回退名。其余为原版本地化名称/描述。
+- **真机验证**：全量目录顾客、11 分类页签、2/3 页背包锁、物品特征详情均已验证。
 
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
 - 内存：TOTAL PSS 约 314 MB。
 - 冷启动：`am start -W` TotalTime 305ms。
-- APK：约 30 MB，arm64-v8a，minSdk 24。
-- 已验证：鉴定 → 议价 → 成交、买家上架 → 放柜台 → 成交、日结 → 夜间事件 → 下一天、存档 → 读档。
+- M2 APK：约 31 MB，arm64-v8a，minSdk 24。
+- 已验证：全量目录顾客交易、鉴定/议价/成交、分类筛选、分页背包、特征估值、存读档。
 
 ## 构建
 
@@ -60,7 +66,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m1.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m2.apk
 ```
 
 开发调试参数：
@@ -89,15 +95,8 @@ godot --path . --dumpinspect
 - 当前私有自用版复用了本机已购游戏的拆包素材；`_research/` 与拆包素材不进入公开仓库，APK 不公开分发。
 - 公开仓库/公开版必须替换为自制或生成素材，保留玩法与配色方向，不使用原游戏角色、Logo、贴图、音频。
 
-## M1 限制
+## M2 完成边界
 
-- 21 件物品、6 类顾客、4 个事件、1 个店铺场景。
-- 未包含：完整 330 物品、机器/生产链、化学/DNA/水产/种植/器官、2544 条剧情、13 专精、49 升级、8 派系完整树、战斗、报纸/手机系统。
-- 这些属于 M2–M6，最终目标是全量 1:1，不永久删减。
-
-## M2 剩余
-
-- 补齐到约 330 件物品，修正回退名称/数值。
-- 完整物品特征、容器嵌套、展示/储藏规则、违禁/赃物。
-- 完整价格公式与派系/事件修正。
-- 公开版素材替换后，公开仓库才具备可运行素材。
+- 已完成：全量物品目录、11 分类、3 页容器背包、6 格展示柜、完整市价公式、随机物品特征、假货/赃物生成、存读档。
+- M2 不包含：原版“背包套背包”的逐物品嵌套 UI、20 个英文回退名/68 个估算数值的逐条精修、公开版素材替换。
+- 后续：M3 机器/生产链，M4 顾客/派系/升级，M5 剧情/事件/战斗，M6 内容校验/平衡/发布。公开版素材替换在发布阶段处理。
