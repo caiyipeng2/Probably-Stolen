@@ -1,0 +1,50 @@
+[
+  {
+    "id": "retail_training",
+    "name": "零售训练",
+    "cost": 300,
+    "desc": "零售加价 +5%",
+    "effect": "retail",
+    "value": 5
+  },
+  {
+    "id": "power_grid",
+    "name": "电力扩容",
+    "cost": 250,
+    "desc": "电力上限 +2",
+    "effect": "power",
+    "value": 2
+  },
+  {
+    "id": "market_contacts",
+    "name": "市场人脉",
+    "cost": 400,
+    "desc": "顾客预算 +10%",
+    "effect": "budget",
+    "value": 10
+  },
+  {
+    "id": "inspector_friend",
+    "name": "鉴定师朋友",
+    "cost": 300,
+    "desc": "鉴定费 -50%",
+    "effect": "inspect",
+    "value": 50
+  },
+  {
+    "id": "rep_boost",
+    "name": "口碑经营",
+    "cost": 350,
+    "desc": "正面声望 +20%",
+    "effect": "rep",
+    "value": 20
+  },
+  {
+    "id": "machine_efficiency",
+    "name": "机器保养",
+    "cost": 500,
+    "desc": "机器耗时 -10%",
+    "effect": "machine",
+    "value": 10
+  }
+]

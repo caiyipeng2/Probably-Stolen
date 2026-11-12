@@ -1,0 +1,178 @@
+[
+  {
+    "id": "lower",
+    "name": "下层区",
+    "color": "#f0c05a",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "街坊口碑",
+        "desc": "下层区售价 +2%"
+      },
+      {
+        "threshold": 50,
+        "name": "熟客网络",
+        "desc": "下层区顾客预算 +10%"
+      },
+      {
+        "threshold": 80,
+        "name": "社区支柱",
+        "desc": "下层区售价 +5%"
+      }
+    ]
+  },
+  {
+    "id": "upper",
+    "name": "上层区",
+    "color": "#f2ecdd",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "体面门面",
+        "desc": "上层区售价 +2%"
+      },
+      {
+        "threshold": 50,
+        "name": "会员名录",
+        "desc": "上层区顾客预算 +15%"
+      },
+      {
+        "threshold": 80,
+        "name": "名流店铺",
+        "desc": "上层区售价 +5%"
+      }
+    ]
+  },
+  {
+    "id": "security",
+    "name": "治安部",
+    "color": "#63d8d2",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "配合检查",
+        "desc": "查抄损失 -10%"
+      },
+      {
+        "threshold": 50,
+        "name": "线人",
+        "desc": "提前获知查抄"
+      },
+      {
+        "threshold": 80,
+        "name": "特许供应商",
+        "desc": "武器/文书售价 +5%"
+      }
+    ]
+  },
+  {
+    "id": "blackmarket",
+    "name": "黑市",
+    "color": "#c05a3e",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "门路",
+        "desc": "违禁品售价 +3%"
+      },
+      {
+        "threshold": 50,
+        "name": "销赃网络",
+        "desc": "赃物折价减少"
+      },
+      {
+        "threshold": 80,
+        "name": "黑市话事人",
+        "desc": "违禁品售价 +8%"
+      }
+    ]
+  },
+  {
+    "id": "rev",
+    "name": "革命军",
+    "color": "#7bd88f",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "同志",
+        "desc": "医疗物资售价 +2%"
+      },
+      {
+        "threshold": 50,
+        "name": "补给线",
+        "desc": "武器订单增加"
+      },
+      {
+        "threshold": 80,
+        "name": "解放者",
+        "desc": "革命军顾客预算 +20%"
+      }
+    ]
+  },
+  {
+    "id": "tourist",
+    "name": "游客",
+    "color": "#b58cff",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "纪念品店",
+        "desc": "奢侈品售价 +2%"
+      },
+      {
+        "threshold": 50,
+        "name": "旅行推荐",
+        "desc": "游客顾客增加"
+      },
+      {
+        "threshold": 80,
+        "name": "网红店铺",
+        "desc": "游客预算 +20%"
+      }
+    ]
+  },
+  {
+    "id": "church",
+    "name": "教会",
+    "color": "#e8dcc1",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "善心",
+        "desc": "医疗/器官售价 +2%"
+      },
+      {
+        "threshold": 50,
+        "name": "庇护",
+        "desc": "声望损失 -10%"
+      },
+      {
+        "threshold": 80,
+        "name": "圣所",
+        "desc": "器官交易风险降低"
+      }
+    ]
+  },
+  {
+    "id": "cartel",
+    "name": "卡特尔",
+    "color": "#d08050",
+    "perks": [
+      {
+        "threshold": 20,
+        "name": "供货",
+        "desc": "违禁品进价 -3%"
+      },
+      {
+        "threshold": 50,
+        "name": "运输线",
+        "desc": "违禁品售价 +5%"
+      },
+      {
+        "threshold": 80,
+        "name": "核心成员",
+        "desc": "卡特尔顾客预算 +25%"
+      }
+    ]
+  }
+]

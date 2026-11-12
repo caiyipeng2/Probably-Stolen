@@ -136,5 +136,74 @@
     "accept": "为了革命。",
     "reject": "我会告诉组织。",
     "counter": "我们的资金有限，再谈谈。"
+  },
+  {
+    "id": "tourist",
+    "name": "游客",
+    "faction": "tourist",
+    "sprite": "maleUpper_5.png",
+    "budget": [
+      500,
+      1500
+    ],
+    "intent": "buy",
+    "prefer_tags": [
+      "luxury",
+      "cyber",
+      "food"
+    ],
+    "price_mod": 1.2,
+    "patience": 4,
+    "greet": "我是来下层区见世面的，有什么好东西？",
+    "ask": "这个看起来很有意思。",
+    "accept": "包起来，我要带回去。",
+    "reject": "太贵了，我只是看看。",
+    "counter": "再便宜点，我现金不多。"
+  },
+  {
+    "id": "church",
+    "name": "教会",
+    "faction": "church",
+    "sprite": "femaleUpper_1.png",
+    "budget": [
+      300,
+      900
+    ],
+    "intent": "buy",
+    "prefer_tags": [
+      "medical",
+      "organ",
+      "document"
+    ],
+    "price_mod": 0.95,
+    "patience": 4,
+    "greet": "愿空间站保佑你。我们来采购一些药品。",
+    "ask": "这些东西来源正当吗？",
+    "accept": "愿主保佑这笔交易。",
+    "reject": "我们不能接受这样的价格。",
+    "counter": "教会资金有限，请再考虑。"
+  },
+  {
+    "id": "cartel",
+    "name": "卡特尔",
+    "faction": "cartel",
+    "sprite": "maleUpper_2.png",
+    "budget": [
+      1000,
+      2500
+    ],
+    "intent": "both",
+    "prefer_tags": [
+      "contraband",
+      "weapon",
+      "cyber"
+    ],
+    "price_mod": 1.15,
+    "patience": 3,
+    "greet": "听说你这里能处理一些……特殊货物。",
+    "ask": "这批货能长期供吗？",
+    "accept": "合作愉快。",
+    "reject": "你会后悔拒绝卡特尔。",
+    "counter": "这个价格不够诚意。"
   }
 ]

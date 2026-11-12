@@ -308,14 +308,14 @@ func _build_left_rail() -> void:
 	_label(rail, "店铺", Vector2(20, 14), Vector2(170, 32), 24, C_AMBER)
 	var items := [
 		["顾客", "customers"], ["库存", "inventory"], ["网络", "network"],
-		["手机", "phone"], ["机器", "machines"], ["档案", "ledger"], ["结束营业", "end_day"],
+		["手机", "phone"], ["机器", "machines"], ["派系", "factions"], ["档案", "ledger"], ["结束营业", "end_day"],
 	]
 	for i in range(items.size()):
 		var key: String = items[i][1]
 		var color := C_TEXT
 		if key == "end_day":
 			color = C_RUST
-		var b := _button(rail, items[i][0], Vector2(20, 56 + i * 76), Vector2(170, 64), color, _on_rail.bind(key))
+		var b := _button(rail, items[i][0], Vector2(20, 50 + i * 64), Vector2(170, 56), color, _on_rail.bind(key))
 		rail_buttons[key] = b
 	status_label = _label(rail, "营业中", Vector2(20, 606), Vector2(170, 44), 20, C_GREEN)
 
@@ -330,10 +330,10 @@ func _build_right_rail() -> void:
 		var key: String = actions[i][1]
 		var b := _button(rail, actions[i][0], Vector2(20, 54 + i * 90), Vector2(170, 80), actions[i][2], _on_action.bind(key))
 		action_buttons[key] = b
-	_label(rail, "派系声望", Vector2(20, 520), Vector2(170, 28), 20, C_MUTED)
-	var reps := [["lower", "下层区", C_AMBER], ["security", "治安部", C_CYAN], ["blackmarket", "黑市", C_RUST], ["upper", "上层区", C_TEXT]]
+	_label(rail, "派系声望", Vector2(20, 500), Vector2(170, 24), 17, C_MUTED)
+	var reps := [["lower", "下层", C_AMBER], ["upper", "上层", C_TEXT], ["security", "治安", C_CYAN], ["blackmarket", "黑市", C_RUST], ["rev", "革命", C_GREEN], ["tourist", "游客", Color("#b58cff")], ["church", "教会", C_PAPER], ["cartel", "卡特尔", Color("#d08050")]]
 	for i in range(reps.size()):
-		rep_labels[reps[i][0]] = _label(rail, "", Vector2(20, 552 + i * 28), Vector2(170, 26), 20, reps[i][2])
+		rep_labels[reps[i][0]] = _label(rail, "", Vector2(12 + (i % 2) * 100, 526 + (i / 2) * 26), Vector2(96, 22), 14, reps[i][2])
 
 
 func _build_paper_note() -> void:
@@ -416,9 +416,9 @@ func _build_modal() -> void:
 	modal_layer.add_child(dim)
 	modal_panel = _panel(modal_layer, Vector2(570, 190), Vector2(1200, 700), C_PANEL, C_CYAN, 3)
 	modal_title = _label(modal_panel, "", Vector2(30, 20), Vector2(1000, 52), 36, C_AMBER)
-	modal_text = _label(modal_panel, "", Vector2(30, 82), Vector2(1140, 330), 26, C_TEXT)
+	modal_text = _label(modal_panel, "", Vector2(30, 82), Vector2(1140, 360), 26, C_TEXT)
 	modal_actions = HBoxContainer.new()
-	modal_actions.position = Vector2(30, 430)
+	modal_actions.position = Vector2(30, 500)
 	modal_actions.size = Vector2(1140, 100)
 	modal_actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	modal_actions.add_theme_constant_override("separation", 16)
@@ -488,7 +488,7 @@ func _refresh() -> void:
 	status_label.add_theme_color_override("font_color", C_GREEN if GameState.phase != "endday" else C_AMBER)
 	for k in rep_labels.keys():
 		var v := int(GameState.rep.get(k, 0))
-		rep_labels[k].text = "%-6s %+d" % [_faction_name(k), v]
+		rep_labels[k].text = "%s %+d" % [_faction_short(k), v]
 	_update_customer()
 	_update_counter()
 	_rebuild_display()
@@ -802,7 +802,9 @@ func _on_rail(key: String) -> void:
 		"inventory":
 			_toast("底部就是你的异形格背包。点选物品查看详情，拖动可以换位置。")
 		"network":
-			_toast("网络升级树将在 M4 模块开放。M1 先跑通经营循环。")
+			_open_network()
+		"factions":
+			_open_factions()
 		"phone":
 			_toast("手机/短信系统将在 M4 模块开放。M1 先跑通经营循环。")
 		"machines":
@@ -1015,6 +1017,46 @@ func _process(delta: float) -> void:
 		_refresh_machine_jobs()
 		machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
 
+func _open_factions() -> void:
+	var text := "派系声望
+
+"
+	for f in GameState.factions:
+		var fid := String(f.get("id", ""))
+		var v := int(GameState.rep.get(fid, 0))
+		var next := GameState.faction_next_perk(fid)
+		var next_text := "已满"
+		if not next.is_empty():
+			next_text = "下一档 %d：%s" % [int(next.get("threshold", 0)), next.get("name", "")]
+		text += "%s  %+d  %s
+" % [f.get("name", fid), v, next_text]
+	_show_modal("派系声望", text, [{"label": "关闭", "cb": _close_modal}])
+	modal_text.add_theme_font_size_override("font_size", 19)
+
+func _open_network() -> void:
+	var text := "网络升级 · 现金 %d₵
+
+" % GameState.cash
+	var actions: Array = []
+	for u in GameState.upgrades:
+		var uid := String(u.get("id", ""))
+		var owned := GameState.owned_upgrades.has(uid)
+		text += "%s  %d₵  %s
+" % [u.get("name", uid), int(u.get("cost", 0)), "已拥有" if owned else u.get("desc", "")]
+		if not owned:
+			actions.append({"label": "%s %d" % [u.get("name", uid), int(u.get("cost", 0))], "cb": _buy_upgrade.bind(uid), "color": C_AMBER})
+	actions.append({"label": "关闭", "cb": _close_modal})
+	_show_modal("网络升级", text, actions)
+	modal_text.add_theme_font_size_override("font_size", 17)
+
+func _buy_upgrade(uid: String) -> void:
+	var res := GameState.buy_upgrade(uid)
+	_refresh()
+	if res.get("ok", false):
+		_show_modal("网络升级", String(res.get("text", "")), [{"label": "继续", "cb": _open_network}, {"label": "关闭", "cb": _close_modal}])
+	else:
+		_toast(String(res.get("text", "购买失败")))
+
 func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
 
@@ -1023,9 +1065,14 @@ func _show_modal(title: String, text: String, actions: Array) -> void:
 	modal_text.add_theme_font_size_override("font_size", 26)
 	modal_text.text = text
 	_clear_children(modal_actions)
+	var n := actions.size()
+	var bw := 200 if n <= 4 else 140
+	var fs := 26 if n <= 4 else 19
+	modal_actions.add_theme_constant_override("separation", 16 if n <= 4 else 8)
 	for a in actions:
-		var b := _button(modal_actions, String(a.get("label", "确定")), Vector2.ZERO, Vector2(200, 64), a.get("color", C_CYAN), a.get("cb", _close_modal))
-		b.custom_minimum_size = Vector2(200, 64)
+		var b := _button(modal_actions, String(a.get("label", "确定")), Vector2.ZERO, Vector2(bw, 64), a.get("color", C_CYAN), a.get("cb", _close_modal))
+		b.custom_minimum_size = Vector2(bw, 64)
+		b.add_theme_font_size_override("font_size", fs)
 	modal_layer.visible = true
 
 func _close_modal() -> void:
@@ -1046,6 +1093,21 @@ func _faction_name(k: String) -> String:
 		"blackmarket": return "黑市"
 		"upper": return "上层区"
 		"rev": return "革命军"
+		"tourist": return "游客"
+		"church": return "教会"
+		"cartel": return "卡特尔"
+	return k
+
+func _faction_short(k: String) -> String:
+	match k:
+		"lower": return "下层"
+		"upper": return "上层"
+		"security": return "治安"
+		"blackmarket": return "黑市"
+		"rev": return "革命"
+		"tourist": return "游客"
+		"church": return "教会"
+		"cartel": return "卡特尔"
 	return k
 
 func _show_welcome() -> void:

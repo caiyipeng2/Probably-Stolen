@@ -19,6 +19,9 @@ var max_pages_unlocked := 2
 var customer_defs: Array = []
 var events: Array = []
 var machines: Array = []
+var factions: Array = []
+var upgrades: Array = []
+var owned_upgrades: Dictionary = {}
 var machine_jobs: Array = []
 var power := 10
 var max_power := 10
@@ -31,7 +34,7 @@ var rent := 200
 var rent_due := 6
 var loan := 200
 var loan_due := 12
-var rep := {"lower": 0, "security": 0, "blackmarket": 0, "upper": 0, "rev": 0}
+var rep := {"lower": 0, "security": 0, "blackmarket": 0, "upper": 0, "rev": 0, "tourist": 0, "church": 0, "cartel": 0}
 var inventory: Array = []
 var display: Array = []
 var customers_today: Array = []
@@ -139,6 +142,16 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			machines = data
+	f = FileAccess.open("res://data/factions.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			factions = data
+	f = FileAccess.open("res://data/upgrades.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			upgrades = data
 
 func get_item_def(id: String) -> Dictionary:
 	return items_def.get(id, {})
@@ -310,7 +323,7 @@ func new_game() -> void:
 	rent_due = 6
 	loan = 200
 	loan_due = 12
-	rep = {"lower": 0, "security": 0, "blackmarket": 0, "upper": 0, "rev": 0}
+	rep = {"lower": 0, "security": 0, "blackmarket": 0, "upper": 0, "rev": 0, "tourist": 0, "church": 0, "cartel": 0}
 	inventory = []
 	display = []
 	customers_today = []
@@ -346,7 +359,8 @@ func new_game() -> void:
 				var it2 := make_item(stock[0], 100, true, false)
 				it2["known"] = true
 				add_item(it2)
-	power = max_power
+	owned_upgrades = {}
+	_refresh_upgrades()
 	machine_jobs = []
 	machine_modules = {}
 	machine_temps = {}
@@ -409,7 +423,8 @@ func _gen_customer() -> Dictionary:
 		c["line"] = arche.get("greet", "") + "\n" + arche.get("ask", "")
 	else:
 		c["want_tags"] = arche.get("prefer_tags", [])
-		c["budget"] = rng.randi_range(int(arche["budget"][0]), int(arche["budget"][1]))
+		var bmult := 1.1 if owned_upgrades.has("market_contacts") else 1.0
+		c["budget"] = int(round(float(rng.randi_range(int(arche["budget"][0]), int(arche["budget"][1]))) * bmult))
 		c["offer"] = 0
 		c["max_price"] = 0
 		c["line"] = arche.get("greet", "")
@@ -462,7 +477,7 @@ func effective_value(item: Dictionary) -> int:
 func market_value(item: Dictionary, for_sale: bool = false, faction: String = "") -> int:
 	var v := float(effective_value(item))
 	if for_sale:
-		v *= 1.0 + RETAIL_MARKUP / 100.0
+		v *= 1.0 + (RETAIL_MARKUP + (5.0 if owned_upgrades.has("retail_training") else 0.0)) / 100.0
 	var r := clampf(float(rep.get(faction, 0)), -50.0, 50.0)
 	v *= 1.0 + r * 0.003
 	return int(round(v))
@@ -530,6 +545,8 @@ func inspect_item(uid: int, method: int) -> String:
 		return "已经鉴定过了：%s" % _true_desc(it)
 	var itype: String = get_item_def(it["def_id"]).get("inspect_type", "generic")
 	var cost := 10 if itype in ["cyber", "weapon"] else 5
+	if owned_upgrades.has("inspector_friend"):
+		cost = maxi(1, int(round(float(cost) * 0.5)))
 	if cash < cost:
 		return "现金不足，鉴定费 %d₵。" % cost
 	cash -= cost
@@ -675,7 +692,10 @@ func complete_customer(success: bool) -> void:
 func add_rep(faction: String, amount: int) -> void:
 	if not rep.has(faction):
 		rep[faction] = 0
-	rep[faction] = clampi(int(rep[faction]) + amount, -100, 100)
+	var final_amount := amount
+	if amount > 0 and owned_upgrades.has("rep_boost"):
+		final_amount = int(round(float(amount) * 1.2))
+	rep[faction] = clampi(int(rep[faction]) + final_amount, -100, 100)
 
 func finish_day() -> Dictionary:
 	rent_due -= 1
@@ -736,6 +756,56 @@ func apply_event(choice_index: int) -> void:
 		phase = "gameover"
 	emit_signal("state_changed")
 
+func faction_def(id: String) -> Dictionary:
+	for f in factions:
+		if String(f.get("id", "")) == id:
+			return f
+	return {}
+
+func faction_tier(id: String) -> int:
+	var f := faction_def(id)
+	var val := int(rep.get(id, 0))
+	var tier := 0
+	for p in f.get("perks", []):
+		if val >= int(p.get("threshold", 999)):
+			tier += 1
+	return tier
+
+func faction_next_perk(id: String) -> Dictionary:
+	var f := faction_def(id)
+	var val := int(rep.get(id, 0))
+	for p in f.get("perks", []):
+		if val < int(p.get("threshold", 999)):
+			return p
+	return {}
+
+func upgrade_def(id: String) -> Dictionary:
+	for u in upgrades:
+		if String(u.get("id", "")) == id:
+			return u
+	return {}
+
+func buy_upgrade(id: String) -> Dictionary:
+	var u := upgrade_def(id)
+	if u.is_empty():
+		return {"ok": false, "text": "没有这项升级。"}
+	if owned_upgrades.has(id):
+		return {"ok": false, "text": "已经购买过了。"}
+	var cost := int(u.get("cost", 0))
+	if cash < cost:
+		return {"ok": false, "text": "现金不足，需要 %d₵。" % cost}
+	cash -= cost
+	owned_upgrades[id] = true
+	if String(u.get("effect", "")) == "power":
+		power += int(u.get("value", 0))
+	_refresh_upgrades()
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已购买：%s。" % u.get("name", id)}
+
+func _refresh_upgrades() -> void:
+	max_power = 10 + (2 if owned_upgrades.has("power_grid") else 0)
+	power = mini(power, max_power)
+
 func machine_def(id: String) -> Dictionary:
 	for m in machines:
 		if String(m.get("id", "")) == id:
@@ -777,6 +847,8 @@ func start_machine(machine_id: String) -> Dictionary:
 	if machine_modules.has(machine_id):
 		use_time *= 0.8
 		use_power = maxi(1, use_power - 1)
+	if owned_upgrades.has("machine_efficiency"):
+		use_time *= 0.9
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
 	for inp in m.get("inputs", []):
@@ -845,6 +917,7 @@ func save_game() -> bool:
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps,
+		"owned_upgrades": owned_upgrades,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -886,6 +959,8 @@ func load_game() -> bool:
 	pages_unlocked = clampi(max_pages_unlocked, 2, GRID_PAGES)
 	max_pages_unlocked = pages_unlocked
 	power = int(data.get("power", 10))
+	owned_upgrades = data.get("owned_upgrades", {}).duplicate(true)
+	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)
 	machine_temps = data.get("machine_temps", {}).duplicate(true)
 	machine_jobs = data.get("machine_jobs", []).duplicate(true)
