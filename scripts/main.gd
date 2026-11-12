@@ -140,6 +140,7 @@ func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
 	_setup_theme()
 	_setup_audio()
+	_audioinfo_if_requested()
 	_build_ui()
 	GameState.state_changed.connect(_refresh)
 	GameState.customer_changed.connect(_on_customer_changed)
@@ -337,6 +338,15 @@ func _setup_theme() -> void:
 		th.default_font_size = 30
 		theme = th
 
+func _audioinfo_if_requested() -> void:
+	if not "--audioinfo" in OS.get_cmdline_args():
+		return
+	print("AUDIO music=", _audio_path("music_main.ogg"), " len=", music_player.stream.get_length() if music_player.stream else 0.0)
+	print("AUDIO ambience=", _audio_path("ambience_station.ogg"), " len=", ambience_player.stream.get_length() if ambience_player.stream else 0.0)
+	for key in ["click", "cash", "fail", "bell", "page", "shutter", "machine", "drink", "gun", "hit", "water", "soft"]:
+		print("AUDIO sfx=", key, " path=", _audio_path("sfx_%s.ogg" % key))
+	get_tree().quit()
+
 func _setup_audio() -> void:
 	var cfg := FileAccess.open("user://audio.json", FileAccess.READ)
 	if cfg:
@@ -346,16 +356,16 @@ func _setup_audio() -> void:
 	music_player = AudioStreamPlayer.new()
 	music_player.volume_db = -18.0
 	add_child(music_player)
-	var music_path := "res://assets_private/audio/music_main.ogg"
-	if ResourceLoader.exists(music_path):
+	var music_path := _audio_path("music_main.ogg")
+	if music_path != "":
 		music_player.stream = load(music_path)
 		if audio_enabled:
 			music_player.play()
 	ambience_player = AudioStreamPlayer.new()
 	ambience_player.volume_db = -22.0
 	add_child(ambience_player)
-	var amb_path := "res://assets_private/audio/ambience_station.ogg"
-	if ResourceLoader.exists(amb_path):
+	var amb_path := _audio_path("ambience_station.ogg")
+	if amb_path != "":
 		ambience_player.stream = load(amb_path)
 		if audio_enabled:
 			ambience_player.play()
@@ -365,11 +375,20 @@ func _setup_audio() -> void:
 		add_child(p)
 		sfx_players.append(p)
 
+func _audio_path(name: String) -> String:
+	var private_path := "res://assets_private/audio/" + name
+	var public_path := "res://assets_public/audio/" + name
+	if force_public_assets:
+		return public_path if ResourceLoader.exists(public_path) else ""
+	if ResourceLoader.exists(private_path):
+		return private_path
+	return public_path if ResourceLoader.exists(public_path) else ""
+
 func _play_sfx(key: String) -> void:
 	if not audio_enabled or sfx_players.is_empty():
 		return
-	var path := "res://assets_private/audio/sfx_%s.ogg" % key
-	if not ResourceLoader.exists(path):
+	var path := _audio_path("sfx_%s.ogg" % key)
+	if path == "":
 		return
 	if not sfx_cache.has(path):
 		sfx_cache[path] = load(path)
@@ -526,7 +545,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M12", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M13", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)

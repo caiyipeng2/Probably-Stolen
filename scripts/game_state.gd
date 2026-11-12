@@ -535,11 +535,17 @@ func _public_item_icon(def: Dictionary) -> String:
 func item_icon_path(def: Dictionary) -> String:
 	var icon := String(def.get("icon", ""))
 	var force_public := "--publicassets" in OS.get_cmdline_args()
+	var p := ""
 	if not force_public and icon != "":
-		var p := "res://assets_private/items/" + icon
+		p = "res://assets_private/items/" + icon
 		if ResourceLoader.exists(p):
 			return p
 		p = "res://assets/items/" + icon
+		if ResourceLoader.exists(p):
+			return p
+	var iid := String(def.get("id", ""))
+	if iid != "":
+		p = "res://assets_public/items/" + iid + ".png"
 		if ResourceLoader.exists(p):
 			return p
 	return _public_item_icon(def)
