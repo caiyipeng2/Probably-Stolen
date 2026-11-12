@@ -49,6 +49,7 @@ var pending_story := ""
 var story_queue: Array = []
 var story_scenes: Array = []
 var scene_seen: Array = []
+var dialogue_archive: Array = []
 var combat_data: Array = []
 var wanted: Array = []
 var endings: Array = []
@@ -210,6 +211,11 @@ func _load_defs() -> void:
 			for node in data:
 				story_nodes[String(node.get("id", ""))] = node
 	_load_story_scenes()
+	var archive := FileAccess.open("res://data_private/dialogue_archive.json", FileAccess.READ)
+	if archive:
+		var adata = JSON.parse_string(archive.get_as_text())
+		if adata is Dictionary:
+			dialogue_archive = adata.get("groups", [])
 	f = FileAccess.open("res://data/combat.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())

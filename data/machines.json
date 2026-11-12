@@ -358,5 +358,229 @@
         "count": 2
       }
     ]
+  },
+  {
+    "id": "furnace_adv",
+    "name": "高温熔炉",
+    "category": "metal",
+    "power": 3,
+    "time": 6,
+    "temp": 900,
+    "inputs": [
+      {
+        "id": "scrap_metal",
+        "count": 3
+      }
+    ],
+    "outputs": [
+      {
+        "id": "metal_ingot",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "id": "purifier_adv",
+    "name": "工业净水器",
+    "category": "water",
+    "power": 3,
+    "time": 5,
+    "temp": 24,
+    "inputs": [
+      {
+        "id": "water_jug",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "bottled_water_premium",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "id": "printer_adv",
+    "name": "工业打印机",
+    "category": "print",
+    "power": 4,
+    "time": 10,
+    "temp": 210,
+    "inputs": [
+      {
+        "id": "printer_plastic",
+        "count": 2
+      },
+      {
+        "id": "metal_ingot",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "printed_gun",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "id": "greenhouse",
+    "name": "温室种植机",
+    "category": "plant",
+    "power": 2,
+    "time": 14,
+    "temp": 26,
+    "inputs": [
+      {
+        "id": "nutrifruit_seed",
+        "count": 2
+      },
+      {
+        "id": "water_jug",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "nutrifruit",
+        "count": 4
+      }
+    ]
+  },
+  {
+    "id": "bioreactor",
+    "name": "生物反应器",
+    "category": "meat",
+    "power": 3,
+    "time": 12,
+    "temp": 37,
+    "inputs": [
+      {
+        "id": "meat_scrap",
+        "count": 2
+      },
+      {
+        "id": "nutrient_tablet",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "processed_meat",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "id": "recycler_adv",
+    "name": "工业压缩机",
+    "category": "recycle",
+    "power": 3,
+    "time": 8,
+    "temp": 60,
+    "inputs": [
+      {
+        "id": "debris_pile1",
+        "count": 2
+      }
+    ],
+    "outputs": [
+      {
+        "id": "metal_ingot",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "id": "chem_finisher",
+    "name": "化学精炼器",
+    "category": "chem",
+    "power": 3,
+    "time": 7,
+    "temp": 80,
+    "inputs": [
+      {
+        "id": "common_chemical",
+        "count": 2
+      }
+    ],
+    "outputs": [
+      {
+        "id": "neuroactive_perfume",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "id": "evaporator",
+    "name": "蒸发器",
+    "category": "water",
+    "power": 2,
+    "time": 6,
+    "temp": 110,
+    "inputs": [
+      {
+        "id": "water_jug",
+        "count": 2
+      }
+    ],
+    "outputs": [
+      {
+        "id": "smelling_salt",
+        "count": 1
+      },
+      {
+        "id": "water_tablet",
+        "count": 1
+      }
+    ]
+  },
+  {
+    "id": "moisture_farm",
+    "name": "湿气农场",
+    "category": "plant",
+    "power": 2,
+    "time": 10,
+    "temp": 24,
+    "inputs": [
+      {
+        "id": "water_jug",
+        "count": 1
+      },
+      {
+        "id": "nutrifruit_seed",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "kotton_fiber",
+        "count": 2
+      }
+    ]
+  },
+  {
+    "id": "desequencer",
+    "name": "序列分解器",
+    "category": "chem",
+    "power": 4,
+    "time": 9,
+    "temp": 70,
+    "inputs": [
+      {
+        "id": "meat_scrap",
+        "count": 1
+      },
+      {
+        "id": "common_chemical",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "nutrient_tablet",
+        "count": 2
+      }
+    ]
   }
 ]

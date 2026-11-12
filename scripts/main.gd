@@ -55,6 +55,7 @@ var modal_text: Label
 var modal_actions: HBoxContainer
 var machine_layer: Control
 var machine_list_box: VBoxContainer
+var machine_scroll: ScrollContainer
 var machine_name_label: Label
 var machine_meta_label: Label
 var machine_io_label: Label
@@ -98,6 +99,9 @@ var info_body: Label
 var info_action: Button
 var info_status: Label
 var info_tab_buttons: Dictionary = {}
+var archive_scroll: ScrollContainer
+var archive_text: RichTextLabel
+var archive_groups: Array = []
 var story_layer: Control
 var story_portrait: TextureRect
 var story_name: Label
@@ -283,6 +287,22 @@ func _testminigame_if_requested() -> void:
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
+	if "--capturearchive" in OS.get_cmdline_args():
+		await get_tree().create_timer(1.0).timeout
+		_welcome_done()
+		await get_tree().create_timer(0.2).timeout
+		var aguard := 0
+		while story_layer.visible and aguard < 40:
+			_story_advance()
+			aguard += 1
+		if modal_layer.visible:
+			_close_modal()
+		_open_info_tab("archive")
+		await get_tree().create_timer(0.3).timeout
+		var aimg := get_viewport().get_texture().get_image()
+		aimg.save_png("res://_research/mockups/phone/m16_archive.png")
+		get_tree().quit()
+		return
 	if "--captureminigame" in OS.get_cmdline_args():
 		await get_tree().create_timer(1.0).timeout
 		_welcome_done()
@@ -546,7 +566,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M15", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M16", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -693,6 +713,7 @@ func _build_machine_bay() -> void:
 	machine_power_label = _label(panel, "", Vector2(1480, 26), Vector2(220, 32), 22, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_machines)
 	var scroll := ScrollContainer.new()
+	machine_scroll = scroll
 	scroll.position = Vector2(24, 84)
 	scroll.size = Vector2(520, 840)
 	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
@@ -703,6 +724,8 @@ func _build_machine_bay() -> void:
 	machine_list_box.size_flags_horizontal = Control.SIZE_EXPAND_FILL
 	machine_list_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(machine_list_box)
+	_button(panel, "▲ 上翻", Vector2(24, 930), Vector2(240, 56), C_MUTED, _scroll_machine_list.bind(-1))
+	_button(panel, "▼ 下翻", Vector2(280, 930), Vector2(240, 56), C_MUTED, _scroll_machine_list.bind(1))
 	var detail := _panel(panel, Vector2(570, 80), Vector2(1280, 600), C_PANEL2, C_LINE, 2)
 	machine_name_label = _label(detail, "", Vector2(24, 16), Vector2(900, 44), 36, C_TEXT)
 	machine_meta_label = _label(detail, "", Vector2(24, 66), Vector2(1230, 30), 22, C_AMBER)
@@ -736,7 +759,7 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["通缉", "wanted"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["通缉", "wanted"], ["档案", "archive"]]
 	for i in range(tabs.size()):
 		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 156, 70), Vector2(144, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
@@ -755,6 +778,21 @@ func _build_info_bay() -> void:
 	info_name = _label(detail, "", Vector2(24, 16), Vector2(1000, 44), 34, C_TEXT)
 	info_meta = _label(detail, "", Vector2(24, 64), Vector2(1230, 30), 22, C_AMBER)
 	info_body = _label(detail, "", Vector2(24, 108), Vector2(1230, 500), 20, C_TEXT)
+	archive_scroll = ScrollContainer.new()
+	archive_scroll.position = Vector2(24, 108)
+	archive_scroll.size = Vector2(1230, 500)
+	archive_scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	archive_scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	archive_scroll.add_theme_stylebox_override("panel", _style(C_PANEL2, C_LINE, 1))
+	archive_scroll.visible = false
+	detail.add_child(archive_scroll)
+	archive_text = RichTextLabel.new()
+	archive_text.bbcode_enabled = false
+	archive_text.fit_content = true
+	archive_text.custom_minimum_size = Vector2(1200, 0)
+	archive_text.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	archive_text.add_theme_font_size_override("normal_font_size", 20)
+	archive_scroll.add_child(archive_text)
 	info_action = _button(detail, "操作", Vector2(24, 630), Vector2(280, 64), C_AMBER, _info_action)
 	info_status = _label(detail, "", Vector2(330, 640), Vector2(900, 52), 20, C_MUTED)
 
@@ -1572,6 +1610,10 @@ func _rebuild_machine_list() -> void:
 		machine_list_buttons[mid] = b
 	_refresh_machine_selection()
 
+func _scroll_machine_list(direction: int) -> void:
+	if machine_scroll:
+		machine_scroll.scroll_vertical = maxi(0, machine_scroll.scroll_vertical + direction * 420)
+
 func _refresh_machine_selection() -> void:
 	for mid in machine_list_buttons.keys():
 		machine_list_buttons[mid].modulate = Color(1.25, 1.12, 0.72) if mid == selected_machine_id else Color.WHITE
@@ -1610,9 +1652,14 @@ func _refresh_machine_panel() -> void:
 	for o in m.get("outputs", []):
 		var od := GameState.get_item_def(String(o.get("id", "")))
 		outs.append("%sx%d" % [_short_item_name(String(o.get("id", "")), String(od.get("name", ""))), int(o.get("count", 1))])
+	var held: Array = []
+	for i in m.get("inputs", []):
+		var iid := String(i.get("id", ""))
+		var dd := GameState.get_item_def(iid)
+		held.append("%sx%d" % [_short_item_name(iid, String(dd.get("name", iid))), GameState.inventory_count(iid)])
 	machine_io_label.text = "输入：%s
 输出：%s
-原料持有：废金属x%d 打印塑料x%d 金属锭x%d 化学品x%d" % [" + ".join(ins), " + ".join(outs), GameState.inventory_count("scrap_metal"), GameState.inventory_count("printer_plastic"), GameState.inventory_count("metal_ingot"), GameState.inventory_count("common_chemical")]
+原料持有：%s" % [" + ".join(ins), " + ".join(outs), " ".join(held)]
 	var mod_id := String(GameState.machine_modules.get(selected_machine_id, ""))
 	if mod_id == "":
 		machine_module_label.text = "模块：无（安装模块：耗时 -20%，电力 -1）"
@@ -1779,6 +1826,10 @@ func _rebuild_info_list() -> void:
 				var wid := String(w.get("id", ""))
 				var done := GameState.wanted_defeated.has(wid)
 				_add_info_button("%s · %d₵%s" % [w.get("name", wid), int(w.get("reward", 0)), " · 已击败" if done else ""], wid)
+		"archive":
+			archive_groups = GameState.dialogue_archive
+			for g in archive_groups:
+				_add_info_button("%s · %d" % [g.get("name", g.get("id", "")), g.get("entries", []).size()], String(g.get("id", "")))
 	if info_selected_id == "" and not info_list_buttons.is_empty():
 		info_selected_id = String(info_list_buttons.keys()[0])
 	_refresh_info_selection()
@@ -1806,6 +1857,8 @@ func _refresh_info_detail() -> void:
 	info_status.text = ""
 	info_action.visible = false
 	info_action.disabled = false
+	info_body.visible = true
+	archive_scroll.visible = false
 	match info_tab:
 		"network":
 			var u := GameState.upgrade_def(info_selected_id)
@@ -1896,6 +1949,25 @@ func _refresh_info_detail() -> void:
 			info_action.text = "追捕"
 			info_action.disabled = GameState.wanted_defeated.has(info_selected_id)
 			info_status.text = "已击败" if info_action.disabled else "可追捕"
+		"archive":
+			var group: Dictionary = {}
+			for g in archive_groups:
+				if String(g.get("id", "")) == info_selected_id:
+					group = g
+					break
+			info_name.text = String(group.get("name", "对话档案"))
+			var entries: Array = group.get("entries", [])
+			info_meta.text = "%d 条原版对话（私有内容）" % entries.size()
+			info_body.visible = false
+			archive_scroll.visible = true
+			var body := ""
+			for e in entries:
+				body += String(e.get("text", "")) + "
+
+"
+			archive_text.text = body
+			archive_scroll.scroll_vertical = 0
+			info_status.text = "共 %d 条" % entries.size()
 
 func _info_action() -> void:
 	match info_tab:
