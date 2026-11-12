@@ -63,6 +63,7 @@ var machine_status_label: Label
 var machine_jobs_label: Label
 var machine_power_label: Label
 var machine_start_btn: Button
+var machine_repair_btn: Button
 var minigame_layer: Control
 var minigame_target_cells: Array = []
 var minigame_cells: Array = []
@@ -525,7 +526,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M11", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M12", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -694,7 +695,8 @@ func _build_machine_bay() -> void:
 		var tb := _button(detail, t[0], Vector2(270 + (int(t[1]) - 1) * 136, 362), Vector2(124, 54), C_MUTED, _set_temp.bind(int(t[1])))
 		temp_buttons.append(tb)
 	machine_start_btn = _button(detail, "启动生产", Vector2(24, 440), Vector2(300, 72), C_AMBER, _start_selected_machine)
-	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(350, 454), Vector2(900, 70), 22, C_MUTED)
+	machine_repair_btn = _button(detail, "维修", Vector2(340, 440), Vector2(200, 72), C_CYAN, _repair_selected_machine)
+	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(560, 454), Vector2(700, 70), 22, C_MUTED)
 	var jobs_panel := _panel(panel, Vector2(570, 700), Vector2(1280, 250), C_PANEL2, C_LINE, 2)
 	_label(jobs_panel, "运行队列", Vector2(24, 12), Vector2(300, 32), 24, C_AMBER)
 	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 180), 22, C_TEXT)
@@ -1520,8 +1522,9 @@ func _rebuild_machine_list() -> void:
 	machine_list_buttons.clear()
 	for m in GameState.machines:
 		var mid := String(m.get("id", ""))
+		var dur := int(GameState.machine_durability.get(mid, 100))
 		var text := "%s
-%d电 · %.0fs" % [m.get("name", mid), int(m.get("power", 0)), float(m.get("time", 0.0))]
+%d电 · %.0fs · 耐久%d%s" % [m.get("name", mid), int(m.get("power", 0)), float(m.get("time", 0.0)), dur, "（损坏）" if dur <= 0 else ""]
 		var b := _button(machine_list_box, text, Vector2.ZERO, Vector2(480, 64), C_TEXT, _select_machine.bind(mid))
 		b.custom_minimum_size = Vector2(480, 64)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1549,7 +1552,8 @@ func _refresh_machine_panel() -> void:
 		use_time *= 0.8
 		use_power = maxi(1, use_power - 1)
 	machine_name_label.text = String(m.get("name", ""))
-	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C" % [use_power, use_time, int(m.get("temp", 24))]
+	var dur := int(GameState.machine_durability.get(selected_machine_id, 100))
+	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_time, int(m.get("temp", 24)), dur, "（已损坏）" if dur <= 0 else ""]
 	var ins: Array = []
 	for i in m.get("inputs", []):
 		var d := GameState.get_item_def(String(i.get("id", "")))
@@ -1569,10 +1573,13 @@ func _refresh_machine_panel() -> void:
 	for i in range(temp_buttons.size()):
 		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
 	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
-	machine_start_btn.disabled = false
+	machine_start_btn.disabled = dur <= 0
 	for j in GameState.machine_jobs:
 		if String(j.get("machine_id", "")) == selected_machine_id:
 			machine_start_btn.disabled = true
+	if machine_repair_btn:
+		machine_repair_btn.text = "维修 %d₵" % GameState.machine_repair_cost(selected_machine_id)
+		machine_repair_btn.disabled = dur >= 100
 	_refresh_machine_jobs()
 	_refresh_machine_selection()
 
@@ -1598,6 +1605,12 @@ func _refresh_machine_jobs() -> void:
 		text += "· %s  剩余 %.1fs
 " % [j.get("name", ""), float(j.get("remaining", 0.0))]
 	machine_jobs_label.text = text
+
+func _repair_selected_machine() -> void:
+	var res := GameState.repair_machine(selected_machine_id)
+	machine_status_label.text = String(res.get("text", ""))
+	_play_sfx("machine" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
 
 func _start_selected_machine(quality: float = -1.0) -> void:
 	if quality < 0.0 and selected_machine_id in ["printer", "chem_mixer", "dna_lab"]:

@@ -1,10 +1,11 @@
-# 深空当铺手机版（M11）
+# 深空当铺手机版（M12）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M1–M10 已完成；当前为 **M11 私有构建**：后日谈剧情池、机器小游戏、17 种失败/终局结局、公开版替换素材回退、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M11 已完成；当前为 **M12 私有构建**：后日谈剧情池、机器小游戏与耐久维修、17 种失败/终局结局、公开版替换素材回退、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M11 私有构建）：`build/probably_stolen_m11.apk`
+- APK（M12 私有构建）：`build/probably_stolen_m12.apk`
+- M11 APK：`build/probably_stolen_m11.apk`
 - M10 APK：`build/probably_stolen_m10.apk`
 - M9 APK：`build/probably_stolen_m9.apk`
 - M8 APK：`build/probably_stolen_m8.apk`
@@ -67,6 +68,7 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M10 已完成
   - `49_m10_welcome.png` M10 欢迎界面
   - `50_m11_public_preview.png` 公开版素材预览（--publicassets）
   - `51_m11_welcome.png` M11 欢迎界面
+  - `52_m12_durability.png` 机器耐久与维修入口
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -192,6 +194,15 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **文档**：`docs/公开版素材清单.md` 列出已替换/未替换项与回退顺序。
 - **边界**：公开版音频仍为空，物品图标为分类占位而非逐物品原创；后续继续替换逐物品图标与音频。
 
+## M12 已完成（机器耐久与维修）
+
+- **耐久**：每台机器默认 100 点；每次完工按温度档位磨损 1–4 点，高温磨损更快。
+- **损坏**：耐久归零后机器显示「已损坏」，启动按钮禁用，三台小游戏机器也不会再进入小游戏。
+- **维修**：机器详情新增「维修 N₵」按钮，费用 = 60 + 功率×20；维修后耐久恢复 100，费用从现金扣除。
+- **界面**：机器列表与详情显示耐久，运行中/损坏状态与维修按钮联动。
+- **存档**：`machine_durability` 随存档保存；新增 `test_machines_durability.gd` 验证磨损、损坏、维修、再启动与读档。
+- **真机**：M12 APK 安装启动正常，机器湾可查看耐久与维修入口。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -207,7 +218,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m11.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m12.apk
 ```
 
 开发调试参数：
@@ -262,4 +273,6 @@ godot --path . --dumpinspect
 - M10 边界：部分结局为压缩改编（反应堆/义体/售货机无独立系统，以夜间事件表现）；战斗仍为简化回合制。
 - M11 已完成：公开版原创背景/前景/9 顾客头像/17 分类图标、素材回退链、`--publicassets` 预览、公开版素材清单。
 - M11 边界：公开版音频为空，物品图标为分类占位；逐物品图标与音频替换仍在后续。
-- 后续：逐物品公开图标、公开版音频替换、机器损坏/维修、剩余机器深度玩法。
+- M12 已完成：机器耐久磨损、损坏禁用、按功率收费维修、耐久存档、机器湾耐久/维修显示、M12 APK。
+- M12 边界：耐久只按温度磨损，未模拟模块/超载/随机故障；维修无耗时与维修工事件。
+- 后续：逐物品公开图标、公开版音频替换、机器随机故障/维修事件、剩余机器深度玩法。
