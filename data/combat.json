@@ -1,0 +1,38 @@
+[
+  {
+    "id": "thug",
+    "name": "街头混混",
+    "hp": 40,
+    "atk_min": 6,
+    "atk_max": 10,
+    "sprite": "maleUpper_2.png",
+    "reward": 90,
+    "rep": {
+      "lower": -1
+    }
+  },
+  {
+    "id": "raider",
+    "name": "查抄队员",
+    "hp": 55,
+    "atk_min": 8,
+    "atk_max": 12,
+    "sprite": "maleSec_0.png",
+    "reward": 150,
+    "rep": {
+      "security": -2
+    }
+  },
+  {
+    "id": "enforcer",
+    "name": "卡特尔打手",
+    "hp": 70,
+    "atk_min": 10,
+    "atk_max": 14,
+    "sprite": "femaleBM_2.png",
+    "reward": 260,
+    "rep": {
+      "cartel": -3
+    }
+  }
+]

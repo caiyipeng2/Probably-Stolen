@@ -6,6 +6,9 @@ signal day_finished(summary)
 signal event_started(event)
 signal machine_finished(message)
 signal story_available(node_id)
+signal combat_started
+signal combat_updated
+signal combat_finished(victory, message)
 
 const GRID_W := 16
 const GRID_H := 3
@@ -31,6 +34,20 @@ var story_nodes: Dictionary = {}
 var story_seen: Array = []
 var story_flags: Dictionary = {}
 var pending_story := ""
+var combat_data: Array = []
+var wanted: Array = []
+var endings: Array = []
+var wanted_defeated: Array = []
+var combat_active := false
+var combat_enemy: Dictionary = {}
+var combat_enemy_hp := 0
+var combat_player_hp := 60
+var combat_player_max := 60
+var combat_log: Array = []
+var combat_skill_cd := 0
+var combat_guarding := false
+var combat_wanted_id := ""
+var ending_id := ""
 var machine_jobs: Array = []
 var power := 10
 var max_power := 10
@@ -172,6 +189,21 @@ func _load_defs() -> void:
 		if data is Array:
 			for node in data:
 				story_nodes[String(node.get("id", ""))] = node
+	f = FileAccess.open("res://data/combat.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			combat_data = data
+	f = FileAccess.open("res://data/wanted.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			wanted = data
+	f = FileAccess.open("res://data/endings.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			endings = data
 
 func get_item_def(id: String) -> Dictionary:
 	return items_def.get(id, {})
@@ -386,6 +418,9 @@ func new_game() -> void:
 	story_seen = []
 	story_flags = {}
 	pending_story = ""
+	wanted_defeated = []
+	combat_active = false
+	ending_id = ""
 	_refresh_upgrades()
 	machine_jobs = []
 	machine_modules = {}
@@ -864,12 +899,120 @@ func deliver_commission(cid: String) -> Dictionary:
 		return {"ok": true, "text": "委托完成，获得 %d₵。" % int(c.get("reward", 0))}
 	return {"ok": false, "text": "没有这个委托。"}
 
+func enemy_def(id: String) -> Dictionary:
+	for e in combat_data:
+		if String(e.get("id", "")) == id:
+			return e
+	return {}
+
+func wanted_def(id: String) -> Dictionary:
+	for w in wanted:
+		if String(w.get("id", "")) == id:
+			return w
+	return {}
+
+func ending_def(id: String) -> Dictionary:
+	for e in endings:
+		if String(e.get("id", "")) == id:
+			return e
+	return {}
+
+func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "") -> Dictionary:
+	var e := enemy_def(enemy_id)
+	if e.is_empty():
+		return {"ok": false, "text": "敌人不存在。"}
+	combat_active = true
+	combat_enemy = e.duplicate(true)
+	if wanted_id != "":
+		var w := wanted_def(wanted_id)
+		if not w.is_empty():
+			combat_enemy["reward"] = int(w.get("reward", e.get("reward", 50)))
+			combat_enemy["rep"] = w.get("rep", e.get("rep", {})).duplicate(true)
+	combat_enemy_hp = int(e.get("hp", 40))
+	combat_player_max = 60
+	combat_player_hp = 60
+	combat_skill_cd = 0
+	combat_guarding = false
+	combat_wanted_id = wanted_id
+	combat_log = ["遭遇：%s" % e.get("name", enemy_id)]
+	emit_signal("combat_started")
+	emit_signal("state_changed")
+	return {"ok": true, "text": "战斗开始。"}
+
+func combat_roll(minv: int, maxv: int) -> int:
+	return rng.randi_range(minv, maxv)
+
+func _combat_enemy_turn() -> void:
+	if not combat_active:
+		return
+	var dmg := combat_roll(int(combat_enemy.get("atk_min", 5)), int(combat_enemy.get("atk_max", 9)))
+	if combat_guarding:
+		dmg = maxi(1, int(round(float(dmg) * 0.5)))
+	combat_player_hp -= dmg
+	combat_log.append("%s 反击，造成 %d 伤害。" % [combat_enemy.get("name", "敌人"), dmg])
+	combat_guarding = false
+
+func combat_action(action: String) -> Dictionary:
+	if not combat_active:
+		return {"ok": false, "text": "当前没有战斗。"}
+	if action == "flee":
+		if rng.randf() < 0.5:
+			combat_active = false
+			emit_signal("combat_finished", false, "你逃离了战斗。")
+			emit_signal("state_changed")
+			return {"ok": true, "text": "你逃离了战斗。"}
+		combat_log.append("逃跑失败。")
+	elif action == "guard":
+		combat_guarding = true
+		combat_log.append("你举起手臂防御。")
+	elif action == "skill":
+		if combat_skill_cd > 0:
+			combat_log.append("技能冷却中（%d）。" % combat_skill_cd)
+		else:
+			var dmg := combat_roll(16, 24)
+			combat_enemy_hp -= dmg
+			combat_skill_cd = 3
+			combat_log.append("瞄准射击，造成 %d 伤害。" % dmg)
+	else:
+		var dmg := combat_roll(8, 14)
+		combat_enemy_hp -= dmg
+		combat_log.append("你发起攻击，造成 %d 伤害。" % dmg)
+	if combat_enemy_hp <= 0:
+		var reward := int(combat_enemy.get("reward", 50))
+		cash += reward
+		var reps: Dictionary = combat_enemy.get("rep", {})
+		for k in reps.keys():
+			add_rep(String(k), int(reps[k]))
+		if combat_wanted_id != "" and not wanted_defeated.has(combat_wanted_id):
+			wanted_defeated.append(combat_wanted_id)
+		var msg := "战斗胜利，获得 %d₵。" % reward
+		combat_active = false
+		emit_signal("combat_finished", true, msg)
+		emit_signal("state_changed")
+		return {"ok": true, "text": msg}
+	_combat_enemy_turn()
+	if combat_player_hp <= 0:
+		cash = maxi(0, cash - 100)
+		add_rep("lower", -3)
+		combat_active = false
+		emit_signal("combat_finished", false, "你被打倒了，损失 100₵。")
+		emit_signal("state_changed")
+		return {"ok": true, "text": "战斗失败。"}
+	combat_skill_cd = maxi(0, combat_skill_cd - 1)
+	emit_signal("combat_updated")
+	emit_signal("state_changed")
+	return {"ok": true, "text": ""}
+
+func set_ending(id: String) -> void:
+	ending_id = id
+	emit_signal("state_changed")
+
 func story_node(id: String) -> Dictionary:
 	return story_nodes.get(id, {})
 
 func _queue_story_for_day() -> void:
 	pending_story = ""
-	var map := {2: "mentor_day2", 4: "security_day4", 6: "faction_day6", 8: "buyout_day8"}
+	var map := {2: "mentor_day2", 3: "side_scavenger", 4: "security_day4", 6: "faction_day6", 7: "side_church", 8: "buyout_day8", 10: "finale_day10"}
 	if map.has(day):
 		var sid := String(map[day])
 		if not story_seen.has(sid):
@@ -1059,6 +1202,7 @@ func save_game() -> bool:
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
+		"wanted_defeated": wanted_defeated, "ending_id": ending_id,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -1106,6 +1250,8 @@ func load_game() -> bool:
 	commissions = data.get("commissions", []).duplicate(true)
 	story_seen = data.get("story_seen", []).duplicate(true)
 	story_flags = data.get("story_flags", {}).duplicate(true)
+	wanted_defeated = data.get("wanted_defeated", []).duplicate(true)
+	ending_id = String(data.get("ending_id", ""))
 	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)
 	machine_temps = data.get("machine_temps", {}).duplicate(true)

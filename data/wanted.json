@@ -1,0 +1,34 @@
+[
+  {
+    "id": "w_butcher",
+    "name": "屠夫",
+    "enemy": "thug",
+    "reward": 300,
+    "rep": {
+      "security": 5
+    },
+    "desc": "下层区的屠夫，替黑市处理“货物”，也处理欠债的人。"
+  },
+  {
+    "id": "w_smuggler",
+    "name": "走私犯",
+    "enemy": "raider",
+    "reward": 500,
+    "rep": {
+      "security": 5,
+      "blackmarket": -5
+    },
+    "desc": "在空间站夹层运输违禁品的走私犯，身上带着一批义体。"
+  },
+  {
+    "id": "w_enforcer",
+    "name": "卡特尔打手",
+    "enemy": "enforcer",
+    "reward": 800,
+    "rep": {
+      "security": 5,
+      "cartel": -5
+    },
+    "desc": "卡特尔派来收保护费的人。抓住他能换来治安部的信任。"
+  }
+]

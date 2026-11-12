@@ -123,5 +123,93 @@
         "result": "他们强行查抄，带走了违禁品，并记下了你的店名。"
       }
     ]
+  },
+  {
+    "id": "security_raid",
+    "title": "治安部突击查抄",
+    "text": "治安部封住了店门，查抄队员已经拔出了武器。",
+    "choices": [
+      {
+        "label": "迎战",
+        "cash": 0,
+        "rep": {
+          "security": -8
+        },
+        "combat": "raider",
+        "result": "你抄起武器，冲突爆发了。"
+      },
+      {
+        "label": "交罚款（-200₵）",
+        "cash": -200,
+        "rep": {
+          "security": 2
+        },
+        "result": "你交了罚款，他们暂时离开了。"
+      },
+      {
+        "label": "交出违禁品",
+        "cash": 0,
+        "rep": {
+          "security": 2
+        },
+        "confiscate": true,
+        "result": "他们带走了违禁品。"
+      }
+    ]
+  },
+  {
+    "id": "street_ambush",
+    "title": "街头伏击",
+    "text": "打烊后，两个混混堵住了后巷，想要“借”点信用点。",
+    "choices": [
+      {
+        "label": "迎战",
+        "cash": 0,
+        "rep": {
+          "lower": -2
+        },
+        "combat": "thug",
+        "result": "你决定不退。"
+      },
+      {
+        "label": "破财消灾（-100₵）",
+        "cash": -100,
+        "rep": {
+          "lower": -1
+        },
+        "result": "他们拿了钱，骂骂咧咧地走了。"
+      },
+      {
+        "label": "逃跑",
+        "cash": 0,
+        "rep": {
+          "lower": -3
+        },
+        "result": "你从后门跑了，店里少了几件货。"
+      }
+    ]
+  },
+  {
+    "id": "black_market_tip",
+    "title": "黑市情报",
+    "text": "黑市中间人卖给你一条情报：有人在夹层藏了一批货。",
+    "choices": [
+      {
+        "label": "付钱买情报（-120₵）",
+        "cash": -120,
+        "rep": {
+          "blackmarket": 4
+        },
+        "result": "情报到手，你记下了位置。"
+      },
+      {
+        "label": "拒绝",
+        "cash": 0,
+        "rep": {
+          "blackmarket": -2
+        },
+        "result": "中间人冷笑一声走了。"
+      }
+    ]
   }
 ]

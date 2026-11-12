@@ -5,8 +5,26 @@
     "portrait": "maleUpper_5.png",
     "text": "小店开得怎么样？我借你的钱可不是做慈善。\n今天有批货需要一个可靠的中间人，你接不接？",
     "choices": [
-      {"text": "接活（+150₵，黑市声望）", "next": "mentor_accept", "effects": {"cash": 150, "rep": {"blackmarket": 5}, "flag": "mentor_deal"}},
-      {"text": "保持距离（下层区声望）", "next": "mentor_refuse", "effects": {"rep": {"lower": 3}}}
+      {
+        "text": "接活（+150₵，黑市声望）",
+        "next": "mentor_accept",
+        "effects": {
+          "cash": 150,
+          "rep": {
+            "blackmarket": 5
+          },
+          "flag": "mentor_deal"
+        }
+      },
+      {
+        "text": "保持距离（下层区声望）",
+        "next": "mentor_refuse",
+        "effects": {
+          "rep": {
+            "lower": 3
+          }
+        }
+      }
     ]
   },
   {
@@ -29,8 +47,26 @@
     "portrait": "maleSec_0.png",
     "text": "例行提醒：最近查得严。你店里有没有不该出现的东西？\n我们可以当没看见，也可以现在就检查。",
     "choices": [
-      {"text": "打点一下（-120₵，治安部声望）", "next": "security_bribe", "effects": {"cash": -120, "rep": {"security": 5}}},
-      {"text": "拒绝（治安部声望下降）", "next": "security_refuse", "effects": {"rep": {"security": -5, "lower": 2}}}
+      {
+        "text": "打点一下（-120₵，治安部声望）",
+        "next": "security_bribe",
+        "effects": {
+          "cash": -120,
+          "rep": {
+            "security": 5
+          }
+        }
+      },
+      {
+        "text": "拒绝（治安部声望下降）",
+        "next": "security_refuse",
+        "effects": {
+          "rep": {
+            "security": -5,
+            "lower": 2
+          }
+        }
+      }
     ]
   },
   {
@@ -53,8 +89,28 @@
     "portrait": "scavFemale_2.png",
     "text": "同志，空间站需要你的选择。\n是继续给黑市供货，还是把物资交给革命军？",
     "choices": [
-      {"text": "支持革命军（革命军声望）", "next": "faction_rev", "effects": {"rep": {"rev": 10, "blackmarket": -5}, "flag": "chose_rev"}},
-      {"text": "继续和黑市合作（黑市声望）", "next": "faction_bm", "effects": {"rep": {"blackmarket": 10, "rev": -5}, "flag": "chose_bm"}}
+      {
+        "text": "支持革命军（革命军声望）",
+        "next": "faction_rev",
+        "effects": {
+          "rep": {
+            "rev": 10,
+            "blackmarket": -5
+          },
+          "flag": "chose_rev"
+        }
+      },
+      {
+        "text": "继续和黑市合作（黑市声望）",
+        "next": "faction_bm",
+        "effects": {
+          "rep": {
+            "blackmarket": 10,
+            "rev": -5
+          },
+          "flag": "chose_bm"
+        }
+      }
     ]
   },
   {
@@ -77,7 +133,136 @@
     "portrait": "maleUpper_5.png",
     "text": "你已经撑过一周了。房东开始盯着你的账本。\n想真正拥有这家店，就攒够钱把产权买下来。",
     "choices": [
-      {"text": "我会买下这家店", "next": "", "effects": {"flag": "buyout_goal"}}
+      {
+        "text": "我会买下这家店",
+        "next": "",
+        "effects": {
+          "flag": "buyout_goal"
+        }
+      }
     ]
+  },
+  {
+    "id": "finale_day10",
+    "speaker": "导师",
+    "portrait": "maleUpper_5.png",
+    "text": "十天了。房东、治安部、黑市都在盯着你。\n现在，你打算怎么结束这一切？",
+    "choices": [
+      {
+        "text": "买下店铺（需要 5000₵）",
+        "next": "",
+        "requires_cash": 5000,
+        "ending": "owner"
+      },
+      {
+        "text": "离开空间站",
+        "next": "",
+        "ending": "leave"
+      },
+      {
+        "text": "继续经营",
+        "next": "",
+        "effects": {
+          "flag": "stay_open"
+        }
+      },
+      {
+        "text": "让革命军接管（革命军结局）",
+        "next": "",
+        "ending": "revolution"
+      },
+      {
+        "text": "与卡特尔合作（卡特尔结局）",
+        "next": "",
+        "ending": "cartel"
+      },
+      {
+        "text": "向治安部自首（被捕结局）",
+        "next": "",
+        "ending": "arrest"
+      }
+    ]
+  },
+  {
+    "id": "side_scavenger",
+    "speaker": "拾荒客",
+    "portrait": "maleUpper_0.png",
+    "text": "老板，我孩子病了。能不能先借我一点药？我下次拾到好东西一定还你。",
+    "choices": [
+      {
+        "text": "给他药（-50₵，下层区声望）",
+        "next": "side_scavenger_yes",
+        "effects": {
+          "cash": -50,
+          "rep": {
+            "lower": 6
+          }
+        }
+      },
+      {
+        "text": "拒绝",
+        "next": "side_scavenger_no",
+        "effects": {
+          "rep": {
+            "lower": -2
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "side_scavenger_yes",
+    "speaker": "拾荒客",
+    "portrait": "maleUpper_0.png",
+    "text": "谢谢……我会记住你的。",
+    "next": ""
+  },
+  {
+    "id": "side_scavenger_no",
+    "speaker": "拾荒客",
+    "portrait": "maleUpper_0.png",
+    "text": "……我明白了。",
+    "next": ""
+  },
+  {
+    "id": "side_church",
+    "speaker": "教会修女",
+    "portrait": "femaleUpper_1.png",
+    "text": "教会正在给下层区的孩子筹集药品。你愿意捐一点吗？",
+    "choices": [
+      {
+        "text": "捐赠（-100₵，教会声望）",
+        "next": "side_church_yes",
+        "effects": {
+          "cash": -100,
+          "rep": {
+            "church": 8
+          }
+        }
+      },
+      {
+        "text": "拒绝",
+        "next": "side_church_no",
+        "effects": {
+          "rep": {
+            "church": -2
+          }
+        }
+      }
+    ]
+  },
+  {
+    "id": "side_church_yes",
+    "speaker": "教会修女",
+    "portrait": "femaleUpper_1.png",
+    "text": "愿空间站记住你的善心。",
+    "next": ""
+  },
+  {
+    "id": "side_church_no",
+    "speaker": "教会修女",
+    "portrait": "femaleUpper_1.png",
+    "text": "没关系，愿主保佑你。",
+    "next": ""
   }
 ]

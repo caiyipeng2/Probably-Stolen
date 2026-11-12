@@ -84,6 +84,13 @@ var story_name: Label
 var story_text: Label
 var story_choices: VBoxContainer
 var story_node_id := ""
+var combat_layer: Control
+var combat_enemy_sprite: TextureRect
+var combat_enemy_name: Label
+var combat_enemy_bar: ProgressBar
+var combat_player_bar: ProgressBar
+var combat_log_label: Label
+var combat_status: Label
 var action_buttons: Dictionary = {}
 var rail_buttons: Dictionary = {}
 var rep_labels: Dictionary = {}
@@ -110,6 +117,9 @@ func _ready() -> void:
 	GameState.event_started.connect(_on_event_started)
 	GameState.machine_finished.connect(_on_machine_finished)
 	GameState.story_available.connect(_on_story_available)
+	GameState.combat_started.connect(_on_combat_started)
+	GameState.combat_updated.connect(_on_combat_updated)
+	GameState.combat_finished.connect(_on_combat_finished)
 	_refresh()
 	_show_welcome()
 	_capture_if_requested()
@@ -312,6 +322,7 @@ func _build_ui() -> void:
 	_build_machine_bay()
 	_build_info_bay()
 	_build_story_layer()
+	_build_combat_layer()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
@@ -503,7 +514,7 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["通缉", "wanted"]]
 	for i in range(tabs.size()):
 		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 156, 70), Vector2(144, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
@@ -546,6 +557,41 @@ func _build_story_layer() -> void:
 	story_choices.size = Vector2(1300, 320)
 	story_choices.add_theme_constant_override("separation", 14)
 	panel.add_child(story_choices)
+
+func _build_combat_layer() -> void:
+	combat_layer = Control.new()
+	combat_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	combat_layer.visible = false
+	combat_layer.z_index = 140
+	combat_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(combat_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.86)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	combat_layer.add_child(dim)
+	var panel := _panel(combat_layer, Vector2(300, 140), Vector2(1740, 800), C_PANEL, C_RUST, 3)
+	_label(panel, "战斗 · COMBAT", Vector2(30, 18), Vector2(600, 48), 34, C_RUST)
+	combat_enemy_sprite = _texture_rect(panel, Vector2(30, 80), Vector2(360, 360), "")
+	combat_enemy_name = _label(panel, "", Vector2(420, 80), Vector2(700, 40), 30, C_TEXT)
+	combat_enemy_bar = ProgressBar.new()
+	combat_enemy_bar.position = Vector2(420, 130)
+	combat_enemy_bar.size = Vector2(1200, 30)
+	combat_enemy_bar.show_percentage = false
+	combat_enemy_bar.add_theme_stylebox_override("background", _style(Color("#241416"), C_LINE, 2))
+	combat_enemy_bar.add_theme_stylebox_override("fill", _style(C_RUST, C_RUST, 1))
+	panel.add_child(combat_enemy_bar)
+	combat_player_bar = ProgressBar.new()
+	combat_player_bar.position = Vector2(420, 176)
+	combat_player_bar.size = Vector2(1200, 30)
+	combat_player_bar.show_percentage = false
+	combat_player_bar.add_theme_stylebox_override("background", _style(Color("#101a18"), C_LINE, 2))
+	combat_player_bar.add_theme_stylebox_override("fill", _style(C_GREEN, C_GREEN, 1))
+	panel.add_child(combat_player_bar)
+	combat_log_label = _label(panel, "", Vector2(420, 230), Vector2(1250, 300), 22, C_TEXT)
+	combat_status = _label(panel, "", Vector2(420, 530), Vector2(1250, 36), 20, C_MUTED)
+	var buttons := [["攻击", "attack", C_RUST], ["防御", "guard", C_CYAN], ["技能", "skill", C_AMBER], ["逃跑", "flee", C_MUTED]]
+	for i in range(buttons.size()):
+		_button(panel, buttons[i][0], Vector2(420 + i * 220, 590), Vector2(200, 68), buttons[i][2], _combat_action.bind(buttons[i][1]))
 
 func _refresh() -> void:
 	if not is_inside_tree():
@@ -989,6 +1035,9 @@ func _open_newspaper() -> void:
 			top = _faction_name(k)
 	text += "派系：%s %+d
 " % [top, topv]
+	if not GameState.wanted_defeated.is_empty():
+		text += "通缉：已抓获 %d 名目标。
+" % GameState.wanted_defeated.size()
 	if not GameState.story_flags.is_empty():
 		text += "传闻：你的选择已经被某些人记住。
 "
@@ -1173,6 +1222,11 @@ func _rebuild_info_list() -> void:
 			for c in GameState.commissions:
 				var d := GameState.get_item_def(String(c.get("item_id", "")))
 				_add_info_button("%s x%d · %d₵" % [d.get("name", c.get("item_id", "")), int(c.get("count", 1)), int(c.get("reward", 0))], String(c.get("id", "")))
+		"wanted":
+			for w in GameState.wanted:
+				var wid := String(w.get("id", ""))
+				var done := GameState.wanted_defeated.has(wid)
+				_add_info_button("%s · %d₵%s" % [w.get("name", wid), int(w.get("reward", 0)), " · 已击败" if done else ""], wid)
 	if info_selected_id == "" and not info_list_buttons.is_empty():
 		info_selected_id = String(info_list_buttons.keys()[0])
 	_refresh_info_selection()
@@ -1279,6 +1333,17 @@ func _refresh_info_detail() -> void:
 			info_action.text = "交付委托"
 			info_action.disabled = GameState.inventory_count(String(c.get("item_id", ""))) < int(c.get("count", 1))
 			info_status.text = "背包数量不足" if info_action.disabled else "可交付"
+		"wanted":
+			var w := GameState.wanted_def(info_selected_id)
+			if w.is_empty():
+				return
+			info_name.text = String(w.get("name", ""))
+			info_meta.text = "悬赏 %d₵ · 目标：%s" % [int(w.get("reward", 0)), GameState.enemy_def(String(w.get("enemy", ""))).get("name", "")]
+			info_body.text = String(w.get("desc", ""))
+			info_action.visible = true
+			info_action.text = "追捕"
+			info_action.disabled = GameState.wanted_defeated.has(info_selected_id)
+			info_status.text = "已击败" if info_action.disabled else "可追捕"
 
 func _info_action() -> void:
 	match info_tab:
@@ -1300,6 +1365,12 @@ func _info_action() -> void:
 			_rebuild_info_list()
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
+		"wanted":
+			var w := GameState.wanted_def(info_selected_id)
+			if w.is_empty() or GameState.wanted_defeated.has(info_selected_id):
+				return
+			info_layer.visible = false
+			GameState.start_combat(String(w.get("enemy", "")), "security", info_selected_id)
 
 func _open_network() -> void:
 	_open_info_tab("network")
@@ -1341,6 +1412,10 @@ func _show_story(node_id: String) -> void:
 			var b := _button(story_choices, label, Vector2.ZERO, Vector2(1260, 60), C_AMBER, _story_choose.bind(i))
 			b.custom_minimum_size = Vector2(1260, 60)
 			b.add_theme_font_size_override("font_size", 24)
+			var req := int(choices[i].get("requires_cash", 0))
+			if req > 0 and GameState.cash < req:
+				b.text = "[现金不足] " + label
+				b.disabled = true
 
 func _story_advance() -> void:
 	var node := GameState.story_node(story_node_id)
@@ -1357,18 +1432,66 @@ func _story_choose(index: int) -> void:
 	if index < 0 or index >= choices.size():
 		return
 	var choice: Dictionary = choices[index]
+	var req := int(choice.get("requires_cash", 0))
+	if req > 0 and GameState.cash < req:
+		_toast("现金不足，需要 %d₵。" % req)
+		return
 	GameState.apply_story_effects(choice.get("effects", {}))
+	var ending := String(choice.get("ending", ""))
 	var nxt := String(choice.get("next", node.get("next", "")))
 	GameState.mark_story_seen(story_node_id)
-	if nxt != "":
+	if ending != "":
+		GameState.set_ending(ending)
+		_close_story()
+		_show_ending(ending)
+	elif nxt != "":
 		_show_story(nxt)
 	else:
 		_close_story()
+
+func _show_ending(id: String) -> void:
+	var e := GameState.ending_def(id)
+	if e.is_empty():
+		return
+	_show_modal(String(e.get("title", "结局")), String(e.get("text", "")), [{"label": "重新开始", "cb": _restart_game, "color": C_RUST}, {"label": "关闭", "cb": _close_modal}])
 
 func _close_story() -> void:
 	story_layer.visible = false
 	story_node_id = ""
 	_refresh()
+
+func _on_combat_started() -> void:
+	combat_layer.visible = true
+	_update_combat_ui()
+
+func _on_combat_updated() -> void:
+	_update_combat_ui()
+
+func _on_combat_finished(victory: bool, message: String) -> void:
+	combat_layer.visible = false
+	_refresh()
+	_show_modal("战斗结果", message, [{"label": "关闭", "cb": _close_modal}])
+
+func _update_combat_ui() -> void:
+	if GameState.combat_enemy.is_empty():
+		return
+	var e := GameState.combat_enemy
+	combat_enemy_name.text = String(e.get("name", ""))
+	var path := "res://assets/customers/" + String(e.get("sprite", ""))
+	combat_enemy_sprite.texture = load(path) if ResourceLoader.exists(path) else null
+	combat_enemy_bar.max_value = maxi(1, int(e.get("hp", 40)))
+	combat_enemy_bar.value = clampi(GameState.combat_enemy_hp, 0, int(e.get("hp", 40)))
+	combat_player_bar.max_value = GameState.combat_player_max
+	combat_player_bar.value = clampi(GameState.combat_player_hp, 0, GameState.combat_player_max)
+	combat_log_label.text = "
+".join(GameState.combat_log.slice(maxi(0, GameState.combat_log.size() - 8)))
+	combat_status.text = "敌人 HP %d/%d · 你的 HP %d/%d · 技能冷却 %d" % [GameState.combat_enemy_hp, int(e.get("hp", 40)), GameState.combat_player_hp, GameState.combat_player_max, GameState.combat_skill_cd]
+
+func _combat_action(action: String) -> void:
+	if not GameState.combat_active:
+		return
+	GameState.combat_action(action)
+	_update_combat_ui()
 
 func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
@@ -1554,9 +1677,18 @@ func _on_event_started(event: Dictionary) -> void:
 	_show_modal(String(event.get("title", "夜间事件")), text, actions)
 
 func _on_event_choice(index: int, result: String) -> void:
+	var ev: Dictionary = GameState.pending_event
+	var choice: Dictionary = {}
+	var choices: Array = ev.get("choices", [])
+	if index >= 0 and index < choices.size():
+		choice = choices[index]
 	GameState.apply_event(index)
 	_refresh()
-	_show_modal("事件结果", result, [{"label": "继续", "cb": _close_modal}])
+	if choice.has("combat"):
+		_close_modal()
+		GameState.start_combat(String(choice.get("combat", "")), "security", "")
+	else:
+		_show_modal("事件结果", result, [{"label": "继续", "cb": _close_modal}])
 
 
 
