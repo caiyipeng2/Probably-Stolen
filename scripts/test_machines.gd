@@ -1,0 +1,16 @@
+extends SceneTree
+func _init() -> void:
+	var gs = load("res://scripts/game_state.gd").new()
+	gs._load_defs()
+	gs.new_game()
+	print("power=", gs.power, " water=", gs.inventory_count("water_bottle_full"), " tablet=", gs.inventory_count("water_tablet"), " scrap=", gs.inventory_count("scrap_metal"), " plastic=", gs.inventory_count("printer_plastic"))
+	print("purifier ", gs.start_machine("purifier"))
+	gs._process(5.0)
+	print("premium=", gs.inventory_count("bottled_water_premium"), " power=", gs.power)
+	print("furnace ", gs.start_machine("furnace"))
+	gs._process(6.0)
+	print("ingot=", gs.inventory_count("metal_ingot"), " power=", gs.power)
+	print("printer ", gs.start_machine("printer"))
+	gs._process(9.0)
+	print("printed_gun=", gs.inventory_count("printed_gun"), " power=", gs.power)
+	quit()

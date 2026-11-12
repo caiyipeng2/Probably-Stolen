@@ -1,0 +1,26 @@
+[
+  {
+    "id": "purifier",
+    "name": "净水器",
+    "power": 2,
+    "time": 4.0,
+    "inputs": [{"id": "water_bottle_full", "count": 1}, {"id": "water_tablet", "count": 1}],
+    "outputs": [{"id": "bottled_water_premium", "count": 1}]
+  },
+  {
+    "id": "furnace",
+    "name": "熔炉",
+    "power": 2,
+    "time": 5.0,
+    "inputs": [{"id": "scrap_metal", "count": 2}],
+    "outputs": [{"id": "metal_ingot", "count": 1}]
+  },
+  {
+    "id": "printer",
+    "name": "3D 打印机",
+    "power": 3,
+    "time": 8.0,
+    "inputs": [{"id": "printer_plastic", "count": 1}, {"id": "metal_ingot", "count": 1}],
+    "outputs": [{"id": "printed_gun", "count": 1}]
+  }
+]

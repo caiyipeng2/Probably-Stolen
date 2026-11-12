@@ -4,6 +4,7 @@ signal state_changed
 signal customer_changed
 signal day_finished(summary)
 signal event_started(event)
+signal machine_finished(message)
 
 const GRID_W := 16
 const GRID_H := 3
@@ -17,6 +18,10 @@ var pages_unlocked := 2
 var max_pages_unlocked := 2
 var customer_defs: Array = []
 var events: Array = []
+var machines: Array = []
+var machine_jobs: Array = []
+var power := 10
+var max_power := 10
 
 var day := 1
 var cash := 600
@@ -127,6 +132,11 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			events = data
+	f = FileAccess.open("res://data/machines.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			machines = data
 
 func get_item_def(id: String) -> Dictionary:
 	return items_def.get(id, {})
@@ -328,9 +338,18 @@ func new_game() -> void:
 		var it := make_item(entry[0], entry[1], entry[2], entry[3])
 		it["known"] = true
 		add_item(it)
+	for stock in [["scrap_metal", 3], ["printer_plastic", 2]]:
+		if items_def.has(stock[0]):
+			for i in range(int(stock[1])):
+				var it2 := make_item(stock[0], 100, true, false)
+				it2["known"] = true
+				add_item(it2)
+	power = max_power
+	machine_jobs = []
 	start_day()
 
 func start_day() -> void:
+	power = max_power
 	phase = "open"
 	current_index = -1
 	current_customer = {}
@@ -713,11 +732,85 @@ func apply_event(choice_index: int) -> void:
 		phase = "gameover"
 	emit_signal("state_changed")
 
+func machine_def(id: String) -> Dictionary:
+	for m in machines:
+		if String(m.get("id", "")) == id:
+			return m
+	return {}
+
+func inventory_count(def_id: String) -> int:
+	var n := 0
+	for it in inventory:
+		if String(it.get("def_id", "")) == def_id:
+			n += 1
+	return n
+
+func remove_inventory(def_id: String, count: int) -> bool:
+	if inventory_count(def_id) < count:
+		return false
+	var need := count
+	var i := 0
+	while i < inventory.size() and need > 0:
+		if String(inventory[i].get("def_id", "")) == def_id:
+			inventory.remove_at(i)
+			need -= 1
+		else:
+			i += 1
+	return need == 0
+
+func start_machine(machine_id: String) -> Dictionary:
+	var m := machine_def(machine_id)
+	if m.is_empty():
+		return {"ok": false, "text": "没有这台机器。"}
+	for j in machine_jobs:
+		if String(j.get("machine_id", "")) == machine_id:
+			return {"ok": false, "text": "%s 正在运行。" % m.get("name", machine_id)}
+	if power < int(m.get("power", 0)):
+		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [int(m.get("power", 0)), power]}
+	for inp in m.get("inputs", []):
+		if inventory_count(String(inp.get("id", ""))) < int(inp.get("count", 1)):
+			var d := get_item_def(String(inp.get("id", "")))
+			return {"ok": false, "text": "缺少原料：%s x%d。" % [d.get("name", inp.get("id", "")), int(inp.get("count", 1))]}
+	for inp in m.get("inputs", []):
+		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
+	power -= int(m.get("power", 0))
+	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": float(m.get("time", 1.0)), "total": float(m.get("time", 1.0)), "outputs": m.get("outputs", []).duplicate(true)}
+	machine_jobs.append(job)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "%s 已启动，预计 %.1f 秒。" % [job["name"], job["remaining"]]}
+
+func _process(delta: float) -> void:
+	if machine_jobs.is_empty():
+		return
+	var finished: Array = []
+	var k := 0
+	while k < machine_jobs.size():
+		var j: Dictionary = machine_jobs[k]
+		j["remaining"] = float(j.get("remaining", 0.0)) - delta
+		if float(j["remaining"]) <= 0.0:
+			finished.append(j)
+			machine_jobs.remove_at(k)
+		else:
+			k += 1
+	for j in finished:
+		var got: Array = []
+		for out in j.get("outputs", []):
+			var oid := String(out.get("id", ""))
+			if not items_def.has(oid):
+				continue
+			for n in range(int(out.get("count", 1))):
+				add_item(make_item(oid, 100, true, false))
+				got.append(String(get_item_def(oid).get("name", oid)))
+		var msg := "%s 完成：+%s" % [j.get("name", ""), "、".join(got)]
+		emit_signal("machine_finished", msg)
+	emit_signal("state_changed")
+
 func save_game() -> bool:
 	var data := {
 		"version": 1, "day": day, "cash": cash, "rent": rent, "rent_due": rent_due,
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
+		"power": power, "machine_jobs": machine_jobs,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -758,6 +851,11 @@ func load_game() -> bool:
 		_normalize_item(it)
 	pages_unlocked = clampi(max_pages_unlocked, 2, GRID_PAGES)
 	max_pages_unlocked = pages_unlocked
+	power = int(data.get("power", 10))
+	machine_jobs = data.get("machine_jobs", []).duplicate(true)
+	for j in machine_jobs:
+		j["remaining"] = float(j.get("remaining", 0.0))
+		j["total"] = float(j.get("total", 1.0))
 	pending_event = {}
 	phase = "open"
 	start_day()

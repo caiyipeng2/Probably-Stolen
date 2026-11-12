@@ -76,6 +76,7 @@ func _ready() -> void:
 	GameState.customer_changed.connect(_on_customer_changed)
 	GameState.day_finished.connect(_on_day_finished)
 	GameState.event_started.connect(_on_event_started)
+	GameState.machine_finished.connect(_on_machine_finished)
 	_refresh()
 	_show_welcome()
 	_capture_if_requested()
@@ -292,16 +293,16 @@ func _build_left_rail() -> void:
 	_label(rail, "店铺", Vector2(20, 14), Vector2(170, 32), 24, C_AMBER)
 	var items := [
 		["顾客", "customers"], ["库存", "inventory"], ["网络", "network"],
-		["手机", "phone"], ["档案", "ledger"], ["结束营业", "end_day"],
+		["手机", "phone"], ["机器", "machines"], ["档案", "ledger"], ["结束营业", "end_day"],
 	]
 	for i in range(items.size()):
 		var key: String = items[i][1]
 		var color := C_TEXT
 		if key == "end_day":
 			color = C_RUST
-		var b := _button(rail, items[i][0], Vector2(20, 56 + i * 92), Vector2(170, 78), color, _on_rail.bind(key))
+		var b := _button(rail, items[i][0], Vector2(20, 56 + i * 76), Vector2(170, 64), color, _on_rail.bind(key))
 		rail_buttons[key] = b
-	status_label = _label(rail, "营业中", Vector2(20, 610), Vector2(170, 40), 22, C_GREEN)
+	status_label = _label(rail, "营业中", Vector2(20, 606), Vector2(170, 44), 20, C_GREEN)
 
 func _build_right_rail() -> void:
 	var rail := _panel(self, Vector2(2130, 80), Vector2(210, 670), C_PANEL, C_LINE)
@@ -423,7 +424,9 @@ func _refresh() -> void:
 	paper_goals.text = "□ 卖出 3 件商品  %d/3\n□ 鉴定 1 件物品  %d/1\n□ 支付房租 %d¥\n\n房租 %d 天后到期\n欠款 %d¥" % [sold, inspected, GameState.rent, GameState.rent_due, GameState.loan]
 	var net := int(GameState.daily.get("sales", 0)) - int(GameState.daily.get("purchases", 0)) - int(GameState.daily.get("fees", 0))
 	ledger_label.text = "营业收入  +%d¥\n进货支出  -%d¥\n鉴定费用  -%d¥\n------------\n净利      %+d¥\n\n今日顾客  %d 位\n已成交    %d 位" % [int(GameState.daily.get("sales", 0)), int(GameState.daily.get("purchases", 0)), int(GameState.daily.get("fees", 0)), net, GameState.customers_today.size(), sold]
-	status_label.text = "营业中 · 今日 %d 位顾客" % GameState.customers_today.size() if GameState.phase != "endday" else "今日营业结束"
+	status_label.text = "营业中 · %d 位" % GameState.customers_today.size() if GameState.phase != "endday" else "已结束"
+	if not GameState.machine_jobs.is_empty():
+		status_label.text += " · 机器运行中"
 	status_label.add_theme_color_override("font_color", C_GREEN if GameState.phase != "endday" else C_AMBER)
 	for k in rep_labels.keys():
 		var v := int(GameState.rep.get(k, 0))
@@ -744,6 +747,8 @@ func _on_rail(key: String) -> void:
 			_toast("网络升级树将在 M4 模块开放。M1 先跑通经营循环。")
 		"phone":
 			_toast("手机/短信系统将在 M4 模块开放。M1 先跑通经营循环。")
+		"machines":
+			_open_machines()
 		"ledger":
 			_show_ledger_modal()
 		"end_day":
@@ -825,11 +830,65 @@ func _show_ledger_modal() -> void:
 	var text := "第 %d 天 · 周%s\n\n营业收入：+%d¥\n进货支出：-%d¥\n鉴定费用：-%d¥\n\n现金：%d¥\n房租：%d¥（%d 天后）\n贷款：%d¥（%d 天后）" % [GameState.day, _weekday(GameState.day), int(GameState.daily.get("sales", 0)), int(GameState.daily.get("purchases", 0)), int(GameState.daily.get("fees", 0)), GameState.cash, GameState.rent, GameState.rent_due, GameState.loan, GameState.loan_due]
 	_show_modal("店铺档案", text, [{"label": "关闭", "cb": _close_modal}])
 
+func _open_machines() -> void:
+	var text := "电力 %d/%d
+" % [GameState.power, GameState.max_power]
+	if not GameState.machine_jobs.is_empty():
+		for j in GameState.machine_jobs:
+			text += "运行中：%s %.1fs
+" % [j.get("name", ""), float(j.get("remaining", 0.0))]
+	text += "可用机器：
+"
+	for m in GameState.machines:
+		var ins: Array = []
+		for i in m.get("inputs", []):
+			var d := GameState.get_item_def(String(i.get("id", "")))
+			ins.append("%sx%d" % [_short_item_name(String(i.get("id", "")), String(d.get("name", ""))), int(i.get("count", 1))])
+		var outs: Array = []
+		for o in m.get("outputs", []):
+			var od := GameState.get_item_def(String(o.get("id", "")))
+			outs.append("%sx%d" % [_short_item_name(String(o.get("id", "")), String(od.get("name", ""))), int(o.get("count", 1))])
+		text += "· %s：%s → %s（%.0fs / %d电）
+" % [m.get("name", ""), " + ".join(ins), " + ".join(outs), float(m.get("time", 0.0)), int(m.get("power", 0))]
+	text += "原料：废金属x%d 打印塑料x%d 金属锭x%d" % [GameState.inventory_count("scrap_metal"), GameState.inventory_count("printer_plastic"), GameState.inventory_count("metal_ingot")]
+	var actions: Array = []
+	for m in GameState.machines:
+		actions.append({"label": "启动 " + String(m.get("name", "")), "cb": _start_machine.bind(String(m.get("id", ""))), "color": C_AMBER})
+	actions.append({"label": "关闭", "cb": _close_modal})
+	_show_modal("机器 · MACHINE BAY", text, actions)
+	modal_text.add_theme_font_size_override("font_size", 21)
+
+func _short_item_name(id: String, fallback: String) -> String:
+	match id:
+		"water_bottle_full": return "纯净水"
+		"water_tablet": return "净水药片"
+		"bottled_water_premium": return "瓶装泉水"
+		"scrap_metal": return "废金属"
+		"metal_ingot": return "金属锭"
+		"printer_plastic": return "打印塑料"
+		"printed_gun": return "打印手枪"
+	if fallback.length() <= 8:
+		return fallback
+	return fallback.substr(0, 8)
+
+func _start_machine(machine_id: String) -> void:
+	var res := GameState.start_machine(machine_id)
+	_refresh()
+	if res.get("ok", false):
+		_show_modal("机器", String(res.get("text", "")), [{"label": "返回机器", "cb": _open_machines}, {"label": "关闭", "cb": _close_modal}])
+	else:
+		_toast(String(res.get("text", "启动失败")))
+
+func _on_machine_finished(message: String) -> void:
+	_refresh()
+	_toast(message)
+
 func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
 
 func _show_modal(title: String, text: String, actions: Array) -> void:
 	modal_title.text = title
+	modal_text.add_theme_font_size_override("font_size", 26)
 	modal_text.text = text
 	_clear_children(modal_actions)
 	for a in actions:

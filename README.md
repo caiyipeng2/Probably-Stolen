@@ -1,10 +1,11 @@
-# 深空当铺手机版（M2）
+# 深空当铺手机版（M3 进行中）
 
-Steam《深空当铺：可能是偷的》手机移植项目。当前为 **M2 私有构建**：全量物品目录、分类页签、容器背包、完整市价公式与物品特征，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M2 已完成；当前为 **M3 第一增量**：在 M2 全量物品/经济基础上加入机器生产框架（净水器、熔炉、3D 打印机），Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M2 私有构建）：`build/probably_stolen_m2.apk`
+- APK（M3 私有构建）：`build/probably_stolen_m3.apk`
+- M2 APK：`build/probably_stolen_m2.apk`
 - M1 APK：`build/probably_stolen_m1.apk`
 - 真机截图：`build/screenshots/`
   - `01_main.png` 主界面
@@ -16,13 +17,17 @@ Steam《深空当铺：可能是偷的》手机移植项目。当前为 **M2 私
   - `07_m2_catalog_expanded.png` M2 扩展目录（模块类物品）
   - `08_m2_final.png` M2 最终主界面
   - `09_m2_detail.png` 物品详情/特征
+  - `10_m3_main.png` M3 主界面
+  - `11_m3_machines.png` 机器面板
+  - `12_m3_started.png` 机器启动
+  - `13_m3_done.png` 机器产出
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
 ## 安装
 
 ```bash
-adb install -r build/probably_stolen_m2.apk
+adb install -r build/probably_stolen_m3.apk
 adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.category.LAUNCHER 1
 ```
 
@@ -51,6 +56,16 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **数据质量**：354/422 件使用原值，68 件按品类估算；20 件无中文名使用可读英文回退名。其余为原版本地化名称/描述。
 - **真机验证**：全量目录顾客、11 分类页签、2/3 页背包锁、物品特征详情均已验证。
 
+## M3 第一增量（进行中）
+
+- **机器框架**：机器定义/配方数据化，电力、耗时、输入扣除、后台计时、产出自动入库。
+- **净水器**：纯净水 + 净水药片 → 瓶装泉水（4 秒 / 2 电力）。
+- **熔炉**：废金属 ×2 → 金属锭（5 秒 / 2 电力）。
+- **3D 打印机**：打印塑料 + 金属锭 → 打印手枪（8 秒 / 3 电力）。
+- 左栏新增「机器」入口；机器面板显示电力、配方、原料数量、运行中任务。
+- 初始库存加入废金属与打印塑料，便于直接试产；每日电力重置为 10。
+- 真机已验证：启动净水器 → 4 秒后产出瓶装泉水。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -66,7 +81,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m2.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m3.apk
 ```
 
 开发调试参数：
@@ -99,4 +114,4 @@ godot --path . --dumpinspect
 
 - 已完成：全量物品目录、11 分类、3 页容器背包、6 格展示柜、完整市价公式、随机物品特征、假货/赃物生成、存读档。
 - M2 不包含：原版“背包套背包”的逐物品嵌套 UI、20 个英文回退名/68 个估算数值的逐条精修、公开版素材替换。
-- 后续：M3 机器/生产链，M4 顾客/派系/升级，M5 剧情/事件/战斗，M6 内容校验/平衡/发布。公开版素材替换在发布阶段处理。
+- 后续：M3 继续扩展化学/DNA/水产/种植/包装等机器与配方；M4 顾客/派系/升级；M5 剧情/事件/战斗；M6 内容校验/平衡/发布。公开版素材替换在发布阶段处理。
