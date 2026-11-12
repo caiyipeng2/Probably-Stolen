@@ -98,11 +98,19 @@ func _load_defs() -> void:
 					base["tags"] = btags
 					items_def[id] = base
 	tradable_pool = []
+	var blocked_ids := ["hand", "rev_codeword", "animal_cage", "auto_butcher", "printer", "box_dispenser", "deal_maker", "wine_rack", "plant_dna_manipulator"]
 	for id in items_def.keys():
 		var d: Dictionary = items_def[id]
+		var sid := String(id)
 		if int(d.get("base_value", 0)) <= 0:
 			continue
 		if String(d.get("icon", "")) == "":
+			continue
+		if String(d.get("category", "")) == "furniture":
+			continue
+		if sid.begins_with("pirate_") or sid.begins_with("deserter_") or sid.begins_with("xeno_") or sid.begins_with("test_") or sid.begins_with("debug_"):
+			continue
+		if sid.contains("save_bag") or sid in blocked_ids:
 			continue
 		tradable_pool.append(id)
 	f = FileAccess.open("res://data/customers.json", FileAccess.READ)

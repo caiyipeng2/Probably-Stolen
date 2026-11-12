@@ -13,6 +13,7 @@ Steam《深空当铺：可能是偷的》手机移植项目。当前为 M1 首�
   - `04_sale.png` 成交
   - `05_dayend.png` 日结
   - `06_m2_full_catalog.png` M2 全量物品目录
+  - `07_m2_catalog_expanded.png` M2 扩展目录（模块类物品）
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -38,10 +39,10 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 
 ## M2 首增量（进行中）
 
-- 从反编译物品工厂方法抽取 **269 个物品定义、264 件可交易物品、235 个图标**。
+- 从反编译物品工厂方法抽取 **447 个物品定义、411 件可交易物品、389 个图标**。
 - 私有数据层：`data_private/items_full.json` + `assets_private/items/`，已加入 `.gitignore`，不进入公开仓库。
 - 顾客生成池已切换到全量目录；M2 APK 在真机验证，顾客会出售原版目录中的物品（截图中的“美工刀”）。
-- 物品名称/数值覆盖仍有缺口：当前 269 个定义，目标约 330；部分定义使用回退名称/数值。
+- 名称覆盖 412/447、数值覆盖 369/447；缺口主要是模块/机器/角色类，部分使用回退值。
 - M2 剩余：补齐名称与数值、完整物品特征/容器、完整价格公式、公开版素材替换。
 
 ## 真机验收
