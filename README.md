@@ -1,10 +1,11 @@
-# 深空当铺手机版（M7）
+# 深空当铺手机版（M8）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M1–M6 已完成；当前为 **M7 私有构建**：后日谈剧情池、3D 打印形状校准小游戏、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M1–M7 已完成；当前为 **M8 私有构建**：后日谈剧情池、3D 打印/化学配比/DNA 序列小游戏、完整新手教程、音频、9 名通缉目标与平衡校准，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M7 私有构建）：`build/probably_stolen_m7.apk`
+- APK（M8 私有构建）：`build/probably_stolen_m8.apk`
+- M7 APK：`build/probably_stolen_m7.apk`
 - M6 APK：`build/probably_stolen_m6.apk`
 - M5 APK：`build/probably_stolen_m5.apk`
 - M4 APK：`build/probably_stolen_m4.apk`
@@ -55,6 +56,10 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M6 已完成�
   - `41_m7_minigame_filled.png` 校准图案填写（16/16）
   - `42_m7_print_started.png` 打印启动与运行队列
   - `43_m7_precheck.png` 缺料时不进入小游戏
+  - `44_m8_mix.png` 化学混合器配比校准
+  - `45_m8_dna.png` DNA 操作台序列复制
+  - `46_m8_dna_filled.png` DNA 序列输入
+  - `47_m8_dna_started.png` DNA 不匹配重试
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -142,6 +147,14 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **回归**：M1/M4/M5/M6 headless 测试全过；后日谈第 11 天调度测试通过；小游戏失败/成功路径测试通过（失败不扣原料，成功排队打印）。
 - **真机**：M7 APK 安装启动正常，机器湾与 3D 打印小游戏真机打开；校准图案点选与启动流程可用。
 
+## M8 已完成（化学配比与 DNA 小游戏）
+
+- **化学混合器 · 配比校准**：三通道滑块调到目标刻度，每项误差 ≤1 才能启动；越接近目标，混合耗时最多缩短 20%；失败不扣原料，可重置重试。
+- **DNA 操作台 · 序列复制**：按目标顺序拼接 6 个碱基（A/C/G/T），完全匹配才能启动培养；支持清空重试，成功缩短培养时间 20%。
+- **统一预检**：三台小游戏机器在打开界面前检查电力与原料，缺料/缺电直接提示，不浪费玩家时间。
+- **测试**：`--testminigame` 连续跑通 3D 打印、化学混合、DNA 三台机器的小游戏成功路径；打印失败路径验证不扣原料。
+- **真机**：M8 APK 安装启动正常；化学配比与 DNA 序列界面真机打开、可操作。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -157,7 +170,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m7.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m8.apk
 ```
 
 开发调试参数：
@@ -201,5 +214,7 @@ godot --path . --dumpinspect
 - M5 边界：原版 2544 条对话未逐条导入，当前为代表性主支线；战斗/通缉为简化规则。
 - M6 已完成：原版对话键库（2544 条）、11 个可玩剧情场景、剧情场景系统、完整教程、音频与开关、9 名通缉、平衡校准、M6 发布候选 APK。
 - M7 已完成：44 个后日谈剧情场景（总数 55 场景 / 377 行）、后日谈自动排期、3D 打印形状校准小游戏、启动前缺料/缺电检查、M7 APK。
-- M7 边界：后日谈为线性改编，原版分支/条件行动被压缩为顺序对话；Eleanor 长线条件分支、17 种失败结局、化学配比/DNA/种植深度小游戏仍未实现；公开版仍需替换拆包素材与音频。
-- 后续：公开版素材替换、化学配比与 DNA 小游戏、逐条失败结局、剩余机器深度玩法。
+- M7 边界：后日谈为线性改编，原版分支/条件行动被压缩为顺序对话；Eleanor 长线条件分支、17 种失败结局、种植等剩余机器深度玩法仍未实现；公开版仍需替换拆包素材与音频。
+- M8 已完成：化学混合器配比校准、DNA 操作台序列复制、三台机器统一启动预检、M8 APK。
+- M8 边界：化学/DNA 小游戏只影响耗时，不改变产出与配方；机器损坏/维修、种植/养殖周期、3D 打印形状拼图仍为简化实现。
+- 后续：公开版素材替换、17 种失败结局、机器损坏/维修、剩余机器深度玩法。

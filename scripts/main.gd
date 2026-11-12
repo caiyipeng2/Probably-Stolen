@@ -69,6 +69,17 @@ var minigame_cells: Array = []
 var minigame_target: Array = []
 var minigame_selected: Array = []
 var minigame_status: Label
+var mix_layer: Control
+var mix_sliders: Array = []
+var mix_value_labels: Array = []
+var mix_target: Array = []
+var mix_status: Label
+var dna_layer: Control
+var dna_target: Array = []
+var dna_input: Array = []
+var dna_target_label: Label
+var dna_input_label: Label
+var dna_status: Label
 var temp_buttons: Array = []
 var machine_list_buttons: Dictionary = {}
 var selected_machine_id := ""
@@ -251,7 +262,19 @@ func _testminigame_if_requested() -> void:
 		minigame_selected[i] = int(minigame_target[i]) == 1
 		minigame_cells[i].button_pressed = minigame_selected[i]
 	_confirm_minigame()
-	print("MINIGAME ok_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
+	print("MINIGAME printer_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
+	selected_machine_id = "chem_mixer"
+	_open_mix_minigame()
+	for i in range(3):
+		mix_sliders[i].set_value_no_signal(float(mix_target[i]))
+	_confirm_mix()
+	print("MINIGAME mix_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
+	selected_machine_id = "dna_lab"
+	_open_dna_minigame()
+	dna_input = dna_target.duplicate()
+	dna_input_label.text = "你的序列： " + " ".join(dna_input)
+	_confirm_dna()
+	print("MINIGAME dna_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -474,11 +497,13 @@ func _build_ui() -> void:
 	_build_story_layer()
 	_build_combat_layer()
 	_build_minigame_layer()
+	_build_mix_layer()
+	_build_dna_layer()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M7", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M8", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -839,6 +864,150 @@ func _confirm_minigame() -> void:
 
 func _close_minigame() -> void:
 	minigame_layer.visible = false
+	_play_sfx("soft")
+
+func _build_mix_layer() -> void:
+	mix_layer = Control.new()
+	mix_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mix_layer.visible = false
+	mix_layer.z_index = 151
+	mix_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(mix_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.84)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	mix_layer.add_child(dim)
+	var panel := _panel(mix_layer, Vector2(420, 160), Vector2(1500, 760), C_PANEL, C_CYAN, 3)
+	_label(panel, "化学混合器 · 配比校准", Vector2(30, 18), Vector2(900, 48), 34, C_AMBER)
+	_label(panel, "把三组试剂调到目标刻度附近（每项误差 ≤1）。越接近目标，混合耗时越短。", Vector2(30, 76), Vector2(1420, 40), 20, C_MUTED)
+	var captions := ["溶剂 A", "试剂 B", "催化剂 C"]
+	for i in range(3):
+		_label(panel, captions[i], Vector2(90, 190 + i * 120), Vector2(180, 40), 26, C_TEXT)
+		var slider := HSlider.new()
+		slider.min_value = 0
+		slider.max_value = 10
+		slider.step = 1
+		slider.value = 5
+		slider.position = Vector2(300, 190 + i * 120)
+		slider.size = Vector2(700, 40)
+		slider.custom_minimum_size = Vector2(700, 40)
+		slider.add_theme_stylebox_override("slider", _style(C_PANEL2, C_LINE))
+		slider.add_theme_stylebox_override("grabber_area", _style(C_CYAN, C_CYAN))
+		slider.add_theme_stylebox_override("grabber_area_highlight", _style(C_AMBER, C_AMBER))
+		slider.value_changed.connect(_on_mix_changed.bind(i))
+		panel.add_child(slider)
+		mix_sliders.append(slider)
+		var value_label := _label(panel, "5", Vector2(1040, 190 + i * 120), Vector2(100, 40), 28, C_AMBER)
+		mix_value_labels.append(value_label)
+	mix_status = _label(panel, "", Vector2(90, 560), Vector2(1200, 40), 24, C_MUTED)
+	_button(panel, "启动混合", Vector2(800, 620), Vector2(240, 72), C_AMBER, _confirm_mix)
+	_button(panel, "重置", Vector2(1070, 620), Vector2(180, 72), C_CYAN, _open_mix_minigame)
+	_button(panel, "取消", Vector2(1280, 620), Vector2(180, 72), C_MUTED, _close_mix)
+
+func _open_mix_minigame() -> void:
+	mix_target = [randi_range(2, 8), randi_range(2, 8), randi_range(2, 8)]
+	for i in range(3):
+		mix_sliders[i].set_value_no_signal(5.0)
+		mix_value_labels[i].text = "5"
+	mix_status.text = "目标：溶剂 A %d · 试剂 B %d · 催化剂 C %d（误差 ≤1）" % [mix_target[0], mix_target[1], mix_target[2]]
+	mix_layer.visible = true
+	_play_sfx("page")
+
+func _on_mix_changed(value: float, idx: int) -> void:
+	if idx >= 0 and idx < mix_value_labels.size():
+		mix_value_labels[idx].text = str(int(value))
+
+func _confirm_mix() -> void:
+	var errors := []
+	for i in range(3):
+		errors.append(absi(int(mix_sliders[i].value) - int(mix_target[i])))
+	var max_error := 0
+	var total_error := 0
+	for e in errors:
+		max_error = maxi(max_error, int(e))
+		total_error += int(e)
+	if max_error > 1:
+		mix_status.text = "配比偏差过大（最大误差 %d）。调整后重试。" % max_error
+		_play_sfx("fail")
+		return
+	var quality := 1.0 - float(total_error) / 30.0
+	mix_layer.visible = false
+	_play_sfx("machine")
+	_start_selected_machine(clampf(quality, 0.0, 1.0))
+
+func _close_mix() -> void:
+	mix_layer.visible = false
+	_play_sfx("soft")
+
+func _build_dna_layer() -> void:
+	dna_layer = Control.new()
+	dna_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dna_layer.visible = false
+	dna_layer.z_index = 152
+	dna_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(dna_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.84)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	dna_layer.add_child(dim)
+	var panel := _panel(dna_layer, Vector2(500, 180), Vector2(1400, 720), C_PANEL, C_CYAN, 3)
+	_label(panel, "DNA 操作台 · 序列复制", Vector2(30, 18), Vector2(900, 48), 34, C_AMBER)
+	_label(panel, "按目标序列依次拼接 6 个碱基。完全匹配才能启动培养；清空后可重试。", Vector2(30, 76), Vector2(1320, 40), 20, C_MUTED)
+	dna_target_label = _label(panel, "", Vector2(90, 150), Vector2(1220, 60), 38, C_CYAN)
+	dna_input_label = _label(panel, "", Vector2(90, 230), Vector2(1220, 60), 38, C_AMBER)
+	var bases := ["A", "C", "G", "T"]
+	for i in range(bases.size()):
+		_button(panel, bases[i], Vector2(160 + i * 220, 360), Vector2(180, 90), C_CYAN, _dna_press.bind(bases[i]))
+	dna_status = _label(panel, "", Vector2(90, 500), Vector2(1200, 40), 24, C_MUTED)
+	_button(panel, "提交序列", Vector2(740, 580), Vector2(240, 72), C_AMBER, _confirm_dna)
+	_button(panel, "清空", Vector2(1010, 580), Vector2(180, 72), C_CYAN, _clear_dna)
+	_button(panel, "取消", Vector2(1220, 580), Vector2(180, 72), C_MUTED, _close_dna)
+
+func _open_dna_minigame() -> void:
+	var bases := ["A", "C", "G", "T"]
+	dna_target = []
+	for i in range(6):
+		dna_target.append(bases[randi() % bases.size()])
+	dna_input = []
+	dna_target_label.text = "目标序列： " + " ".join(dna_target)
+	dna_input_label.text = "你的序列： —"
+	dna_status.text = "等待输入 6 个碱基。"
+	dna_layer.visible = true
+	_play_sfx("page")
+
+func _dna_press(base: String) -> void:
+	if dna_input.size() >= 6:
+		return
+	dna_input.append(base)
+	dna_input_label.text = "你的序列： " + " ".join(dna_input)
+	if dna_input.size() >= 6:
+		dna_status.text = "序列已满，提交或清空。"
+
+func _clear_dna() -> void:
+	dna_input = []
+	dna_input_label.text = "你的序列： —"
+	dna_status.text = "等待输入 6 个碱基。"
+	_play_sfx("soft")
+
+func _confirm_dna() -> void:
+	if dna_input.size() < 6:
+		dna_status.text = "序列不足 6 个碱基。"
+		_play_sfx("fail")
+		return
+	var matched := 0
+	for i in range(6):
+		if dna_input[i] == dna_target[i]:
+			matched += 1
+	if matched < 6:
+		dna_status.text = "序列不匹配（%d/6），清空后重试。" % matched
+		_play_sfx("fail")
+		return
+	dna_layer.visible = false
+	_play_sfx("machine")
+	_start_selected_machine(1.0)
+
+func _close_dna() -> void:
+	dna_layer.visible = false
 	_play_sfx("soft")
 
 func _refresh() -> void:
@@ -1404,13 +1573,16 @@ func _refresh_machine_jobs() -> void:
 	machine_jobs_label.text = text
 
 func _start_selected_machine(quality: float = -1.0) -> void:
-	if selected_machine_id == "printer" and quality < 0.0:
-		var check := GameState.start_machine("printer", 0.0, true)
+	if quality < 0.0 and selected_machine_id in ["printer", "chem_mixer", "dna_lab"]:
+		var check := GameState.start_machine(selected_machine_id, 0.0, true)
 		if not bool(check.get("ok", false)):
 			machine_status_label.text = String(check.get("text", ""))
 			_play_sfx("fail")
 			return
-		_open_printer_minigame()
+		match selected_machine_id:
+			"printer": _open_printer_minigame()
+			"chem_mixer": _open_mix_minigame()
+			"dna_lab": _open_dna_minigame()
 		return
 	var res := GameState.start_machine(selected_machine_id, maxf(quality, 0.0))
 	if bool(res.get("ok", false)):

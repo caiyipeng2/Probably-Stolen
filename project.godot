@@ -4,7 +4,7 @@ config_version=5
 
 [application]
 config/name="深空当铺：手机版"
-config/description="Probably Stolen mobile port - M7"
+config/description="Probably Stolen mobile port - M8"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.7", "GL Compatibility")
 
