@@ -5,6 +5,7 @@ signal customer_changed
 signal day_finished(summary)
 signal event_started(event)
 signal machine_finished(message)
+signal story_available(node_id)
 
 const GRID_W := 16
 const GRID_H := 3
@@ -26,6 +27,10 @@ var professions: Array = []
 var profession_id := ""
 var profession_chosen := false
 var commissions: Array = []
+var story_nodes: Dictionary = {}
+var story_seen: Array = []
+var story_flags: Dictionary = {}
+var pending_story := ""
 var machine_jobs: Array = []
 var power := 10
 var max_power := 10
@@ -161,6 +166,12 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			professions = data
+	f = FileAccess.open("res://data/story.json", FileAccess.READ)
+	if f:
+		var data = JSON.parse_string(f.get_as_text())
+		if data is Array:
+			for node in data:
+				story_nodes[String(node.get("id", ""))] = node
 
 func get_item_def(id: String) -> Dictionary:
 	return items_def.get(id, {})
@@ -372,6 +383,9 @@ func new_game() -> void:
 	profession_id = ""
 	profession_chosen = false
 	commissions = []
+	story_seen = []
+	story_flags = {}
+	pending_story = ""
 	_refresh_upgrades()
 	machine_jobs = []
 	machine_modules = {}
@@ -387,10 +401,13 @@ func start_day() -> void:
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	customers_today = []
 	_gen_commissions()
+	_queue_story_for_day()
 	var count := rng.randi_range(3, 5)
 	for i in range(count):
 		customers_today.append(_gen_customer())
 	emit_signal("state_changed")
+	if pending_story != "":
+		emit_signal("story_available", pending_story)
 	next_customer()
 
 func _gen_customer() -> Dictionary:
@@ -769,6 +786,14 @@ func apply_event(choice_index: int) -> void:
 	var changes: Dictionary = ch.get("rep", {})
 	for k in changes.keys():
 		add_rep(k, int(changes[k]))
+	if bool(ch.get("confiscate", false)):
+		for i in range(inventory.size() - 1, -1, -1):
+			if int(get_item_def(inventory[i].get("def_id", "")).get("contraband", 0)) > 0:
+				inventory.remove_at(i)
+		for i in range(display.size() - 1, -1, -1):
+			if int(get_item_def(display[i].get("def_id", "")).get("contraband", 0)) > 0:
+				display.remove_at(i)
+		_refresh_pages()
 	pending_event = {}
 	if cash < 0:
 		phase = "gameover"
@@ -838,6 +863,39 @@ func deliver_commission(cid: String) -> Dictionary:
 		emit_signal("state_changed")
 		return {"ok": true, "text": "委托完成，获得 %d₵。" % int(c.get("reward", 0))}
 	return {"ok": false, "text": "没有这个委托。"}
+
+func story_node(id: String) -> Dictionary:
+	return story_nodes.get(id, {})
+
+func _queue_story_for_day() -> void:
+	pending_story = ""
+	var map := {2: "mentor_day2", 4: "security_day4", 6: "faction_day6", 8: "buyout_day8"}
+	if map.has(day):
+		var sid := String(map[day])
+		if not story_seen.has(sid):
+			pending_story = sid
+
+func mark_story_seen(id: String) -> void:
+	if not story_seen.has(id):
+		story_seen.append(id)
+	if pending_story == id:
+		pending_story = ""
+	emit_signal("state_changed")
+
+func apply_story_effects(effects: Dictionary) -> void:
+	cash += int(effects.get("cash", 0))
+	var reps: Dictionary = effects.get("rep", {})
+	for k in reps.keys():
+		add_rep(String(k), int(reps[k]))
+	for entry in effects.get("items", []):
+		var iid := String(entry[0]); var cnt := int(entry[1])
+		if items_def.has(iid):
+			for n in range(cnt):
+				add_item(make_item(iid, 100, true, false))
+	var flag := String(effects.get("flag", ""))
+	if flag != "":
+		story_flags[flag] = true
+	emit_signal("state_changed")
 
 func faction_def(id: String) -> Dictionary:
 	for f in factions:
@@ -1000,7 +1058,7 @@ func save_game() -> bool:
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
-		"commissions": commissions,
+		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 	}
 	var f := FileAccess.open("user://save_1.json", FileAccess.WRITE)
 	if f == null:
@@ -1046,6 +1104,8 @@ func load_game() -> bool:
 	profession_id = String(data.get("profession_id", ""))
 	profession_chosen = bool(data.get("profession_chosen", false))
 	commissions = data.get("commissions", []).duplicate(true)
+	story_seen = data.get("story_seen", []).duplicate(true)
+	story_flags = data.get("story_flags", {}).duplicate(true)
 	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)
 	machine_temps = data.get("machine_temps", {}).duplicate(true)

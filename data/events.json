@@ -89,5 +89,39 @@
         "result": "你拍了两下配电箱，灯居然亮了。手被电麻了一晚上。"
       }
     ]
+  },
+  {
+    "id": "security_search",
+    "title": "治安部突击查抄",
+    "text": "治安部突然封住店门，开始翻查柜台和背包。",
+    "choices": [
+      {
+        "label": "配合检查",
+        "cash": 0,
+        "rep": {
+          "security": 2
+        },
+        "confiscate": true,
+        "result": "他们没收了违禁品，但放过了你。"
+      },
+      {
+        "label": "打点一下（-150₵）",
+        "cash": -150,
+        "rep": {
+          "security": 5
+        },
+        "result": "警员收了钱，假装什么都没看见。"
+      },
+      {
+        "label": "拒绝开门",
+        "cash": 0,
+        "rep": {
+          "security": -5,
+          "lower": 2
+        },
+        "confiscate": true,
+        "result": "他们强行查抄，带走了违禁品，并记下了你的店名。"
+      }
+    ]
   }
 ]

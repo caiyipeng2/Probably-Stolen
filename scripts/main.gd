@@ -78,6 +78,12 @@ var info_body: Label
 var info_action: Button
 var info_status: Label
 var info_tab_buttons: Dictionary = {}
+var story_layer: Control
+var story_portrait: TextureRect
+var story_name: Label
+var story_text: Label
+var story_choices: VBoxContainer
+var story_node_id := ""
 var action_buttons: Dictionary = {}
 var rail_buttons: Dictionary = {}
 var rep_labels: Dictionary = {}
@@ -103,6 +109,7 @@ func _ready() -> void:
 	GameState.day_finished.connect(_on_day_finished)
 	GameState.event_started.connect(_on_event_started)
 	GameState.machine_finished.connect(_on_machine_finished)
+	GameState.story_available.connect(_on_story_available)
 	_refresh()
 	_show_welcome()
 	_capture_if_requested()
@@ -304,6 +311,7 @@ func _build_ui() -> void:
 	_build_modal()
 	_build_machine_bay()
 	_build_info_bay()
+	_build_story_layer()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
@@ -516,6 +524,28 @@ func _build_info_bay() -> void:
 	info_body = _label(detail, "", Vector2(24, 108), Vector2(1230, 500), 20, C_TEXT)
 	info_action = _button(detail, "操作", Vector2(24, 630), Vector2(280, 64), C_AMBER, _info_action)
 	info_status = _label(detail, "", Vector2(330, 640), Vector2(900, 52), 20, C_MUTED)
+
+func _build_story_layer() -> void:
+	story_layer = Control.new()
+	story_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	story_layer.visible = false
+	story_layer.z_index = 130
+	story_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(story_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.82)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	story_layer.add_child(dim)
+	var panel := _panel(story_layer, Vector2(230, 120), Vector2(1880, 840), C_PANEL, C_CYAN, 3)
+	_label(panel, "剧情 · STORY", Vector2(30, 18), Vector2(600, 48), 34, C_AMBER)
+	story_portrait = _texture_rect(panel, Vector2(30, 150), Vector2(460, 540), "")
+	story_name = _label(panel, "", Vector2(530, 24), Vector2(1200, 42), 30, C_AMBER)
+	story_text = _label(panel, "", Vector2(530, 80), Vector2(1300, 370), 28, C_TEXT)
+	story_choices = VBoxContainer.new()
+	story_choices.position = Vector2(530, 480)
+	story_choices.size = Vector2(1300, 320)
+	story_choices.add_theme_constant_override("separation", 14)
+	panel.add_child(story_choices)
 
 func _refresh() -> void:
 	if not is_inside_tree():
@@ -919,6 +949,7 @@ func _show_day_summary(s: Dictionary) -> void:
 		text += "\n\n你没能付清%s，店铺被收走了。" % ("房租" if s["gameover"] == "rent" else "贷款")
 		actions.append({"label": "重新开始", "cb": _restart_game, "color": C_RUST})
 	else:
+		actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
 		actions.append({"label": "下一天", "cb": _next_day, "color": C_AMBER})
 	_show_modal("营业结算", text, actions)
 
@@ -934,6 +965,35 @@ func _restart_game() -> void:
 	current_page = 0
 	last_summary = {}
 	_refresh()
+
+func _open_newspaper() -> void:
+	var s: Dictionary = last_summary
+	if s.is_empty():
+		_close_modal()
+		return
+	var d := int(s.get("day", GameState.day))
+	var text := "《下层区日报》  第 %d 天
+
+" % d
+	text += "头条：下层区当铺继续营业，店主撑过了今天的房租压力。
+"
+	text += "流水：收入 %d₵ / 进货 %d₵ / 鉴定 %d₵
+" % [int(s.get("sales", 0)), int(s.get("purchases", 0)), int(s.get("fees", 0))]
+	text += "现金 %d₵；房租 %d₵（%d 天后）
+" % [int(s.get("cash", 0)), int(s.get("rent", 0)), int(s.get("rent_due", 0))]
+	var top := ""
+	var topv := -999
+	for k in GameState.rep.keys():
+		if int(GameState.rep[k]) > topv:
+			topv = int(GameState.rep[k])
+			top = _faction_name(k)
+	text += "派系：%s %+d
+" % [top, topv]
+	if not GameState.story_flags.is_empty():
+		text += "传闻：你的选择已经被某些人记住。
+"
+	_show_modal("下层区日报", text, [{"label": "返回结算", "cb": _show_day_summary.bind(s)}, {"label": "关闭", "cb": _close_modal}])
+	modal_text.add_theme_font_size_override("font_size", 20)
 
 func _show_ledger_modal() -> void:
 	var text := "第 %d 天 · 周%s\n\n营业收入：+%d¥\n进货支出：-%d¥\n鉴定费用：-%d¥\n\n现金：%d¥\n房租：%d¥（%d 天后）\n贷款：%d¥（%d 天后）" % [GameState.day, _weekday(GameState.day), int(GameState.daily.get("sales", 0)), int(GameState.daily.get("purchases", 0)), int(GameState.daily.get("fees", 0)), GameState.cash, GameState.rent, GameState.rent_due, GameState.loan, GameState.loan_due]
@@ -1246,6 +1306,69 @@ func _open_network() -> void:
 
 func _open_factions() -> void:
 	_open_info_tab("factions")
+
+func _on_story_available(node_id: String) -> void:
+	if story_layer.visible:
+		return
+	_show_story(node_id)
+
+func _show_story(node_id: String) -> void:
+	var node := GameState.story_node(node_id)
+	if node.is_empty():
+		GameState.mark_story_seen(node_id)
+		return
+	story_node_id = node_id
+	story_layer.visible = true
+	story_name.text = String(node.get("speaker", "剧情"))
+	story_text.text = String(node.get("text", ""))
+	var portrait := String(node.get("portrait", ""))
+	var path := "res://assets/customers/" + portrait
+	if ResourceLoader.exists(path):
+		story_portrait.texture = load(path)
+		story_portrait.visible = true
+	else:
+		story_portrait.texture = null
+		story_portrait.visible = false
+	_clear_children(story_choices)
+	var choices: Array = node.get("choices", [])
+	if choices.is_empty():
+		var b := _button(story_choices, "继续", Vector2.ZERO, Vector2(1260, 60), C_TEXT, _story_advance)
+		b.custom_minimum_size = Vector2(1260, 60)
+		b.add_theme_font_size_override("font_size", 24)
+	else:
+		for i in range(choices.size()):
+			var label := String(choices[i].get("text", "选择"))
+			var b := _button(story_choices, label, Vector2.ZERO, Vector2(1260, 60), C_AMBER, _story_choose.bind(i))
+			b.custom_minimum_size = Vector2(1260, 60)
+			b.add_theme_font_size_override("font_size", 24)
+
+func _story_advance() -> void:
+	var node := GameState.story_node(story_node_id)
+	var nxt := String(node.get("next", ""))
+	GameState.mark_story_seen(story_node_id)
+	if nxt != "":
+		_show_story(nxt)
+	else:
+		_close_story()
+
+func _story_choose(index: int) -> void:
+	var node := GameState.story_node(story_node_id)
+	var choices: Array = node.get("choices", [])
+	if index < 0 or index >= choices.size():
+		return
+	var choice: Dictionary = choices[index]
+	GameState.apply_story_effects(choice.get("effects", {}))
+	var nxt := String(choice.get("next", node.get("next", "")))
+	GameState.mark_story_seen(story_node_id)
+	if nxt != "":
+		_show_story(nxt)
+	else:
+		_close_story()
+
+func _close_story() -> void:
+	story_layer.visible = false
+	story_node_id = ""
+	_refresh()
 
 func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])

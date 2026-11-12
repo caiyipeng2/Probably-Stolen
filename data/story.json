@@ -1,0 +1,83 @@
+[
+  {
+    "id": "mentor_day2",
+    "speaker": "导师",
+    "portrait": "maleUpper_5.png",
+    "text": "小店开得怎么样？我借你的钱可不是做慈善。\n今天有批货需要一个可靠的中间人，你接不接？",
+    "choices": [
+      {"text": "接活（+150₵，黑市声望）", "next": "mentor_accept", "effects": {"cash": 150, "rep": {"blackmarket": 5}, "flag": "mentor_deal"}},
+      {"text": "保持距离（下层区声望）", "next": "mentor_refuse", "effects": {"rep": {"lower": 3}}}
+    ]
+  },
+  {
+    "id": "mentor_accept",
+    "speaker": "导师",
+    "portrait": "maleUpper_5.png",
+    "text": "很好。货在柜台下面，别让治安部看见。\n记住，贪心的人活不长。",
+    "next": ""
+  },
+  {
+    "id": "mentor_refuse",
+    "speaker": "导师",
+    "portrait": "maleUpper_5.png",
+    "text": "有骨气。希望你的骨气能替你还房租。",
+    "next": ""
+  },
+  {
+    "id": "security_day4",
+    "speaker": "治安部警员",
+    "portrait": "maleSec_0.png",
+    "text": "例行提醒：最近查得严。你店里有没有不该出现的东西？\n我们可以当没看见，也可以现在就检查。",
+    "choices": [
+      {"text": "打点一下（-120₵，治安部声望）", "next": "security_bribe", "effects": {"cash": -120, "rep": {"security": 5}}},
+      {"text": "拒绝（治安部声望下降）", "next": "security_refuse", "effects": {"rep": {"security": -5, "lower": 2}}}
+    ]
+  },
+  {
+    "id": "security_bribe",
+    "speaker": "治安部警员",
+    "portrait": "maleSec_0.png",
+    "text": "聪明人。把货藏好，别让我下次难做。",
+    "next": ""
+  },
+  {
+    "id": "security_refuse",
+    "speaker": "治安部警员",
+    "portrait": "maleSec_0.png",
+    "text": "我会记住这家店。下次检查，可就没这么客气了。",
+    "next": ""
+  },
+  {
+    "id": "faction_day6",
+    "speaker": "革命军联络员",
+    "portrait": "scavFemale_2.png",
+    "text": "同志，空间站需要你的选择。\n是继续给黑市供货，还是把物资交给革命军？",
+    "choices": [
+      {"text": "支持革命军（革命军声望）", "next": "faction_rev", "effects": {"rep": {"rev": 10, "blackmarket": -5}, "flag": "chose_rev"}},
+      {"text": "继续和黑市合作（黑市声望）", "next": "faction_bm", "effects": {"rep": {"blackmarket": 10, "rev": -5}, "flag": "chose_bm"}}
+    ]
+  },
+  {
+    "id": "faction_rev",
+    "speaker": "革命军联络员",
+    "portrait": "scavFemale_2.png",
+    "text": "为了下层区。我们会记住你的贡献。",
+    "next": ""
+  },
+  {
+    "id": "faction_bm",
+    "speaker": "黑市中间人",
+    "portrait": "femaleBM_2.png",
+    "text": "明智的选择。利润会证明一切。",
+    "next": ""
+  },
+  {
+    "id": "buyout_day8",
+    "speaker": "导师",
+    "portrait": "maleUpper_5.png",
+    "text": "你已经撑过一周了。房东开始盯着你的账本。\n想真正拥有这家店，就攒够钱把产权买下来。",
+    "choices": [
+      {"text": "我会买下这家店", "next": "", "effects": {"flag": "buyout_goal"}}
+    ]
+  }
+]

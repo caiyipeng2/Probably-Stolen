@@ -1,10 +1,11 @@
-# 深空当铺手机版（M4）
+# 深空当铺手机版（M5 进行中）
 
-Steam《深空当铺：可能是偷的》手机移植项目。M2/M3 已完成；当前为 **M4 私有构建**：8 派系完整声望树、13 专精、60 项网络升级、顾客名录与电话委托，Android APK 已真机验证。
+Steam《深空当铺：可能是偷的》手机移植项目。M2–M4 已完成；当前为 **M5 第一增量**：剧情对话、报纸、治安部查抄，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M4 私有构建）：`build/probably_stolen_m4.apk`
+- APK（M5 私有构建）：`build/probably_stolen_m5.apk`
+- M4 APK：`build/probably_stolen_m4.apk`
 - M3 APK：`build/probably_stolen_m3.apk`
 - M2 APK：`build/probably_stolen_m2.apk`
 - M1 APK：`build/probably_stolen_m1.apk`
@@ -32,13 +33,18 @@ Steam《深空当铺：可能是偷的》手机移植项目。M2/M3 已完成；
   - `21_m4_profession_chosen.png` 专精选择结果
   - `22_m4_phone.png` 电话委托
   - `23_m4_factions.png` 派系声望树
+  - `24_m5_dayend.png` 日结
+  - `25_m5_newspaper.png` 下层区日报
+  - `26_m5_story.png` 剧情对话
+  - `27_m5_story_choice.png` 剧情选择与效果
+  - `28_m5_story_done.png` 对话结束
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
 ## 安装
 
 ```bash
-adb install -r build/probably_stolen_m4.apk
+adb install -r build/probably_stolen_m5.apk
 adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.category.LAUNCHER 1
 ```
 
@@ -89,6 +95,15 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **新顾客**：游客、教会、卡特尔加入顾客池，交易会影响对应派系声望。
 - 真机已验证：网络升级购买、专精选择、8 派系树、电话委托、存档。
 
+## M5 第一增量（进行中）
+
+- **剧情/对话系统**：数据驱动节点、立绘、说话人、分支选项与效果（现金/声望/物品/剧情标记）。
+- **按天触发**：第 2 天导师来访、第 4 天治安部警告、第 6 天派系选择、第 8 天买店提示；节点只触发一次。
+- **剧情存档**：已看节点与剧情标记随存档保存；读档不会重复触发。
+- **下层区日报**：日结后可查看头条、流水、现金/房租、派系动态与街头传闻。
+- **治安部查抄**：新增夜间查抄事件，配合/打点/拒绝会改变治安部声望，并可能没收背包与展示柜中的违禁品。
+- 真机已验证：日结→报纸、次日导师剧情、选择 +150₵ 与黑市声望、剧情继续/结束；查抄没收与剧情存档通过 headless 测试。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -104,7 +119,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m4.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m5.apk
 ```
 
 开发调试参数：
@@ -141,4 +156,6 @@ godot --path . --dumpinspect
 - M3 边界：原版 220 个机器类中的重复变体/装饰类未逐一复制；3D 打印形状拼图、化学反应模拟等逐机器深度小游戏留到内容精修阶段。
 - M4 已完成：8 派系 5 档声望树、13 专精、60 项网络升级、顾客名录、电话委托、统一信息面板。
 - M4 边界：部分原版升级为被动/简化效果（展示柜扩容、许可证类未做独立限制）；电话为委托板，不含完整联系人对话。
-- 后续：M5 剧情/事件/战斗；M6 内容校验/平衡/发布。公开版素材替换在发布阶段处理。
+- M5 第一增量已完成：剧情/对话、报纸、查抄事件、剧情存档。
+- M5 剩余：回合制战斗、通缉/查抄队伍、完整主线/支线与多结局、更多夜间事件与报纸版面。
+- 后续：M6 内容校验/平衡/发布。公开版素材替换在发布阶段处理。
