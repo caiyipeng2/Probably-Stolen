@@ -20,7 +20,7 @@ const MACHINE_FAULTS := {
 	"surge": {"name": "电压浪涌", "fee": 60},
 	"contamination": {"name": "污染", "fee": 80},
 }
-const GROWTH_MACHINES := ["hydroponics", "aquaculture", "meat_culture"]
+const GROWTH_MACHINES := ["hydroponic", "ras"]
 const GROWTH_HARVESTS := 3
 const DIFFICULTY := {
 	"easy": {"name": "简单", "cash": 800, "rent": 150, "budget": 1.15, "damage": 0.8},
@@ -880,6 +880,7 @@ func finish_day() -> Dictionary:
 func advance_day() -> void:
 	if phase == "gameover":
 		return
+	advance_machines_one_cycle()
 	day += 1
 	start_day()
 	if events.size() > 0 and rng.randf() < 0.45:
@@ -1494,16 +1495,19 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 		return {"ok": false, "text": "%s 故障：%s，请先维修。" % [m.get("name", machine_id), machine_fault_name(fault)]}
 	if int(machine_durability.get(machine_id, 100)) <= 0:
 		return {"ok": false, "text": "%s 已损坏，请先维修。" % m.get("name", machine_id)}
+	if m.get("inputs", []).is_empty() and m.get("outputs", []).is_empty():
+		return {"ok": false, "text": "%s 是辅助设备，没有生产配方。" % m.get("name", machine_id)}
 	var lvl := int(machine_temps.get(machine_id, 2))
 	var temp_time: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
 	var temp_power: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
-	var use_time: float = float(m.get("time", 1.0)) * temp_time
+	var base_cycles := int(m.get("cycles", maxi(1, int(round(float(m.get("time", 4.0)) / 4.0)))))
+	var use_cycles := maxi(1, int(round(float(base_cycles) * temp_time)))
 	var use_power := maxi(1, int(round(float(m.get("power", 0)) * temp_power)))
 	if machine_modules.has(machine_id):
-		use_time *= 0.8
+		use_cycles = maxi(1, int(round(float(use_cycles) * 0.8)))
 		use_power = maxi(1, use_power - 1)
-	use_time *= 1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0
-	use_time *= 1.0 - clampf(quality, 0.0, 1.0) * 0.2
+	use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0))))
+	use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - clampf(quality, 0.0, 1.0) * 0.2))))
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
 	for inp in m.get("inputs", []):
@@ -1515,18 +1519,18 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 	for inp in m.get("inputs", []):
 		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
 	power -= use_power
-	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": use_time, "total": use_time, "outputs": m.get("outputs", []).duplicate(true)}
+	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": use_cycles, "total": use_cycles, "outputs": m.get("outputs", []).duplicate(true)}
 	var growth := machine_id in GROWTH_MACHINES
 	if growth:
 		job["growth"] = true
 		job["ready"] = false
 		job["harvests_left"] = GROWTH_HARVESTS
-		job["regrow"] = use_time * 0.6
+		job["regrow"] = maxi(1, int(round(float(use_cycles) * 0.6)))
 	machine_jobs.append(job)
 	emit_signal("state_changed")
 	if growth:
-		return {"ok": true, "text": "%s 已播种，预计 %.1f 秒成熟。" % [job["name"], job["remaining"]]}
-	return {"ok": true, "text": "%s 已启动，预计 %.1f 秒。" % [job["name"], job["remaining"]]}
+		return {"ok": true, "text": "%s 已播种，预计 %d 夜成熟。" % [job["name"], job["remaining"]]}
+	return {"ok": true, "text": "%s 已启动，预计 %d 夜。" % [job["name"], job["remaining"]]}
 
 func install_module(machine_id: String) -> Dictionary:
 	if machine_modules.has(machine_id):
@@ -1633,20 +1637,24 @@ func harvest_machine(machine_id: String) -> Dictionary:
 	emit_signal("state_changed")
 	return {"ok": true, "text": msg}
 
-func _process(delta: float) -> void:
+func _process(_delta: float) -> void:
+	pass
+
+func advance_machines_one_cycle() -> void:
 	if machine_jobs.is_empty():
 		return
 	var finished: Array = []
 	var k := 0
 	while k < machine_jobs.size():
 		var j: Dictionary = machine_jobs[k]
-		j["remaining"] = float(j.get("remaining", 0.0)) - delta
-		if float(j["remaining"]) <= 0.0:
+		if bool(j.get("growth", false)) and bool(j.get("ready", false)):
+			k += 1
+			continue
+		j["remaining"] = maxi(0, int(j.get("remaining", 0)) - 1)
+		if int(j["remaining"]) <= 0:
 			if bool(j.get("growth", false)):
-				if not bool(j.get("ready", false)):
-					j["remaining"] = 0.0
-					j["ready"] = true
-					emit_signal("machine_finished", "%s 已成熟，可收获（剩余 %d 次）。" % [j.get("name", ""), int(j.get("harvests_left", 0))])
+				j["ready"] = true
+				emit_signal("machine_finished", "%s 已成熟，可收获（剩余 %d 次）。" % [j.get("name", ""), int(j.get("harvests_left", 0))])
 				k += 1
 			else:
 				finished.append(j)

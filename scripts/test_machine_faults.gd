@@ -10,8 +10,8 @@ func _init() -> void:
 	print("fault cost=", gs.machine_repair_cost("furnace"), " name=", gs.machine_fault_name("jam"))
 	print("fault repair=", gs.repair_machine("furnace").get("text", ""), " fault=", gs.machine_faults.has("furnace"))
 	print("fault start2=", gs.start_machine("furnace").get("ok", false))
-	gs.machine_faults["purifier"] = "surge"
-	gs.machine_durability["purifier"] = 20
+	gs.machine_faults["water_purifier"] = "surge"
+	gs.machine_durability["water_purifier"] = 20
 	gs.pending_event = {"id": "repair_visit", "choices": [{"cash": -150, "rep": {}, "repair_all": true, "result": "test"}]}
 	gs.apply_event(0)
 	print("repair_all faults=", gs.machine_faults.size(), " durability=", gs.machine_durability.size())

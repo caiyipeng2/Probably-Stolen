@@ -1,10 +1,11 @@
-# 深空当铺手机版（M20）
+# 深空当铺手机版（M21）
 
 Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成；当前为 **M17 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、447+ 公开物品图标/公开音频、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M20 私有构建）：`build/probably_stolen_m20.apk`
+- APK（M21 私有构建）：`build/probably_stolen_m21.apk`
+- M20 APK：`build/probably_stolen_m20.apk`
 - M19 APK：`build/probably_stolen_m19.apk`
 - M18 APK：`build/probably_stolen_m18.apk`
 - M17 APK：`build/probably_stolen_m17.apk`
@@ -91,6 +92,11 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成
   - `64_m20_original_day1.png` 原版模式第 1 天（无剧情，教程开始）
   - `70_m20_day6_georgio.png` 原版第 6 天 Georgio 剧情
   - `71_m20_archive_verify.png` 真机对话档案页
+  - `72_m21_machine_list.png` 原型机器目录入口
+  - `74_m21_machine_list.png` 34 台原版机器目录
+  - `75_m21_furnace_started.png` 熔炉按夜启动
+  - `76_m21_day2_furnace_done.png` 跨日产出金属锭
+  - `77_m21_furnace_complete.png` 产出后队列/耐久状态
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -305,7 +311,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m20.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m21.apk
 ```
 
 开发调试参数：
@@ -376,3 +382,12 @@ godot --path . --dumpinspect
 - M18 边界：第 1 条只完成“图数据 + 场景对话替换”，原版 40+ 天排期、396 个动态条件/action、随机客户刷新仍未接；不能称 1:1 完成。
 - 后续：第 1 条原版日程与动态条件 → 第 2 条按 34 台原版机器替换配置/回合制。
 
+
+
+## M21（第 2 条阶段：机器目录与按夜周期）
+
+- 机器目录：26 → **34 台原版生产机器 ID**；15 台原有机器映射为原版 ID，10 台自创机器移除，补入 19 台原版缺失机器（其中 17 台为无配方辅助设备）。
+- 回合制：机器不再实时秒计，改为**按夜周期**；启动时显示「预计 N 夜」，跨日推进 1 周期，完成产出、耐久磨损与故障判定。
+- 配方：保留 15 台映射机器的输入/输出；原版 50 条配方中只有部分能自动提取（printer 24 chips、chem 7、plants 7 等仍是首条/近似），31 个模块未逐一接入。
+- 真机（SM-S9280）：M21 安装启动正常；机器湾显示 34 台与「N 夜」周期；熔炉启动「预计 1 夜」→ 下一天弹出「熔炉 完成：+金属锭」，队列清空，耐久 100→97。
+- 结论：机器目录/按夜周期可运行，但**第 2 条尚未达到严格 1:1**；配方、模块、逐机器规则仍需继续提取/实现。

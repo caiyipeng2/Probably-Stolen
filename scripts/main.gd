@@ -272,13 +272,13 @@ func _testminigame_if_requested() -> void:
 		minigame_cells[i].button_pressed = minigame_selected[i]
 	_confirm_minigame()
 	print("MINIGAME printer_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
-	selected_machine_id = "chem_mixer"
+	selected_machine_id = "chem_finisher"
 	_open_mix_minigame()
 	for i in range(3):
 		mix_sliders[i].set_value_no_signal(float(mix_target[i]))
 	_confirm_mix()
 	print("MINIGAME mix_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
-	selected_machine_id = "dna_lab"
+	selected_machine_id = "plant_dna_manipulator"
 	_open_dna_minigame()
 	dna_input = dna_target.duplicate()
 	dna_input_label.text = "你的序列： " + " ".join(dna_input)
@@ -566,7 +566,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M20", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M21", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -1603,7 +1603,7 @@ func _rebuild_machine_list() -> void:
 		var fault := String(GameState.machine_faults.get(mid, ""))
 		var suffix := "（损坏）" if dur <= 0 else ("（故障）" if fault != "" else "")
 		var text := "%s
-%d电 · %.0fs · 耐久%d%s" % [m.get("name", mid), int(m.get("power", 0)), float(m.get("time", 0.0)), dur, suffix]
+%d电 · %d夜 · 耐久%d%s" % [m.get("name", mid), int(m.get("power", 0)), int(m.get("cycles", 2)), dur, suffix]
 		var b := _button(machine_list_box, text, Vector2.ZERO, Vector2(480, 64), C_TEXT, _select_machine.bind(mid))
 		b.custom_minimum_size = Vector2(480, 64)
 		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
@@ -1629,10 +1629,11 @@ func _refresh_machine_panel() -> void:
 	var lvl := int(GameState.machine_temps.get(selected_machine_id, 2))
 	var time_mul: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
 	var power_mul: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
-	var use_time: float = float(m.get("time", 1.0)) * time_mul
+	var base_cycles := int(m.get("cycles", maxi(1, int(round(float(m.get("time", 4.0)) / 4.0)))))
+	var use_cycles := maxi(1, int(round(float(base_cycles) * time_mul)))
 	var use_power: int = maxi(1, int(round(float(m.get("power", 0)) * power_mul)))
 	if GameState.machine_modules.has(selected_machine_id):
-		use_time *= 0.8
+		use_cycles = maxi(1, int(round(float(use_cycles) * 0.8)))
 		use_power = maxi(1, use_power - 1)
 	machine_name_label.text = String(m.get("name", ""))
 	var dur := int(GameState.machine_durability.get(selected_machine_id, 100))
@@ -1643,7 +1644,7 @@ func _refresh_machine_panel() -> void:
 		if String(j.get("machine_id", "")) == selected_machine_id and bool(j.get("growth", false)):
 			growth_job = j
 			break
-	machine_meta_label.text = "电力 %d · 耗时 %.1fs · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_time, int(m.get("temp", 24)), dur, state_text]
+	machine_meta_label.text = "电力 %d · 周期 %d 夜 · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_cycles, int(m.get("temp", 24)), dur, state_text]
 	var ins: Array = []
 	for i in m.get("inputs", []):
 		var d := GameState.get_item_def(String(i.get("id", "")))
@@ -1668,7 +1669,7 @@ func _refresh_machine_panel() -> void:
 	for i in range(temp_buttons.size()):
 		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
 	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
-	machine_start_btn.disabled = dur <= 0 or fault != ""
+	machine_start_btn.disabled = dur <= 0 or fault != "" or (m.get("outputs", []).is_empty() and m.get("inputs", []).is_empty())
 	for j in GameState.machine_jobs:
 		if String(j.get("machine_id", "")) == selected_machine_id:
 			machine_start_btn.disabled = true
@@ -1679,7 +1680,7 @@ func _refresh_machine_panel() -> void:
 			if ready:
 				machine_status_label.text = "作物可收获（剩余 %d 次）。" % int(growth_job.get("harvests_left", 0))
 			else:
-				machine_status_label.text = "作物生长中：%.1fs。" % float(growth_job.get("remaining", 0.0))
+				machine_status_label.text = "作物生长中：%d 夜。" % int(growth_job.get("remaining", 0))
 	if machine_repair_btn:
 		machine_repair_btn.text = "维修 %d₵" % GameState.machine_repair_cost(selected_machine_id)
 		machine_repair_btn.disabled = dur >= 100 and fault == ""
@@ -1710,11 +1711,11 @@ func _refresh_machine_jobs() -> void:
 				text += "· %s  可收获（剩余 %d 次）
 " % [j.get("name", ""), int(j.get("harvests_left", 0))]
 			else:
-				text += "· %s  生长中 %.1fs
-" % [j.get("name", ""), float(j.get("remaining", 0.0))]
+				text += "· %s  生长中 %d 夜
+" % [j.get("name", ""), int(j.get("remaining", 0))]
 		else:
-			text += "· %s  剩余 %.1fs
-" % [j.get("name", ""), float(j.get("remaining", 0.0))]
+			text += "· %s  剩余 %d 夜
+" % [j.get("name", ""), int(j.get("remaining", 0))]
 	machine_jobs_label.text = text
 
 func _harvest_selected_machine() -> void:
@@ -1730,7 +1731,7 @@ func _repair_selected_machine() -> void:
 	machine_status_label.text = String(res.get("text", ""))
 
 func _start_selected_machine(quality: float = -1.0) -> void:
-	if quality < 0.0 and selected_machine_id in ["printer", "chem_mixer", "dna_lab"]:
+	if quality < 0.0 and selected_machine_id in ["printer", "chem_finisher", "plant_dna_manipulator"]:
 		var check := GameState.start_machine(selected_machine_id, 0.0, true)
 		if not bool(check.get("ok", false)):
 			machine_status_label.text = String(check.get("text", ""))
@@ -1738,8 +1739,8 @@ func _start_selected_machine(quality: float = -1.0) -> void:
 			return
 		match selected_machine_id:
 			"printer": _open_printer_minigame()
-			"chem_mixer": _open_mix_minigame()
-			"dna_lab": _open_dna_minigame()
+			"chem_finisher": _open_mix_minigame()
+			"plant_dna_manipulator": _open_dna_minigame()
 		return
 	var res := GameState.start_machine(selected_machine_id, maxf(quality, 0.0))
 	if bool(res.get("ok", false)):

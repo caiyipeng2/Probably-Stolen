@@ -1,10 +1,11 @@
 [
   {
-    "id": "purifier",
+    "id": "water_purifier",
     "name": "净水器",
     "category": "water",
     "power": 2,
     "time": 4.0,
+    "cycles": 1,
     "temp": 24,
     "inputs": [
       {
@@ -21,7 +22,8 @@
         "id": "bottled_water_premium",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "furnace",
@@ -29,6 +31,7 @@
     "category": "metal",
     "power": 2,
     "time": 5.0,
+    "cycles": 1,
     "temp": 800,
     "inputs": [
       {
@@ -41,14 +44,16 @@
         "id": "metal_ingot",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "printer",
     "name": "3D 打印机",
-    "category": "printing",
+    "category": "print",
     "power": 3,
     "time": 8.0,
+    "cycles": 2,
     "temp": 200,
     "inputs": [
       {
@@ -65,14 +70,16 @@
         "id": "printed_gun",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "bottle_printer",
     "name": "瓶装机",
-    "category": "bottle",
+    "category": "print",
     "power": 2,
     "time": 5.0,
+    "cycles": 1,
     "temp": 24,
     "inputs": [
       {
@@ -85,38 +92,16 @@
         "id": "water_jug",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
-    "id": "chem_mixer",
-    "name": "化学混合器",
+    "id": "plant_dna_manipulator",
+    "name": "DNA 编辑器",
     "category": "chem",
     "power": 3,
-    "time": 6.0,
-    "temp": 60,
-    "inputs": [
-      {
-        "id": "common_chemical",
-        "count": 1
-      },
-      {
-        "id": "restricted_chemical",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "advanced_flux_agent",
-        "count": 1
-      }
-    ]
-  },
-  {
-    "id": "dna_lab",
-    "name": "DNA 操作台",
-    "category": "dna",
-    "power": 3,
     "time": 10.0,
+    "cycles": 2,
     "temp": 4,
     "inputs": [
       {
@@ -133,14 +118,16 @@
         "id": "dream_cap_seed",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
-    "id": "hydroponics",
-    "name": "水培种植机",
+    "id": "hydroponic",
+    "name": "水培系统",
     "category": "plant",
     "power": 1,
     "time": 12.0,
+    "cycles": 3,
     "temp": 24,
     "inputs": [
       {
@@ -157,14 +144,16 @@
         "id": "nutrifruit",
         "count": 2
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
-    "id": "aquaculture",
-    "name": "循环水养殖",
+    "id": "ras",
+    "name": "循环水养殖系统",
     "category": "fish",
     "power": 2,
     "time": 12.0,
+    "cycles": 3,
     "temp": 22,
     "inputs": [
       {
@@ -181,38 +170,16 @@
         "id": "fish_fillet",
         "count": 2
       }
-    ]
-  },
-  {
-    "id": "meat_culture",
-    "name": "肉类培养箱",
-    "category": "meat",
-    "power": 2,
-    "time": 10.0,
-    "temp": 36,
-    "inputs": [
-      {
-        "id": "meat_scrap",
-        "count": 1
-      },
-      {
-        "id": "nutrient_tablet",
-        "count": 1
-      }
     ],
-    "outputs": [
-      {
-        "id": "raw_meat",
-        "count": 1
-      }
-    ]
+    "source": "extracted+port"
   },
   {
     "id": "heating_plate",
     "name": "加热板",
-    "category": "cooking",
+    "category": "meat",
     "power": 1,
     "time": 4.0,
+    "cycles": 1,
     "temp": 180,
     "inputs": [
       {
@@ -225,58 +192,16 @@
         "id": "processed_meat",
         "count": 1
       }
-    ]
-  },
-  {
-    "id": "recycler",
-    "name": "回收压缩机",
-    "category": "recycle",
-    "power": 2,
-    "time": 6.0,
-    "temp": 24,
-    "inputs": [
-      {
-        "id": "debris_pile1",
-        "count": 1
-      }
     ],
-    "outputs": [
-      {
-        "id": "scrap_metal",
-        "count": 2
-      }
-    ]
+    "source": "extracted+port"
   },
   {
-    "id": "packager",
-    "name": "包装机",
-    "category": "package",
-    "power": 1,
-    "time": 5.0,
-    "temp": 24,
-    "inputs": [
-      {
-        "id": "red_beer",
-        "count": 2
-      },
-      {
-        "id": "plastic_bag",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "beerCase",
-        "count": 1
-      }
-    ]
-  },
-  {
-    "id": "organ_cooler",
-    "name": "器官冷藏柜",
+    "id": "fridge",
+    "name": "冰箱",
     "category": "organ",
     "power": 1,
     "time": 5.0,
+    "cycles": 1,
     "temp": 4,
     "inputs": [
       {
@@ -293,7 +218,8 @@
         "id": "organ_heart",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "auto_butcher",
@@ -301,6 +227,7 @@
     "category": "meat",
     "power": 2,
     "time": 4.0,
+    "cycles": 1,
     "temp": 24,
     "inputs": [
       {
@@ -313,14 +240,16 @@
         "id": "meat_scrap",
         "count": 2
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "blender",
     "name": "搅拌机",
-    "category": "cooking",
+    "category": "food",
     "power": 1,
     "time": 4.0,
+    "cycles": 1,
     "temp": 24,
     "inputs": [
       {
@@ -333,14 +262,16 @@
         "id": "processed_juice",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
-    "id": "feed_dispenser",
-    "name": "饲料分配机",
-    "category": "fish",
+    "id": "livestock_feed_dispenser",
+    "name": "牲畜饲料分配器",
+    "category": "feed",
     "power": 1,
     "time": 8.0,
+    "cycles": 2,
     "temp": 24,
     "inputs": [
       {
@@ -357,146 +288,16 @@
         "id": "industrial_fish_feed",
         "count": 2
       }
-    ]
-  },
-  {
-    "id": "furnace_adv",
-    "name": "高温熔炉",
-    "category": "metal",
-    "power": 3,
-    "time": 6,
-    "temp": 900,
-    "inputs": [
-      {
-        "id": "scrap_metal",
-        "count": 3
-      }
     ],
-    "outputs": [
-      {
-        "id": "metal_ingot",
-        "count": 2
-      }
-    ]
-  },
-  {
-    "id": "purifier_adv",
-    "name": "工业净水器",
-    "category": "water",
-    "power": 3,
-    "time": 5,
-    "temp": 24,
-    "inputs": [
-      {
-        "id": "water_jug",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "bottled_water_premium",
-        "count": 1
-      }
-    ]
-  },
-  {
-    "id": "printer_adv",
-    "name": "工业打印机",
-    "category": "print",
-    "power": 4,
-    "time": 10,
-    "temp": 210,
-    "inputs": [
-      {
-        "id": "printer_plastic",
-        "count": 2
-      },
-      {
-        "id": "metal_ingot",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "printed_gun",
-        "count": 1
-      }
-    ]
-  },
-  {
-    "id": "greenhouse",
-    "name": "温室种植机",
-    "category": "plant",
-    "power": 2,
-    "time": 14,
-    "temp": 26,
-    "inputs": [
-      {
-        "id": "nutrifruit_seed",
-        "count": 2
-      },
-      {
-        "id": "water_jug",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "nutrifruit",
-        "count": 4
-      }
-    ]
-  },
-  {
-    "id": "bioreactor",
-    "name": "生物反应器",
-    "category": "meat",
-    "power": 3,
-    "time": 12,
-    "temp": 37,
-    "inputs": [
-      {
-        "id": "meat_scrap",
-        "count": 2
-      },
-      {
-        "id": "nutrient_tablet",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "processed_meat",
-        "count": 2
-      }
-    ]
-  },
-  {
-    "id": "recycler_adv",
-    "name": "工业压缩机",
-    "category": "recycle",
-    "power": 3,
-    "time": 8,
-    "temp": 60,
-    "inputs": [
-      {
-        "id": "debris_pile1",
-        "count": 2
-      }
-    ],
-    "outputs": [
-      {
-        "id": "metal_ingot",
-        "count": 1
-      }
-    ]
+    "source": "extracted+port"
   },
   {
     "id": "chem_finisher",
     "name": "化学精炼器",
     "category": "chem",
     "power": 3,
-    "time": 7,
+    "time": 7.0,
+    "cycles": 2,
     "temp": 80,
     "inputs": [
       {
@@ -509,14 +310,16 @@
         "id": "neuroactive_perfume",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "evaporator",
     "name": "蒸发器",
     "category": "water",
     "power": 2,
-    "time": 6,
+    "time": 6.0,
+    "cycles": 2,
     "temp": 110,
     "inputs": [
       {
@@ -533,14 +336,16 @@
         "id": "water_tablet",
         "count": 1
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "moisture_farm",
     "name": "湿气农场",
     "category": "plant",
     "power": 2,
-    "time": 10,
+    "time": 10.0,
+    "cycles": 2,
     "temp": 24,
     "inputs": [
       {
@@ -557,14 +362,16 @@
         "id": "kotton_fiber",
         "count": 2
       }
-    ]
+    ],
+    "source": "extracted+port"
   },
   {
     "id": "desequencer",
     "name": "序列分解器",
     "category": "chem",
     "power": 4,
-    "time": 9,
+    "time": 9.0,
+    "cycles": 2,
     "temp": 70,
     "inputs": [
       {
@@ -581,6 +388,246 @@
         "id": "nutrient_tablet",
         "count": 2
       }
-    ]
+    ],
+    "source": "extracted+port"
+  },
+  {
+    "id": "deal_maker",
+    "name": "deal_maker",
+    "category": "misc",
+    "power": 25,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineDealMaker"
+  },
+  {
+    "id": "recharger",
+    "name": "充能器",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineRecharger"
+  },
+  {
+    "id": "powerblock",
+    "name": "能量阵列",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "CreatePowerBlock"
+  },
+  {
+    "id": "makeshift_reactor",
+    "name": "简易微型核反应堆",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "ReactorHelper"
+  },
+  {
+    "id": "security_alarm",
+    "name": "警报系统",
+    "category": "misc",
+    "power": 4,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineAlarm"
+  },
+  {
+    "id": "storage_coordinator",
+    "name": "储物协调器",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineStorageCoordinator"
+  },
+  {
+    "id": "mirage_projector",
+    "name": "幻影投影仪",
+    "category": "misc",
+    "power": 16,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineProjector"
+  },
+  {
+    "id": "box_dispenser",
+    "name": "box_dispenser",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [
+      {
+        "id": "ammo_box",
+        "count": 1
+      }
+    ],
+    "passive": false,
+    "source": "MachineBoxDispenser"
+  },
+  {
+    "id": "cassette_player",
+    "name": "磁带播放器",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineCassettePlayer"
+  },
+  {
+    "id": "vending_machine",
+    "name": "自动售货机",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "VendingMachineHelper"
+  },
+  {
+    "id": "vending_fountain",
+    "name": "自动售水机",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "VendingFountainHelper"
+  },
+  {
+    "id": "vending_machine_core",
+    "name": "自动售货机核心",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "VendingMachineHelper"
+  },
+  {
+    "id": "vending_fountain_core",
+    "name": "自动售水机核心",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "VendingFountainHelper"
+  },
+  {
+    "id": "wine_rack",
+    "name": "催陈器",
+    "category": "food",
+    "power": 24,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineWineRack"
+  },
+  {
+    "id": "animal_cage",
+    "name": "动物笼",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "AnimalCage"
+  },
+  {
+    "id": "marking_pen",
+    "name": "标记笔",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "AnimalMarkHelper"
+  },
+  {
+    "id": "vacuum_robot",
+    "name": "清洁机器人",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "VacuumRobot"
+  },
+  {
+    "id": "ras_water_tank",
+    "name": "循环水养殖系统水箱",
+    "category": "misc",
+    "power": 2,
+    "time": 4.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [],
+    "outputs": [],
+    "passive": true,
+    "source": "MachineRAS"
   }
 ]
