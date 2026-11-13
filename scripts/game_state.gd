@@ -50,6 +50,7 @@ var story_queue: Array = []
 var story_scenes: Array = []
 var scene_seen: Array = []
 var dialogue_archive: Array = []
+var story_graphs: Dictionary = {}
 var combat_data: Array = []
 var wanted: Array = []
 var endings: Array = []
@@ -211,6 +212,11 @@ func _load_defs() -> void:
 			for node in data:
 				story_nodes[String(node.get("id", ""))] = node
 	_load_story_scenes()
+	var graph_file := FileAccess.open("res://data_private/story_graphs.json", FileAccess.READ)
+	if graph_file:
+		var gdata = JSON.parse_string(graph_file.get_as_text())
+		if gdata is Dictionary:
+			story_graphs = gdata.get("clients", {})
 	var archive := FileAccess.open("res://data_private/dialogue_archive.json", FileAccess.READ)
 	if archive:
 		var adata = JSON.parse_string(archive.get_as_text())
@@ -1137,6 +1143,9 @@ func _load_story_scenes() -> void:
 
 func _build_scene_nodes(scene: Dictionary) -> void:
 	var sid := String(scene.get("id", ""))
+	if story_graphs.has(sid) and scene.get("choices", []).is_empty():
+		_build_graph_scene_nodes(scene, story_graphs[sid])
+		return
 	var lines: Array = scene.get("lines", [])
 	var ids: Array = []
 	for i in range(lines.size()):
@@ -1200,6 +1209,45 @@ func _build_scene_nodes(scene: Dictionary) -> void:
 		story_nodes[last]["scene_end"] = sid
 		story_nodes[last]["on_done"] = scene.get("on_done", {})
 
+func _build_graph_scene_nodes(scene: Dictionary, graph: Dictionary) -> void:
+	var sid := String(scene.get("id", ""))
+	var nodes: Array = graph.get("nodes", [])
+	for i in range(nodes.size()):
+		var raw: Dictionary = nodes[i]
+		var nid := "sc_%s_%d" % [sid, i]
+		var nxt := String(raw.get("next", ""))
+		var node := {
+			"id": nid,
+			"speaker": String(raw.get("speaker", scene.get("name", ""))),
+			"text": String(raw.get("text", "")),
+			"portrait": String(scene.get("portrait", "")),
+			"next": ("sc_%s_%s" % [sid, nxt]) if nxt != "" else "",
+			"scene_id": sid,
+		}
+		var choices: Array = []
+		var live_targets := 0
+		for ch in raw.get("choices", []):
+			var target := String(ch.get("next", ""))
+			if target != "":
+				live_targets += 1
+			choices.append({
+				"text": String(ch.get("text", "选择")),
+				"next": ("sc_%s_%s" % [sid, target]) if target != "" else "",
+				"effects": {},
+			})
+		if not choices.is_empty():
+			node["choices"] = choices
+		if String(node["next"]) == "" and (choices.is_empty() or live_targets == 0):
+			node["scene_end"] = sid
+			node["on_done"] = scene.get("on_done", {})
+		story_nodes[nid] = node
+
+func _scene_root_id(sid: String) -> String:
+	var idx := 0
+	if story_graphs.has(sid):
+		idx = int(story_graphs[sid].get("root", 0))
+	return "sc_%s_%d" % [sid, idx]
+
 func _queue_story_for_day() -> void:
 	pending_story = ""
 	story_queue.clear()
@@ -1233,7 +1281,7 @@ func _queue_story_scenes() -> Array:
 		var intent := String(scene.get("intent", "dialogue"))
 		if intent in ["sell", "buy"]:
 			customers_today.insert(0, _make_scene_customer(scene))
-		var nid := "sc_%s_0" % sid
+		var nid := _scene_root_id(sid)
 		if story_nodes.has(nid):
 			firsts.append(nid)
 	while customers_today.size() > 5:

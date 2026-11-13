@@ -1,10 +1,11 @@
-# 深空当铺手机版（M17）
+# 深空当铺手机版（M18）
 
 Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成；当前为 **M17 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、447+ 公开物品图标/公开音频、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M17 私有构建）：`build/probably_stolen_m17.apk`
+- APK（M18 私有构建）：`build/probably_stolen_m18.apk`
+- M17 APK：`build/probably_stolen_m17.apk`
 - M16 APK：`build/probably_stolen_m16.apk`
 - M15 APK：`build/probably_stolen_m15.apk`
 - M14 APK：`build/probably_stolen_m14.apk`
@@ -82,6 +83,7 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成
   - `58_m16_archive.png` 全量对话档案
   - `59_m16_machine_catalog.png` 26 台机器目录
   - `60_m17_welcome.png` M17 欢迎界面
+  - `61_m18_story_graph.png` 原版剧情图运行时
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -257,6 +259,13 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **验证**：Godot 导入通过；公开预览与私有构建均无资源错误。
 - **边界**：图标为占位设计，不追求与原版逐物品一致；后续可替换为精细原创图标。
 
+## M18 已完成（原版剧情图运行时，第 1 条阶段）
+
+- **剧情图提取**：从反编译 C# 解析 534 个方法，得到 **340 个带 identifier 的客户/工厂、2043 个节点、80 个选项**；2544 条本地化对话中 2422 条进入图或台词池。
+- **运行时接入**：53/55 个现有剧情场景切换为图数据，保留原有交易意图/物品/奖励；场景终端触发 `on_done` 与 `scene_seen`；`serpico7` 保留手工结局选项。
+- **测试**：`test_story_graphs.gd` 验证 340/2043/80 与 53 场景覆盖；M1/M5/M6/结局回归通过。
+- **未完成**：原版 `StoreClientManager` 的 40+ 天条件排期、396 个动态节点/选项 action 的逐条条件效果、随机客户池/阶层顾客刷新规则。第 1 条尚未达到严格 1:1。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -272,7 +281,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m17.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m18.apk
 ```
 
 开发调试参数：
@@ -339,4 +348,7 @@ godot --path . --dumpinspect
 - M16 边界：对话档案为全文浏览而非逐条剧情图；机器新增代表性配方，原版装饰/变体类未逐一复制。
 - M17 已完成：447+12 个公开物品独立图标，公开图标回退链完整。
 - M17 边界：公开图标为占位设计；完整对话剧情图、原版机器变体/装饰类、精细公开立绘仍为长期工作。
-- 后续：完整对话剧情图、原版机器变体/装饰类、精细公开立绘。
+- M18 已完成：原版对话图数据（340 客户/2043 节点/80 选项）与 53/55 场景运行时接入；M18 APK。
+- M18 边界：第 1 条只完成“图数据 + 场景对话替换”，原版 40+ 天排期、396 个动态条件/action、随机客户刷新仍未接；不能称 1:1 完成。
+- 后续：第 1 条原版日程与动态条件 → 第 2 条按 34 台原版机器替换配置/回合制。
+
