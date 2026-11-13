@@ -1,10 +1,11 @@
-# 深空当铺手机版（M21）
+# 深空当铺手机版（M22）
 
 Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成；当前为 **M17 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、447+ 公开物品图标/公开音频、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M21 私有构建）：`build/probably_stolen_m21.apk`
+- APK（M22 私有构建）：`build/probably_stolen_m22.apk`
+- M21 APK：`build/probably_stolen_m21.apk`
 - M20 APK：`build/probably_stolen_m20.apk`
 - M19 APK：`build/probably_stolen_m19.apk`
 - M18 APK：`build/probably_stolen_m18.apk`
@@ -97,6 +98,12 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成
   - `75_m21_furnace_started.png` 熔炉按夜启动
   - `76_m21_day2_furnace_done.png` 跨日产出金属锭
   - `77_m21_furnace_complete.png` 产出后队列/耐久状态
+  - `78_m22_printer.png` 3D 打印机配方/模块入口
+  - `79_m22_recipe_list.png` 24 条打印机配方选择
+  - `80_m22_recipe_selected.png` 选中双枪配方
+  - `81_m22_module_list.png` 31 个模块选择
+  - `82_m22_module_installed.png` 性能模块安装（周期 6→5）
+  - `83_m22_recipe_module_started.png` 配方启动小游戏
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -311,7 +318,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m21.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m22.apk
 ```
 
 开发调试参数：
@@ -391,3 +398,11 @@ godot --path . --dumpinspect
 - 配方：保留 15 台映射机器的输入/输出；原版 50 条配方中只有部分能自动提取（printer 24 chips、chem 7、plants 7 等仍是首条/近似），31 个模块未逐一接入。
 - 真机（SM-S9280）：M21 安装启动正常；机器湾显示 34 台与「N 夜」周期；熔炉启动「预计 1 夜」→ 下一天弹出「熔炉 完成：+金属锭」，队列清空，耐久 100→97。
 - 结论：机器目录/按夜周期可运行，但**第 2 条尚未达到严格 1:1**；配方、模块、逐机器规则仍需继续提取/实现。
+
+
+## M22（第 2 条阶段：50 条配方与 31 个模块）
+
+- **配方**：机器表挂载 **50 条原版配方**（熔炉 2、3D 打印机 24、瓶装机 3、箱子分配器 1、水培 7、化学精炼 7、序列分解 6）；机器详情新增「配方」选择层，可滚动选择，选择结果随存档保存。
+- **模块**：导入 **31 个原版模块**（空白/性能/效率/质量/超频/环保/精炼/优化/损坏等）；「安装模块」改为 31 项选择层，性能/效率按百分比缩短周期/降低电力，模块随存档保存。
+- **真机（SM-S9280）**：34 台机器目录、打印机 24 条配方层、选中「22手枪×2/6 夜/塑料×3」、31 模块层、性能模块安装后周期 6→5 均正常。
+- **边界**：17 台辅助设备无生产配方；逐机器规则（净水水质、养殖水质、屠宰/化学细节）仍是近似；模块品质效果尚未作用到产出品质，模块类型限制未实现。第 2 条仍不能宣称严格 1:1 完成。

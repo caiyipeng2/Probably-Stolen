@@ -66,6 +66,11 @@ var machine_power_label: Label
 var machine_start_btn: Button
 var machine_repair_btn: Button
 var machine_harvest_btn: Button
+var machine_recipe_btn: Button
+var select_layer: Control
+var select_list: VBoxContainer
+var select_title: Label
+var select_cb: Callable
 var minigame_layer: Control
 var minigame_target_cells: Array = []
 var minigame_cells: Array = []
@@ -560,13 +565,14 @@ func _build_ui() -> void:
 	_build_story_layer()
 	_build_combat_layer()
 	_build_minigame_layer()
+	_build_select_layer()
 	_build_mix_layer()
 	_build_dna_layer()
 
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M21", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M22", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -731,7 +737,8 @@ func _build_machine_bay() -> void:
 	machine_meta_label = _label(detail, "", Vector2(24, 66), Vector2(1230, 30), 22, C_AMBER)
 	machine_io_label = _label(detail, "", Vector2(24, 108), Vector2(1230, 200), 22, C_TEXT)
 	machine_module_label = _label(detail, "", Vector2(24, 322), Vector2(1230, 30), 22, C_CYAN)
-	var install := _button(detail, "安装模块", Vector2(24, 362), Vector2(220, 54), C_CYAN, _install_module)
+	var install := _button(detail, "安装模块", Vector2(24, 362), Vector2(220, 54), C_CYAN, _open_module_select)
+	machine_recipe_btn = _button(detail, "配方", Vector2(720, 362), Vector2(300, 54), C_AMBER, _open_recipe_select)
 	install.name = "InstallModule"
 	var temps := [["低温", 1], ["标准", 2], ["高温", 3]]
 	for t in temps:
@@ -1629,12 +1636,15 @@ func _refresh_machine_panel() -> void:
 	var lvl := int(GameState.machine_temps.get(selected_machine_id, 2))
 	var time_mul: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
 	var power_mul: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
-	var base_cycles := int(m.get("cycles", maxi(1, int(round(float(m.get("time", 4.0)) / 4.0)))))
+	var recipe := GameState.machine_recipe(selected_machine_id)
+	var base_cycles := int(recipe.get("cycles", m.get("cycles", 2))) if not recipe.is_empty() else int(m.get("cycles", 2))
 	var use_cycles := maxi(1, int(round(float(base_cycles) * time_mul)))
 	var use_power: int = maxi(1, int(round(float(m.get("power", 0)) * power_mul)))
-	if GameState.machine_modules.has(selected_machine_id):
-		use_cycles = maxi(1, int(round(float(use_cycles) * 0.8)))
-		use_power = maxi(1, use_power - 1)
+	var mod_id := String(GameState.machine_modules.get(selected_machine_id, ""))
+	var md := GameState.module_def(mod_id)
+	if not md.is_empty():
+		use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, float(md.get("performance", 0))) / 100.0))))
+		use_power = maxi(1, int(round(float(use_power) * (1.0 - minf(50.0, float(md.get("efficiency", 0))) / 100.0))))
 	machine_name_label.text = String(m.get("name", ""))
 	var dur := int(GameState.machine_durability.get(selected_machine_id, 100))
 	var fault := String(GameState.machine_faults.get(selected_machine_id, ""))
@@ -1645,27 +1655,31 @@ func _refresh_machine_panel() -> void:
 			growth_job = j
 			break
 	machine_meta_label.text = "电力 %d · 周期 %d 夜 · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_cycles, int(m.get("temp", 24)), dur, state_text]
+	var active_inputs: Array = recipe.get("inputs", m.get("inputs", [])) if not recipe.is_empty() else m.get("inputs", [])
+	var active_outputs: Array = recipe.get("outputs", m.get("outputs", [])) if not recipe.is_empty() else m.get("outputs", [])
 	var ins: Array = []
-	for i in m.get("inputs", []):
+	for i in active_inputs:
 		var d := GameState.get_item_def(String(i.get("id", "")))
 		ins.append("%sx%d" % [_short_item_name(String(i.get("id", "")), String(d.get("name", ""))), int(i.get("count", 1))])
 	var outs: Array = []
-	for o in m.get("outputs", []):
+	for o in active_outputs:
 		var od := GameState.get_item_def(String(o.get("id", "")))
 		outs.append("%sx%d" % [_short_item_name(String(o.get("id", "")), String(od.get("name", ""))), int(o.get("count", 1))])
 	var held: Array = []
-	for i in m.get("inputs", []):
+	for i in active_inputs:
 		var iid := String(i.get("id", ""))
 		var dd := GameState.get_item_def(iid)
 		held.append("%sx%d" % [_short_item_name(iid, String(dd.get("name", iid))), GameState.inventory_count(iid)])
-	machine_io_label.text = "输入：%s
+	machine_io_label.text = "配方：%s
+输入：%s
 输出：%s
-原料持有：%s" % [" + ".join(ins), " + ".join(outs), " ".join(held)]
-	var mod_id := String(GameState.machine_modules.get(selected_machine_id, ""))
-	if mod_id == "":
-		machine_module_label.text = "模块：无（安装模块：耗时 -20%，电力 -1）"
+原料持有：%s" % [recipe.get("name", recipe.get("id", "默认")) if not recipe.is_empty() else "默认", " + ".join(ins), " + ".join(outs), " ".join(held)]
+	if md.is_empty():
+		machine_module_label.text = "模块：无"
 	else:
-		machine_module_label.text = "模块：%s（耗时 -20%%，电力 -1）" % GameState.get_item_def(mod_id).get("name", mod_id)
+		machine_module_label.text = "模块：%s（性能 +%d%%，效率 +%d%%，品质 +%d%%）" % [md.get("name", mod_id), int(md.get("performance", 0)), int(md.get("efficiency", 0)), int(md.get("quality", 0))]
+	machine_recipe_btn.text = "配方：%s" % (recipe.get("name", recipe.get("id", "默认")) if not recipe.is_empty() else "默认")
+	machine_recipe_btn.disabled = m.get("recipes", []).size() <= 1
 	for i in range(temp_buttons.size()):
 		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
 	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
@@ -1748,8 +1762,79 @@ func _start_selected_machine(quality: float = -1.0) -> void:
 	_refresh_machine_panel()
 	machine_status_label.text = String(res.get("text", ""))
 
-func _install_module() -> void:
-	var res := GameState.install_module(selected_machine_id)
+func _build_select_layer() -> void:
+	select_layer = Control.new()
+	select_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	select_layer.visible = false
+	select_layer.z_index = 160
+	select_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(select_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.84)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	select_layer.add_child(dim)
+	var panel := _panel(select_layer, Vector2(420, 80), Vector2(1500, 920), C_PANEL, C_CYAN, 3)
+	select_title = _label(panel, "", Vector2(30, 18), Vector2(1200, 48), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(1320, 14), Vector2(120, 48), C_MUTED, _close_select)
+	var scroll := ScrollContainer.new()
+	scroll.position = Vector2(24, 88)
+	scroll.size = Vector2(1450, 790)
+	scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	scroll.add_theme_stylebox_override("panel", _style(C_PANEL2, C_LINE, 1))
+	panel.add_child(scroll)
+	select_list = VBoxContainer.new()
+	select_list.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	select_list.add_theme_constant_override("separation", 8)
+	scroll.add_child(select_list)
+
+func _open_select(title: String, items: Array, cb: Callable) -> void:
+	select_title.text = title
+	select_cb = cb
+	_clear_children(select_list)
+	for item in items:
+		var label := String(item.get("label", item.get("id", "")))
+		var b := _button(select_list, label, Vector2.ZERO, Vector2(1420, 56), C_TEXT, _choose_select.bind(String(item.get("id", ""))))
+		b.custom_minimum_size = Vector2(1420, 56)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 20)
+	select_layer.visible = true
+	_play_sfx("page")
+
+func _choose_select(id: String) -> void:
+	select_layer.visible = false
+	if select_cb.is_valid():
+		select_cb.call(id)
+
+func _close_select() -> void:
+	select_layer.visible = false
+	_play_sfx("soft")
+
+func _open_recipe_select() -> void:
+	var m := GameState.machine_def(selected_machine_id)
+	var items: Array = []
+	for r in m.get("recipes", []):
+		items.append({"id": r.get("id", ""), "label": "%s（%d 夜）" % [r.get("name", r.get("id", "")), int(r.get("cycles", 1))]})
+	if items.is_empty():
+		_toast("这台机器没有可选配方。")
+		return
+	_open_select("选择配方 · %s" % m.get("name", ""), items, _choose_recipe)
+
+func _choose_recipe(id: String) -> void:
+	GameState.set_machine_recipe(selected_machine_id, id)
+	_refresh_machine_panel()
+
+func _open_module_select() -> void:
+	var items: Array = []
+	for md in GameState.modules_def:
+		items.append({"id": md.get("id", ""), "label": "%s · 性能+%d / 效率+%d / 品质+%d" % [md.get("name", md.get("id", "")), int(md.get("performance", 0)), int(md.get("efficiency", 0)), int(md.get("quality", 0))]})
+	if items.is_empty():
+		_toast("没有可用模块。")
+		return
+	_open_select("安装模块 · %s" % selected_machine_id, items, _choose_module)
+
+func _choose_module(id: String) -> void:
+	var res := GameState.install_module(selected_machine_id, id)
 	_refresh_machine_panel()
 	machine_status_label.text = String(res.get("text", ""))
 

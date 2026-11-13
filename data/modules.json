@@ -1,0 +1,281 @@
+[
+  {
+    "id": "blank_module",
+    "name": "空白模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 0,
+    "efficiency": 0,
+    "quality": 0,
+    "value": 60
+  },
+  {
+    "id": "system_module_performance",
+    "name": "性能模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 16,
+    "efficiency": 0,
+    "quality": 0,
+    "value": 70
+  },
+  {
+    "id": "system_module_efficiancy",
+    "name": "效率模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 0,
+    "efficiency": 16,
+    "quality": 0,
+    "value": 70
+  },
+  {
+    "id": "system_module_quality",
+    "name": "质量模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 0,
+    "efficiency": 0,
+    "quality": 8,
+    "value": 70
+  },
+  {
+    "id": "system_module_overclock",
+    "name": "超频模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 36,
+    "efficiency": -44,
+    "quality": 0,
+    "value": 100
+  },
+  {
+    "id": "system_module_eco",
+    "name": "环保模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": -16,
+    "efficiency": 32,
+    "quality": 0,
+    "value": 100
+  },
+  {
+    "id": "system_module_fineness",
+    "name": "精炼模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": -8,
+    "efficiency": -15,
+    "quality": 25,
+    "value": 100
+  },
+  {
+    "id": "system_module_streamlining",
+    "name": "优化模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 8,
+    "efficiency": 25,
+    "quality": -16,
+    "value": 125
+  },
+  {
+    "id": "system_module_ruined",
+    "name": "报废模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 0,
+    "efficiency": 0,
+    "quality": 0,
+    "value": 30
+  },
+  {
+    "id": "system_module_corrupt",
+    "name": "损坏模组",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": -8,
+    "efficiency": -5,
+    "quality": 0,
+    "value": 45
+  },
+  {
+    "id": "farm_module_nutrifruit",
+    "name": "营养果水培模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": -10,
+    "efficiency": -10,
+    "quality": 0,
+    "value": 150
+  },
+  {
+    "id": "farm_module_dream_cap",
+    "name": "梦帽菇中和水培模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": 15,
+    "efficiency": 15,
+    "quality": 0,
+    "value": 150
+  },
+  {
+    "id": "farm_module_kotton_loom",
+    "name": "韧棉自动织造水培模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": -50,
+    "efficiency": -100,
+    "quality": 0,
+    "value": 200
+  },
+  {
+    "id": "farm_module_nightmare_cap",
+    "name": "梦帽菇梦魇化水培模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": -33,
+    "efficiency": -50,
+    "quality": 0,
+    "value": 150
+  },
+  {
+    "id": "farm_module_fillerweed_production",
+    "name": "填料草增产水培模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": 0,
+    "efficiency": -25,
+    "quality": 0,
+    "value": 115
+  },
+  {
+    "id": "farm_module_hydroreed_filter",
+    "name": "水培芦苇滤芯模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": 0,
+    "efficiency": -15,
+    "quality": 0,
+    "value": 105
+  },
+  {
+    "id": "farm_module_smuggler",
+    "name": "水培走私模组",
+    "type": "MODULE_TYPE_HYDROPONIC",
+    "performance": 0,
+    "efficiency": 0,
+    "quality": 0,
+    "value": 100
+  },
+  {
+    "id": "evaporator_module_solvent_recovery",
+    "name": "蒸发器溶剂回收模组",
+    "type": "MODULE_TYPE_EVAPORATOR",
+    "performance": 0,
+    "efficiency": -25,
+    "quality": 50,
+    "value": 275
+  },
+  {
+    "id": "dna_manipulator_module_stabilizer",
+    "name": "dna_manipulator_module_stabilizer",
+    "type": "MODULE_TYPE_DNA_MANIPULATOR",
+    "performance": -50,
+    "efficiency": -25,
+    "quality": 0,
+    "value": 500
+  },
+  {
+    "id": "dna_manipulator_module_positive_filter",
+    "name": "dna_manipulator_module_positive_filter",
+    "type": "MODULE_TYPE_DNA_MANIPULATOR",
+    "performance": 0,
+    "efficiency": -25,
+    "quality": 0,
+    "value": 500
+  },
+  {
+    "id": "dna_manipulator_module_negative_filter",
+    "name": "dna_manipulator_module_negative_filter",
+    "type": "MODULE_TYPE_DNA_MANIPULATOR",
+    "performance": 0,
+    "efficiency": -25,
+    "quality": 0,
+    "value": 500
+  },
+  {
+    "id": "dna_manipulator_module_precision",
+    "name": "dna_manipulator_module_precision",
+    "type": "MODULE_TYPE_DNA_MANIPULATOR",
+    "performance": -75,
+    "efficiency": -75,
+    "quality": 0,
+    "value": 1000
+  },
+  {
+    "id": "printer_module_metal",
+    "name": "金属打印模组",
+    "type": "MODULE_TYPE_PRINTER",
+    "performance": 0,
+    "efficiency": -50,
+    "quality": 0,
+    "value": 300
+  },
+  {
+    "id": "system_uncapped_neural_core",
+    "name": "神经核心模组（无限制）",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 200,
+    "efficiency": -100,
+    "quality": 100,
+    "value": 1500
+  },
+  {
+    "id": "alarm_module_transmitter",
+    "name": "警报传输模组",
+    "type": "MODULE_TYPE_ALARM",
+    "performance": 0,
+    "efficiency": -50,
+    "quality": 0,
+    "value": 100
+  },
+  {
+    "id": "furnace_module_blast",
+    "name": "熔炉模组（高炉）",
+    "type": "MODULE_TYPE_FURNACE",
+    "performance": 0,
+    "efficiency": -100,
+    "quality": 0,
+    "value": 150
+  },
+  {
+    "id": "furnace_module_junk",
+    "name": "熔炉模组（垃圾处理）",
+    "type": "MODULE_TYPE_FURNACE",
+    "performance": 0,
+    "efficiency": 0,
+    "quality": 0,
+    "value": 120
+  },
+  {
+    "id": "system_capped_neural_core",
+    "name": "神经核心模组（受限）",
+    "type": "MODULE_TYPE_UNIVERSAL",
+    "performance": 100,
+    "efficiency": -100,
+    "quality": 50,
+    "value": 250
+  },
+  {
+    "id": "printer_module_cnc",
+    "name": "计算机数控模组",
+    "type": "MODULE_TYPE_PRINTER",
+    "performance": -25,
+    "efficiency": -25,
+    "quality": 0,
+    "value": 400
+  },
+  {
+    "id": "printer_module_melee_batch",
+    "name": "近战武器批量打印模组",
+    "type": "MODULE_TYPE_PRINTER",
+    "performance": -50,
+    "efficiency": -50,
+    "quality": 0,
+    "value": 250
+  },
+  {
+    "id": "chem_module",
+    "name": "化学设备模组",
+    "type": "MODULE_TYPE_CHEM",
+    "performance": 0,
+    "efficiency": 0,
+    "quality": 0,
+    "value": 250
+  }
+]

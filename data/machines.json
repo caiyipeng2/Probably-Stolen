@@ -31,7 +31,7 @@
     "category": "metal",
     "power": 2,
     "time": 5.0,
-    "cycles": 1,
+    "cycles": 2,
     "temp": 800,
     "inputs": [
       {
@@ -45,7 +45,43 @@
         "count": 1
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "recipes": [
+      {
+        "id": "smelt",
+        "name": "smelt",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "metal_ingot",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "junk_recycle",
+        "name": "junk_recycle",
+        "inputs": [
+          {
+            "id": "junk",
+            "count": 6
+          }
+        ],
+        "outputs": [
+          {
+            "id": "scrap_metal",
+            "count": 4
+          }
+        ],
+        "cycles": 2
+      }
+    ]
   },
   {
     "id": "printer",
@@ -53,34 +89,8 @@
     "category": "print",
     "power": 3,
     "time": 8.0,
-    "cycles": 2,
+    "cycles": 5,
     "temp": 200,
-    "inputs": [
-      {
-        "id": "printer_plastic",
-        "count": 1
-      },
-      {
-        "id": "metal_ingot",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "printed_gun",
-        "count": 1
-      }
-    ],
-    "source": "extracted+port"
-  },
-  {
-    "id": "bottle_printer",
-    "name": "瓶装机",
-    "category": "print",
-    "power": 2,
-    "time": 5.0,
-    "cycles": 1,
-    "temp": 24,
     "inputs": [
       {
         "id": "printer_plastic",
@@ -89,11 +99,516 @@
     ],
     "outputs": [
       {
-        "id": "water_jug",
+        "id": "printed_gun",
         "count": 1
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "recipes": [
+      {
+        "id": "printer_chip_pistol",
+        "name": ".22手枪3D打印机芯片",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "printed_gun",
+            "count": 1
+          }
+        ],
+        "cycles": 5
+      },
+      {
+        "id": "printer_chip_pistol_double",
+        "name": "3D打印机芯片（.22手枪×{0}）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 3
+          }
+        ],
+        "outputs": [
+          {
+            "id": "printed_gun",
+            "count": 2
+          }
+        ],
+        "cycles": 6
+      },
+      {
+        "id": "printer_chip_makeshift_rds",
+        "name": "3D打印机芯片（x{0} 简易红点瞄准镜）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          },
+          {
+            "id": "common_electronic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "rds_makeshift",
+            "count": 4
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_makeshift_toy_laser",
+        "name": "3D打印机芯片（x{0} 玩具激光笔）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          },
+          {
+            "id": "common_electronic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "laser_toy",
+            "count": 4
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_small_bottle",
+        "name": "3D打印机芯片（x{0} 小塑料瓶）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "small_bottled_water",
+            "count": 6
+          }
+        ],
+        "cycles": 1
+      },
+      {
+        "id": "printer_chip_internal_springs_improved",
+        "name": "3D打印机芯片（改良内部弹簧组×{0}）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "internal_springs_improved",
+            "count": 4
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_rds",
+        "name": "3D打印机芯片（x{0} 红点瞄准镜）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 3
+          },
+          {
+            "id": "common_electronic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "rds",
+            "count": 2
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_laser_sight",
+        "name": "3D打印机芯片（x{0} 激光瞄准器）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 2
+          },
+          {
+            "id": "common_electronic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "laser",
+            "count": 2
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_silencer",
+        "name": "3D打印机芯片（x{0} 消音器）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 5
+          }
+        ],
+        "outputs": [
+          {
+            "id": "silencer",
+            "count": 2
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_22_mag",
+        "name": "3D打印机芯片（x{0} .22弹匣）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mag_22",
+            "count": 2
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "printer_chip_22_mag_ext",
+        "name": "3D打印机芯片（x{0} 加长.22弹匣）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 3
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mag_22_ext",
+            "count": 2
+          }
+        ],
+        "cycles": 5
+      },
+      {
+        "id": "printer_chip_22_mag_high",
+        "name": "3D打印机芯片（x{0} 大容量.22弹匣）",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mag_22_high",
+            "count": 2
+          }
+        ],
+        "cycles": 4
+      },
+      {
+        "id": "printer_chip_10_mag",
+        "name": "3D打印机芯片（x{0} 10毫米弹匣）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 3
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mag_10mm",
+            "count": 2
+          }
+        ],
+        "cycles": 4
+      },
+      {
+        "id": "printer_chip_10_mag_ext",
+        "name": "3D打印机芯片（x{0} 加长10毫米弹匣）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 3
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mag_10mm_ext",
+            "count": 1
+          }
+        ],
+        "cycles": 6
+      },
+      {
+        "id": "printer_chip_10_mag_high",
+        "name": "3D打印机芯片（x{0} 大容量10毫米弹匣）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "mag_10mm_high",
+            "count": 1
+          }
+        ],
+        "cycles": 5
+      },
+      {
+        "id": "printer_chip_handmade_pistol_frame",
+        "name": "3D打印机芯片（“巢火”紧凑型手枪框架）",
+        "inputs": [
+          {
+            "id": "metal_ingot",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "handmade_pistol_frame",
+            "count": 1
+          }
+        ],
+        "cycles": 6
+      },
+      {
+        "id": "printer_chip_heavy_handmade_pistol_frame",
+        "name": "3D打印机芯片（“铁铸10”手枪框架）",
+        "inputs": [
+          {
+            "id": "metal_ingot",
+            "count": 1
+          },
+          {
+            "id": "scrap_metal",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "heavy_handmade_pistol_frame",
+            "count": 1
+          }
+        ],
+        "cycles": 7
+      },
+      {
+        "id": "printer_chip_gun_part",
+        "name": "3D打印机芯片（枪械零件）",
+        "inputs": [
+          {
+            "id": "metal_ingot",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "gun_part",
+            "count": 3
+          }
+        ],
+        "cycles": 3
+      },
+      {
+        "id": "printer_chip_box_cutter",
+        "name": "3D打印机芯片（美工刀×{0}）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "box_cutter",
+            "count": 3
+          }
+        ],
+        "cycles": 3
+      },
+      {
+        "id": "printer_chip_kitchen_knife",
+        "name": "3D打印机芯片（厨刀×{0}）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 3
+          }
+        ],
+        "outputs": [
+          {
+            "id": "kitchen_knife",
+            "count": 4
+          }
+        ],
+        "cycles": 6
+      },
+      {
+        "id": "printer_chip_hatchet",
+        "name": "3D打印机芯片（短柄斧×{0}）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 4
+          }
+        ],
+        "outputs": [
+          {
+            "id": "hatchet",
+            "count": 4
+          }
+        ],
+        "cycles": 8
+      },
+      {
+        "id": "printer_chip_kitchen_cleaver",
+        "name": "3D打印机芯片（切肉刀×{0}）",
+        "inputs": [
+          {
+            "id": "scrap_metal",
+            "count": 5
+          }
+        ],
+        "outputs": [
+          {
+            "id": "kitchen_cleaver",
+            "count": 4
+          }
+        ],
+        "cycles": 8
+      },
+      {
+        "id": "printer_chip_combat_knife",
+        "name": "3D打印机芯片（战斗匕首×{0}）",
+        "inputs": [
+          {
+            "id": "metal_ingot",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "combat_knife",
+            "count": 5
+          }
+        ],
+        "cycles": 10
+      },
+      {
+        "id": "printer_chip_combat_machete",
+        "name": "3D打印机芯片（战斗砍刀×{0}）",
+        "inputs": [
+          {
+            "id": "metal_ingot",
+            "count": 3
+          }
+        ],
+        "outputs": [
+          {
+            "id": "combat_machete",
+            "count": 3
+          }
+        ],
+        "cycles": 12
+      }
+    ]
+  },
+  {
+    "id": "bottle_printer",
+    "name": "瓶装机",
+    "category": "print",
+    "power": 2,
+    "time": 5.0,
+    "cycles": 2,
+    "temp": 24,
+    "inputs": [
+      {
+        "id": "printer_plastic",
+        "count": 1
+      }
+    ],
+    "outputs": [
+      {
+        "id": "small_bottled_water",
+        "count": 1
+      }
+    ],
+    "source": "extracted+port",
+    "recipes": [
+      {
+        "id": "small",
+        "name": "small",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "small_bottled_water",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "normal",
+        "name": "normal",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "bottled_water",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "large",
+        "name": "large",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "large_bottled_water",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      }
+    ]
   },
   {
     "id": "plant_dna_manipulator",
@@ -127,7 +642,7 @@
     "category": "plant",
     "power": 1,
     "time": 12.0,
-    "cycles": 3,
+    "cycles": 2,
     "temp": 24,
     "inputs": [
       {
@@ -142,10 +657,159 @@
     "outputs": [
       {
         "id": "nutrifruit",
-        "count": 2
+        "count": 5
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "recipes": [
+      {
+        "id": "nutrifruit_seed",
+        "name": "Nutrifruit",
+        "inputs": [
+          {
+            "id": "nutrifruit_seed",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "nutrifruit",
+            "count": 5
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "kotton_seed",
+        "name": "Kotton",
+        "inputs": [
+          {
+            "id": "kotton_seed",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "kotton_fiber",
+            "count": 9
+          }
+        ],
+        "cycles": 3
+      },
+      {
+        "id": "dream_cap_seed",
+        "name": "Dream Cap",
+        "inputs": [
+          {
+            "id": "dream_cap_seed",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "dream_cap",
+            "count": 8
+          }
+        ],
+        "cycles": 3
+      },
+      {
+        "id": "coffee_bean",
+        "name": "Coffee",
+        "inputs": [
+          {
+            "id": "coffee_bean",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "coffee_bean",
+            "count": 8
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "fillerweed_seed",
+        "name": "Fillerweed",
+        "inputs": [
+          {
+            "id": "fillerweed_seed",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "fillerweed",
+            "count": 4
+          }
+        ],
+        "cycles": 1
+      },
+      {
+        "id": "hydroreed_seed",
+        "name": "Hydroreed",
+        "inputs": [
+          {
+            "id": "hydroreed_seed",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "hydroreed",
+            "count": 0
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "bloomberry_seed",
+        "name": "Bloomberry",
+        "inputs": [
+          {
+            "id": "bloomberry_seed",
+            "count": 1
+          },
+          {
+            "id": "water_jug",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "bloomberry",
+            "count": 8
+          }
+        ],
+        "cycles": 2
+      }
+    ]
   },
   {
     "id": "ras",
@@ -301,17 +965,138 @@
     "temp": 80,
     "inputs": [
       {
-        "id": "common_chemical",
-        "count": 2
+        "id": "dream_cap_extract",
+        "count": 1
       }
     ],
     "outputs": [
       {
-        "id": "neuroactive_perfume",
+        "id": "dream_dust",
         "count": 1
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "recipes": [
+      {
+        "id": "dream_dust",
+        "name": "一小瓶“梦尘”",
+        "inputs": [
+          {
+            "id": "dream_cap_extract",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "dream_dust",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "nightmare_dust",
+        "name": "一小瓶“梦魇尘”",
+        "inputs": [
+          {
+            "id": "nightmare_extract",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "nightmare_dust",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "caffeine_pill",
+        "name": "咖啡因药片",
+        "inputs": [
+          {
+            "id": "caffeine",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "caffeine_pill",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "zyanide_pill",
+        "name": "山奈德片",
+        "inputs": [
+          {
+            "id": "zyanide",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "zyanide_pill",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "birth_control_pill",
+        "name": "避孕药",
+        "inputs": [
+          {
+            "id": "contraceptive",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "birth_control_pill",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "fanta_pill",
+        "name": "芬太片",
+        "inputs": [
+          {
+            "id": "fanta",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "fanta_pill",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      },
+      {
+        "id": "pink_alt_injector",
+        "name": "奥克莫吸注射器",
+        "inputs": [
+          {
+            "id": "nomore",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "pink_alt_injector",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      }
+    ]
   },
   {
     "id": "evaporator",
@@ -371,25 +1156,125 @@
     "category": "chem",
     "power": 4,
     "time": 9.0,
-    "cycles": 2,
+    "cycles": 12,
     "temp": 70,
     "inputs": [
       {
-        "id": "meat_scrap",
-        "count": 1
-      },
-      {
-        "id": "common_chemical",
+        "id": "sec_keycard",
         "count": 1
       }
     ],
     "outputs": [
       {
-        "id": "nutrient_tablet",
-        "count": 2
+        "id": "crypto_module_sec",
+        "count": 1
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "recipes": [
+      {
+        "id": "crypto_module_sec",
+        "name": "密码解序器芯片（治安）",
+        "inputs": [
+          {
+            "id": "sec_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "crypto_module_sec",
+            "count": 1
+          }
+        ],
+        "cycles": 12
+      },
+      {
+        "id": "crypto_module_cmd",
+        "name": "密码解序器芯片（指挥）",
+        "inputs": [
+          {
+            "id": "cmd_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "crypto_module_cmd",
+            "count": 1
+          }
+        ],
+        "cycles": 15
+      },
+      {
+        "id": "crypto_module_med",
+        "name": "密码解序器芯片（医疗）",
+        "inputs": [
+          {
+            "id": "med_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "crypto_module_med",
+            "count": 1
+          }
+        ],
+        "cycles": 10
+      },
+      {
+        "id": "crypto_module_eng",
+        "name": "密码解序器芯片（工程）",
+        "inputs": [
+          {
+            "id": "eng_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "crypto_module_eng",
+            "count": 1
+          }
+        ],
+        "cycles": 10
+      },
+      {
+        "id": "crypto_module_sup",
+        "name": "密码解序器芯片（补给）",
+        "inputs": [
+          {
+            "id": "sup_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "crypto_module_sup",
+            "count": 1
+          }
+        ],
+        "cycles": 8
+      },
+      {
+        "id": "crypto_module_ser",
+        "name": "密码解序器芯片（服务）",
+        "inputs": [
+          {
+            "id": "ser_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "crypto_module_ser",
+            "count": 1
+          }
+        ],
+        "cycles": 8
+      }
+    ]
   },
   {
     "id": "deal_maker",
@@ -490,7 +1375,12 @@
     "time": 4.0,
     "cycles": 2,
     "temp": 24,
-    "inputs": [],
+    "inputs": [
+      {
+        "id": "printer_plastic",
+        "count": 1
+      }
+    ],
     "outputs": [
       {
         "id": "ammo_box",
@@ -498,7 +1388,26 @@
       }
     ],
     "passive": false,
-    "source": "MachineBoxDispenser"
+    "source": "MachineBoxDispenser",
+    "recipes": [
+      {
+        "id": "dispense_ammo_box",
+        "name": "dispense_ammo_box",
+        "inputs": [
+          {
+            "id": "printer_plastic",
+            "count": 1
+          }
+        ],
+        "outputs": [
+          {
+            "id": "ammo_box",
+            "count": 1
+          }
+        ],
+        "cycles": 2
+      }
+    ]
   },
   {
     "id": "cassette_player",

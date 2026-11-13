@@ -75,6 +75,8 @@ var machine_modules: Dictionary = {}
 var machine_temps: Dictionary = {}
 var machine_durability: Dictionary = {}
 var machine_faults: Dictionary = {}
+var machine_recipes: Dictionary = {}
+var modules_def: Array = []
 
 var difficulty := "normal"
 var day := 1
@@ -192,6 +194,11 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			machines = data
+	f = FileAccess.open("res://data/modules.json", FileAccess.READ)
+	if f:
+		var mods = JSON.parse_string(f.get_as_text())
+		if mods is Array:
+			modules_def = mods
 	f = FileAccess.open("res://data/factions.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -473,6 +480,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	machine_temps = {}
 	machine_durability = {}
 	machine_faults = {}
+	machine_recipes = {}
 	start_day()
 
 func start_day() -> void:
@@ -1483,6 +1491,27 @@ func remove_inventory(def_id: String, count: int) -> bool:
 			i += 1
 	return need == 0
 
+func module_def(module_id: String) -> Dictionary:
+	for m in modules_def:
+		if String(m.get("id", "")) == module_id:
+			return m
+	return {}
+
+func machine_recipe(machine_id: String) -> Dictionary:
+	var m := machine_def(machine_id)
+	var recipes: Array = m.get("recipes", [])
+	if recipes.is_empty():
+		return {}
+	var selected := String(machine_recipes.get(machine_id, ""))
+	for r in recipes:
+		if String(r.get("id", "")) == selected:
+			return r
+	return recipes[0]
+
+func set_machine_recipe(machine_id: String, recipe_id: String) -> void:
+	machine_recipes[machine_id] = recipe_id
+	emit_signal("state_changed")
+
 func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = false) -> Dictionary:
 	var m := machine_def(machine_id)
 	if m.is_empty():
@@ -1500,26 +1529,33 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 	var lvl := int(machine_temps.get(machine_id, 2))
 	var temp_time: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
 	var temp_power: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
-	var base_cycles := int(m.get("cycles", maxi(1, int(round(float(m.get("time", 4.0)) / 4.0)))))
+	var recipe := machine_recipe(machine_id)
+	var active_inputs: Array = recipe.get("inputs", m.get("inputs", [])) if not recipe.is_empty() else m.get("inputs", [])
+	var active_outputs: Array = recipe.get("outputs", m.get("outputs", [])) if not recipe.is_empty() else m.get("outputs", [])
+	var base_cycles := int(recipe.get("cycles", m.get("cycles", maxi(1, int(round(float(m.get("time", 4.0)) / 4.0)))))) if not recipe.is_empty() else int(m.get("cycles", 2))
 	var use_cycles := maxi(1, int(round(float(base_cycles) * temp_time)))
 	var use_power := maxi(1, int(round(float(m.get("power", 0)) * temp_power)))
-	if machine_modules.has(machine_id):
-		use_cycles = maxi(1, int(round(float(use_cycles) * 0.8)))
-		use_power = maxi(1, use_power - 1)
+	var mod_id := String(machine_modules.get(machine_id, ""))
+	var md := module_def(mod_id)
+	if not md.is_empty():
+		var perf := float(md.get("performance", 0))
+		var eff := float(md.get("efficiency", 0))
+		use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, perf) / 100.0))))
+		use_power = maxi(1, int(round(float(use_power) * (1.0 - minf(50.0, eff) / 100.0))))
 	use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0))))
 	use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - clampf(quality, 0.0, 1.0) * 0.2))))
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
-	for inp in m.get("inputs", []):
+	for inp in active_inputs:
 		if inventory_count(String(inp.get("id", ""))) < int(inp.get("count", 1)):
 			var d := get_item_def(String(inp.get("id", "")))
 			return {"ok": false, "text": "缺少原料：%s x%d。" % [d.get("name", inp.get("id", "")), int(inp.get("count", 1))]}
 	if dry_run:
 		return {"ok": true, "text": "%s 可以启动。" % String(m.get("name", machine_id))}
-	for inp in m.get("inputs", []):
+	for inp in active_inputs:
 		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
 	power -= use_power
-	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": use_cycles, "total": use_cycles, "outputs": m.get("outputs", []).duplicate(true)}
+	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": use_cycles, "total": use_cycles, "outputs": active_outputs.duplicate(true), "recipe": String(recipe.get("id", ""))}
 	var growth := machine_id in GROWTH_MACHINES
 	if growth:
 		job["growth"] = true
@@ -1532,23 +1568,13 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 		return {"ok": true, "text": "%s 已播种，预计 %d 夜成熟。" % [job["name"], job["remaining"]]}
 	return {"ok": true, "text": "%s 已启动，预计 %d 夜。" % [job["name"], job["remaining"]]}
 
-func install_module(machine_id: String) -> Dictionary:
-	if machine_modules.has(machine_id):
-		return {"ok": false, "text": "这台机器已经安装了模块。"}
-	var idx := -1
-	for i in range(inventory.size()):
-		var d := get_item_def(inventory[i].get("def_id", ""))
-		if String(d.get("category", "")) == "module":
-			idx = i
-			break
-	if idx < 0:
-		return {"ok": false, "text": "背包里没有可安装的模块。"}
-	var mod: Dictionary = inventory[idx]
-	inventory.remove_at(idx)
-	machine_modules[machine_id] = String(mod.get("def_id", ""))
-	_refresh_pages()
+func install_module(machine_id: String, module_id: String) -> Dictionary:
+	var md := module_def(module_id)
+	if md.is_empty():
+		return {"ok": false, "text": "没有这个模块。"}
+	machine_modules[machine_id] = module_id
 	emit_signal("state_changed")
-	return {"ok": true, "text": "已安装模块：%s（耗时 -20%%，电力 -1）。" % get_item_def(mod.get("def_id", "")).get("name", "")}
+	return {"ok": true, "text": "已安装模块：%s。" % md.get("name", module_id)}
 
 func set_machine_temp(machine_id: String, level: int) -> void:
 	machine_temps[machine_id] = clampi(level, 1, 3)
@@ -1689,7 +1715,7 @@ func save_game(slot: int = 1) -> bool:
 		"version": 1, "day": day, "cash": cash, "rent": rent, "rent_due": rent_due,
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
-		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults,
+		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults, "machine_recipes": machine_recipes,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
@@ -1757,6 +1783,7 @@ func load_game(slot: int = 1) -> bool:
 	machine_temps = data.get("machine_temps", {}).duplicate(true)
 	machine_durability = data.get("machine_durability", {}).duplicate(true)
 	machine_faults = data.get("machine_faults", {}).duplicate(true)
+	machine_recipes = data.get("machine_recipes", {}).duplicate(true)
 	machine_jobs = data.get("machine_jobs", []).duplicate(true)
 	for j in machine_jobs:
 		j["remaining"] = float(j.get("remaining", 0.0))
