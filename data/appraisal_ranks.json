@@ -1,0 +1,98 @@
+[
+  {
+    "rank": 0,
+    "name": "初级鉴定师",
+    "base_fee": 20,
+    "fee_percent": [
+      15,
+      12,
+      10,
+      8,
+      5
+    ],
+    "progress": [
+      10,
+      7,
+      5,
+      4,
+      3
+    ],
+    "walkout_progress": 0,
+    "progress_to_promote": 100,
+    "cost_share": 1.0,
+    "attraction_chance": 33,
+    "certificate": "cert1"
+  },
+  {
+    "rank": 1,
+    "name": "鉴定师",
+    "base_fee": 40,
+    "fee_percent": [
+      18,
+      15,
+      12,
+      10,
+      0
+    ],
+    "progress": [
+      10,
+      7,
+      5,
+      4,
+      -3
+    ],
+    "walkout_progress": -5,
+    "progress_to_promote": 150,
+    "cost_share": 1.25,
+    "attraction_chance": 42,
+    "certificate": "cert2"
+  },
+  {
+    "rank": 2,
+    "name": "高级鉴定师",
+    "base_fee": 60,
+    "fee_percent": [
+      21,
+      18,
+      15,
+      0,
+      0
+    ],
+    "progress": [
+      10,
+      7,
+      5,
+      -3,
+      -4
+    ],
+    "walkout_progress": -5,
+    "progress_to_promote": 250,
+    "cost_share": 1.5,
+    "attraction_chance": 48,
+    "certificate": "cert3"
+  },
+  {
+    "rank": 3,
+    "name": "首席鉴定师",
+    "base_fee": 100,
+    "fee_percent": [
+      25,
+      21,
+      0,
+      0,
+      0
+    ],
+    "progress": [
+      0,
+      0,
+      0,
+      0,
+      0
+    ],
+    "walkout_progress": 0,
+    "progress_to_promote": 0,
+    "cost_share": 1.75,
+    "attraction_chance": 55,
+    "certificate": "cert4"
+  }
+]

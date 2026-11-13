@@ -1,0 +1,191 @@
+{
+  "open_box": {
+    "category": "CATEGORY_OPEN_BOX",
+    "label": "包装状态",
+    "tool": "flashlight",
+    "public_label": "原厂密封",
+    "real_label": "已开箱",
+    "public_mod": 10,
+    "real_mod": 0
+  },
+  "rusted": {
+    "category": "CATEGORY_RUSTED",
+    "label": "锈蚀",
+    "tool": "flashlight",
+    "public_label": "无明显锈迹",
+    "real_label": "存在锈蚀",
+    "public_mod": 0,
+    "real_mod": -40
+  },
+  "dented": {
+    "category": "CATEGORY_DENTED",
+    "label": "凹痕",
+    "tool": "magnifier",
+    "public_label": "外观完好",
+    "real_label": "存在凹痕",
+    "public_mod": 0,
+    "real_mod": -5
+  },
+  "expired": {
+    "category": "CATEGORY_EXPIRED",
+    "label": "保质期",
+    "tool": "magnifier",
+    "public_label": "未过期",
+    "real_label": "已过期",
+    "public_mod": 0,
+    "real_mod": -10
+  },
+  "freshness_stale": {
+    "category": "CATEGORY_FRESHNESS",
+    "label": "新鲜度",
+    "tool": "magnifier",
+    "public_label": "新鲜",
+    "real_label": "不新鲜",
+    "public_mod": 0,
+    "real_mod": -15
+  },
+  "freshness_spoiled": {
+    "category": "CATEGORY_FRESHNESS",
+    "label": "新鲜度",
+    "tool": "magnifier",
+    "public_label": "新鲜",
+    "real_label": "已变质",
+    "public_mod": 0,
+    "real_mod": -50
+  },
+  "replica": {
+    "category": "CATEGORY_REPLICA",
+    "label": "来源",
+    "tool": "magnifier",
+    "public_label": "正品",
+    "real_label": "仿制品",
+    "public_mod": 0,
+    "real_mod": -75
+  },
+  "shabby": {
+    "category": "CATEGORY_SHABBY",
+    "label": "成色",
+    "tool": "magnifier",
+    "public_label": "成色正常",
+    "real_label": "破烂",
+    "public_mod": 0,
+    "real_mod": -75
+  },
+  "second_hand": {
+    "category": "CATEGORY_SECOND_HAND",
+    "label": "使用痕迹",
+    "tool": "magnifier",
+    "public_label": "全新",
+    "real_label": "二手",
+    "public_mod": 0,
+    "real_mod": -50
+  },
+  "module_stuck": {
+    "category": "CATEGORY_MODULE_STUCK",
+    "label": "模块状态",
+    "tool": "magnifier",
+    "public_label": "可拆卸",
+    "real_label": "卡死",
+    "public_mod": 0,
+    "real_mod": -75
+  },
+  "equipment_fair": {
+    "category": "CATEGORY_EQUIPMENT_CONDITION",
+    "label": "装备成色",
+    "tool": "magnifier",
+    "public_label": "良好",
+    "real_label": "一般",
+    "public_mod": 0,
+    "real_mod": -12
+  },
+  "equipment_poor": {
+    "category": "CATEGORY_EQUIPMENT_CONDITION",
+    "label": "装备成色",
+    "tool": "magnifier",
+    "public_label": "良好",
+    "real_label": "较差",
+    "public_mod": 0,
+    "real_mod": -25
+  },
+  "water_rust": {
+    "category": "CATEGORY_WATER_PURITY",
+    "label": "水质",
+    "tool": "water_test_strip",
+    "public_label": "基础水",
+    "real_label": "锈水",
+    "public_mod": 0,
+    "real_mod": -75
+  },
+  "water_gutter": {
+    "category": "CATEGORY_WATER_PURITY",
+    "label": "水质",
+    "tool": "water_test_strip",
+    "public_label": "基础水",
+    "real_label": "污水",
+    "public_mod": 0,
+    "real_mod": -90
+  },
+  "water_ghost": {
+    "category": "CATEGORY_WATER_PURITY",
+    "label": "水质",
+    "tool": "water_test_strip",
+    "public_label": "基础水",
+    "real_label": "幽灵水",
+    "public_mod": 0,
+    "real_mod": -33
+  },
+  "chem_cut": {
+    "category": "CATEGORY_CHEMICAL_PURITY",
+    "label": "化学纯度",
+    "tool": "chem_scanner",
+    "public_label": "街头标准",
+    "real_label": "稀释品",
+    "public_mod": 0,
+    "real_mod": -45
+  },
+  "chem_junk": {
+    "category": "CATEGORY_CHEMICAL_PURITY",
+    "label": "化学纯度",
+    "tool": "chem_scanner",
+    "public_label": "街头标准",
+    "real_label": "劣质品",
+    "public_mod": 0,
+    "real_mod": -75
+  },
+  "chem_starch": {
+    "category": "CATEGORY_CHEMICAL_PURITY",
+    "label": "化学纯度",
+    "tool": "chem_scanner",
+    "public_label": "街头标准",
+    "real_label": "淀粉压制",
+    "public_mod": 0,
+    "real_mod": -95
+  },
+  "ingot_low": {
+    "category": "CATEGORY_INGOT_PURITY",
+    "label": "锭纯度",
+    "tool": "flashlight",
+    "public_label": "中等纯度",
+    "real_label": "低纯度",
+    "public_mod": 0,
+    "real_mod": -15
+  },
+  "ingot_very_low": {
+    "category": "CATEGORY_INGOT_PURITY",
+    "label": "锭纯度",
+    "tool": "flashlight",
+    "public_label": "中等纯度",
+    "real_label": "极低纯度",
+    "public_mod": 0,
+    "real_mod": -25
+  },
+  "weight": {
+    "category": "weight",
+    "label": "重量",
+    "tool": "scale",
+    "public_label": "未称重",
+    "real_label": "已称重",
+    "public_mod": 0,
+    "real_mod": 0
+  }
+}

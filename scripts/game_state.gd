@@ -88,6 +88,19 @@ var attraction_bonus := 100
 var bargain_bonus := 0
 var security_alarm_active := false
 var security_stop_rate := 0
+var inspection_families: Dictionary = {}
+var appraisal_ranks: Array = []
+var appraisal_item_defs: Array = []
+var feature_rules: Dictionary = {}
+var inspection_text: Dictionary = {}
+var appraiser_level := 0
+var appraisal_progress := 0.0
+var appraisal_promotion_day := -1
+var appraisal_promotion_declined := false
+var appraisal_days_missed := 0
+var appraisal_blacklist: Array = []
+var appraisal_introduced := false
+var pending_promotion := false
 signal music_toggled(on: bool)
 
 var difficulty := "normal"
@@ -235,6 +248,31 @@ func _load_defs() -> void:
 		var mods = JSON.parse_string(f.get_as_text())
 		if mods is Array:
 			modules_def = mods
+	f = FileAccess.open("res://data/inspection_families.json", FileAccess.READ)
+	if f:
+		var fams = JSON.parse_string(f.get_as_text())
+		if fams is Dictionary:
+			inspection_families = fams.get("families", {})
+	f = FileAccess.open("res://data/appraisal_ranks.json", FileAccess.READ)
+	if f:
+		var ranks = JSON.parse_string(f.get_as_text())
+		if ranks is Array:
+			appraisal_ranks = ranks
+	f = FileAccess.open("res://data/appraisal_items.json", FileAccess.READ)
+	if f:
+		var aitems = JSON.parse_string(f.get_as_text())
+		if aitems is Array:
+			appraisal_item_defs = aitems
+	f = FileAccess.open("res://data/feature_rules.json", FileAccess.READ)
+	if f:
+		var frules = JSON.parse_string(f.get_as_text())
+		if frules is Dictionary:
+			feature_rules = frules
+	var itext := FileAccess.open("res://data_private/inspection_text_zh.json", FileAccess.READ)
+	if itext:
+		var td = JSON.parse_string(itext.get_as_text())
+		if td is Dictionary:
+			inspection_text = td
 	f = FileAccess.open("res://data/factions.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -293,7 +331,7 @@ func get_item_def(id: String) -> Dictionary:
 
 func make_item(def_id: String, condition: int = 100, authentic: bool = true, stolen: bool = false) -> Dictionary:
 	var def := get_item_def(def_id)
-	return {
+	var it := {
 		"uid": next_uid(),
 		"def_id": def_id,
 		"condition": condition,
@@ -309,6 +347,8 @@ func make_item(def_id: String, condition: int = 100, authentic: bool = true, sto
 		"rotated": false,
 		"location": "backpack",
 	}
+	_init_inspection_item(it)
+	return it
 
 func _roll_features(def_id: String) -> Array:
 	var def := get_item_def(def_id)
@@ -333,9 +373,866 @@ func _roll_features(def_id: String) -> Array:
 		out.append(pool[rng.randi_range(0, pool.size() - 1)].duplicate(true))
 	return out
 
+func inspection_label(key: String, fallback: String) -> String:
+	return String(inspection_text.get(key, fallback))
+
+func _family_for(def_id: String, def: Dictionary) -> String:
+	var tags: Array = def.get("tags", [])
+	if def_id in ["hand_steel", "hand_carbon", "hand_gold"]:
+		return "hand"
+	if def_id == "ribwich":
+		return "ribwich"
+	if def_id == "plasma_fuel":
+		return "plasma"
+	if def_id in ["cig_red", "cig_black"] or "cigarette" in def_id:
+		return "cigarette"
+	if def_id == "food_stamp" or "stamp" in def_id:
+		return "stamp"
+	if "injector" in def_id:
+		return "injector"
+	if def_id == "wine_berry":
+		return "berry"
+	if is_water_container_item(def_id):
+		return "water"
+	if tags.has("CHEM_ITEM_TAG") or tags.has("CHEMICAL_PRODUCT_TAG") or String(def.get("category", "")) == "chem":
+		return "chem"
+	if def_id == "metal_ingot":
+		return "ingot"
+	if String(def.get("category", "")) in ["weapon", "weapon_mod", "cyber"]:
+		return "equipment"
+	if tags.has("MODULE_TAG") or String(def.get("category", "")) == "module":
+		return "module"
+	if String(def.get("category", "")) == "plant" or tags.has("SEED"):
+		return "plant"
+	if String(def.get("category", "")) in ["food", "animal", "organ", "medical"]:
+		return "food"
+	return "generic"
+
+func _add_feature(it: Dictionary, rule_id: String, discovered: bool = false) -> Dictionary:
+	var rule: Dictionary = feature_rules.get(rule_id, {})
+	if rule.is_empty():
+		return {}
+	var f := {
+		"id": rule_id, "category": String(rule.get("category", "")),
+		"label": String(rule.get("label", rule_id)),
+		"tool": String(rule.get("tool", "magnifier")),
+		"public_label": String(rule.get("public_label", "")),
+		"real_label": String(rule.get("real_label", "")),
+		"public_mod": int(rule.get("public_mod", 0)),
+		"real_mod": int(rule.get("real_mod", 0)),
+		"stage": "innate", "discovered": discovered, "exposed": false,
+	}
+	it["feature_list"].append(f)
+	return f
+
+func _add_custom_feature(it: Dictionary, id: String, category: String, label: String, public_label: String, real_label: String, public_mod: int, real_mod: int, stage: String = "innate") -> Dictionary:
+	var f := {
+		"id": id, "category": category, "label": label, "tool": "",
+		"public_label": public_label, "real_label": real_label,
+		"public_mod": public_mod, "real_mod": real_mod,
+		"stage": stage, "discovered": false, "exposed": false,
+	}
+	it["feature_list"].append(f)
+	return f
+
+func _init_inspection_item(it: Dictionary) -> void:
+	var def := get_item_def(String(it.get("def_id", "")))
+	var family := _family_for(String(it.get("def_id", "")), def)
+	it["family"] = family
+	it["attrs"] = {}
+	it["issues"] = []
+	it["feature_list"] = []
+	it["inspect_notes"] = []
+	it["family_seen"] = false
+	it["confronted"] = false
+	if family == "cigarette":
+		_init_cigarette(it)
+	elif family == "stamp":
+		_init_stamp(it)
+	elif family == "injector":
+		_init_injector(it)
+	elif family == "hand":
+		_init_hand(it)
+	elif family == "ribwich":
+		_init_ribwich(it)
+	elif family == "plasma":
+		_init_plasma(it)
+	elif family == "berry":
+		_init_berry(it)
+	elif family == "water":
+		var pur := int(it.get("condition", 100))
+		if pur < 25:
+			_add_feature(it, "water_gutter")
+		elif pur < 50:
+			_add_feature(it, "water_rust")
+		elif pur < 65:
+			_add_feature(it, "water_ghost")
+	elif family == "chem":
+		var cnd := int(it.get("condition", 100))
+		if cnd < 25:
+			_add_feature(it, "chem_starch")
+		elif cnd < 45:
+			_add_feature(it, "chem_junk")
+		elif cnd < 65:
+			_add_feature(it, "chem_cut")
+	elif family == "equipment":
+		if not bool(it.get("authentic", true)):
+			_add_feature(it, "replica")
+		if int(it.get("condition", 100)) < 50:
+			_add_feature(it, "equipment_poor")
+		elif int(it.get("condition", 100)) < 75:
+			_add_feature(it, "equipment_fair")
+	elif family == "food":
+		var fc := int(it.get("condition", 100))
+		if fc < 35:
+			_add_feature(it, "expired")
+			_add_feature(it, "freshness_spoiled")
+		elif fc < 60:
+			_add_feature(it, "freshness_stale")
+		if rng.randf() < 0.15:
+			_add_feature(it, "dented")
+		if rng.randf() < 0.1:
+			_add_feature(it, "open_box")
+	elif family == "module":
+		if not bool(it.get("authentic", true)):
+			_add_feature(it, "module_stuck")
+	elif family == "ingot":
+		if int(it.get("condition", 100)) < 25:
+			_add_feature(it, "ingot_very_low")
+		elif int(it.get("condition", 100)) < 50:
+			_add_feature(it, "ingot_low")
+	else:
+		var roll := rng.randf()
+		if roll < 0.1:
+			_add_feature(it, "rusted")
+		elif roll < 0.2:
+			_add_feature(it, "dented")
+		elif roll < 0.27:
+			_add_feature(it, "open_box")
+		elif roll < 0.32:
+			_add_feature(it, "replica")
+
+func _attr_label(family: String, key: String, value) -> String:
+	var fam: Dictionary = inspection_families.get(family, {})
+	var key_text := str(value)
+	if value is float and float(value) == float(int(value)):
+		key_text = str(int(value))
+	for a in fam.get("attributes", []):
+		if String(a.get("key", "")) == key:
+			var opts: Dictionary = a.get("options", {})
+			if opts.has(key_text):
+				return String(opts[key_text])
+			if key == "production":
+				return key_text
+			return key_text
+	return key_text
+
+func _init_cigarette(it: Dictionary) -> void:
+	var attrs := {"lettering": 0, "logo": 0, "seal": 0, "box": 0, "color": 0}
+	if not bool(it.get("authentic", true)):
+		var pick := rng.randi_range(0, 4)
+		match pick:
+			0:
+				attrs["seal"] = -1 if rng.randf() < 0.5 else 1
+				it["issues"].append("CIGARETTE_SEAL_ISSUE")
+			1:
+				attrs["logo"] = -1 if rng.randf() < 0.2 else rng.randi_range(1, 4)
+				it["issues"].append("CIGARETTE_LOGO_ISSUE")
+			2:
+				attrs["lettering"] = -1 if rng.randf() < 0.2 else rng.randi_range(1, 7)
+				it["issues"].append("CIGARETTE_LETTERING_ISSUE")
+			3:
+				attrs["color"] = rng.randi_range(1, 4)
+				it["issues"].append("CIGARETTE_COLOR_ISSUE")
+			4:
+				attrs["box"] = rng.randi_range(1, 4)
+				it["issues"].append("CIGARETTE_BOX_ISSUE")
+	it["attrs"] = attrs
+
+func _init_stamp(it: Dictionary) -> void:
+	var amounts := [40, 80, 120, 160, 200, 240]
+	var amount := int(amounts[rng.randi_range(0, amounts.size() - 1)])
+	var attrs := {"logo": 0, "chip": 0, "lettering": 0, "amount": amount, "seal": 0 if amount >= 160 else -1}
+	if not bool(it.get("authentic", true)):
+		var pick := rng.randi_range(0, 4)
+		match pick:
+			0:
+				attrs["logo"] = -1 if rng.randf() < 0.2 else rng.randi_range(1, 5)
+				it["issues"].append("STAMP_LOGO_ISSUE")
+			1:
+				attrs["chip"] = -1 if rng.randf() < 0.25 else rng.randi_range(1, 3)
+				it["issues"].append("STAMP_CHIP_ISSUE")
+			2:
+				attrs["lettering"] = -1 if rng.randf() < 0.15 else rng.randi_range(1, 8)
+				it["issues"].append("STAMP_LETTERING_ISSUE")
+			3:
+				attrs["amount"] = amount + 10
+				it["issues"].append("STAMP_AMOUNT_ISSUE")
+			4:
+				attrs["seal"] = -1 if attrs["seal"] == 0 else 0
+				it["issues"].append("STAMP_SEAL_ISSUE")
+	it["attrs"] = attrs
+	it["custom_base_value"] = int(round(float(attrs["amount"]) * 0.75))
+	it["custom_name"] = "食品券（%d 代用点）" % int(attrs["amount"])
+
+func _init_injector(it: Dictionary) -> void:
+	var attrs := {
+		"indicator": 0, "label": 0, "color": 0, "body": 0,
+		"serial": _injector_correct_serial(), "company": "Carmicheal Pharmaceutical", "model": "Immunivax",
+	}
+	if not bool(it.get("authentic", true)):
+		var pick := rng.randi_range(0, 4)
+		match pick:
+			0:
+				attrs["serial"] = _injector_bad_serial()
+				it["issues"].append("ISSUE_SERIAL")
+			1:
+				attrs["color"] = 1
+				attrs["body"] = -1
+				it["issues"].append("ISSUE_COLOR")
+			2:
+				attrs["model"] = _injector_bad_model()
+				it["issues"].append("ISSUE_LABEL")
+			3:
+				attrs["company"] = _injector_bad_company()
+				it["issues"].append("ISSUE_LABEL")
+			4:
+				attrs["indicator"] = 1
+				it["issues"].append("ISSUE_INDICATOR")
+	it["attrs"] = attrs
+	it["custom_name"] = "注射剂（%s）" % String(attrs["model"])
+
+func _init_hand(it: Dictionary) -> void:
+	var material := "ALUMINUM_ALLOY"
+	var mr := rng.randi_range(1, 100)
+	if mr <= 3:
+		material = "GOLD_PLATED"
+	elif mr <= 55:
+		material = "CARBON_COMPOSITE"
+	var interface := "EMG"
+	var ir := rng.randi_range(1, 100)
+	if ir <= 20:
+		interface = "NEURAL"
+	elif ir <= 45:
+		interface = "EMG_PLUS"
+	elif ir > 85:
+		interface = "UNSPECIFIED"
+	var condition := "NONE"
+	var cr := rng.randi_range(1, 100)
+	if cr > 75:
+		condition = "DAMAGE"
+	elif cr > 50:
+		condition = "WEAR"
+	var attrs := {
+		"material": material, "interface": interface,
+		"marking": "FULL" if rng.randf() < 0.5 else "SYMBOL",
+		"condition": condition,
+		"armored": "ARMORED" if condition == "NONE" and rng.randf() < 0.33 else "NONE",
+		"bladed": "BLADED" if condition == "NONE" and rng.randf() < 0.33 else "NONE",
+	}
+	it["attrs"] = attrs
+	it["appraisal_value"] = _hand_value(attrs)
+
+func _init_ribwich(it: Dictionary) -> void:
+	var year := 425 + rng.randi_range(0, 4) if rng.randf() < 0.5 else 432 + rng.randi_range(0, 6)
+	var month := rng.randi_range(1, 12)
+	var period := 1 if year <= 429 else 2
+	var attrs := {
+		"wrap": 0, "pickles": 0, "meat": 0, "bun": 0,
+		"davre_logo": 0,
+		"ribwich_logo": 0 if period == 2 else -1,
+		"production": "%04d-%02d" % [year, month],
+		"year": year, "month": month,
+		"facility": rng.randi_range(1, 35),
+	}
+	var counterfeit := (not bool(it.get("authentic", true))) or rng.randf() < 0.2
+	if counterfeit:
+		var pick := rng.randi_range(0, 5)
+		match pick:
+			0:
+				attrs["wrap"] = 1 if rng.randf() < 0.5 else 2
+			1:
+				attrs["pickles"] = -1
+			2:
+				attrs["davre_logo"] = rng.randi_range(1, 7)
+			3:
+				attrs["production"] = "%04d-%02d" % [420 + rng.randi_range(0, 4), month]
+				attrs["year"] = int(String(attrs["production"]).substr(0, 4))
+			4:
+				attrs["facility"] = rng.randi_range(36, 45)
+			5:
+				attrs["ribwich_logo"] = rng.randi_range(1, 3)
+	it["attrs"] = attrs
+	it["appraisal_value"] = _ribwich_value(attrs)
+
+func _init_plasma(it: Dictionary) -> void:
+	var attrs := {
+		"wear": "WEAR" if rng.randf() < 0.33 else ("WEAR_HEAVY" if rng.randf() < 0.2 else "NONE"),
+		"crack": "CRACK" if rng.randf() < 0.25 else "NONE",
+		"uncovered": "UNCOVERED" if rng.randf() < 0.25 else "NONE",
+		"reinforced": "REINFORCED" if rng.randf() < 0.25 else "NONE",
+		"color": "",
+		"seal": "",
+	}
+	var colors := ["STANDARD", "HIGH_QUALITY", "POOR1", "POOR2"]
+	attrs["color"] = colors[rng.randi_range(0, colors.size() - 1)]
+	var seals := ["NONE", "ZHONGHUA", "REPUBLIC", "IGNITION_LAB"]
+	attrs["seal"] = seals[rng.randi_range(0, seals.size() - 1)]
+	it["attrs"] = attrs
+	it["appraisal_value"] = _plasma_value(attrs)
+
+func _init_berry(it: Dictionary) -> void:
+	var cond := 0
+	var br := rng.randi_range(1, 100)
+	if br <= 15:
+		cond = -2
+	elif br <= 35:
+		cond = -1
+	elif br <= 55:
+		cond = 2
+	it["attrs"] = {"condition": cond, "visual": rng.randi_range(1, 2)}
+
+func _hand_value(attrs: Dictionary) -> int:
+	var v := 100
+	var material := String(attrs.get("material", "ALUMINUM_ALLOY"))
+	var interface := String(attrs.get("interface", "EMG"))
+	var condition := String(attrs.get("condition", "NONE"))
+	if material == "GOLD_PLATED":
+		v += 200
+	elif material == "CARBON_COMPOSITE":
+		v += 50
+	if interface == "NEURAL":
+		v += 120
+	elif interface == "EMG_PLUS":
+		v += 45
+	elif interface == "UNSPECIFIED":
+		v -= 60
+	if condition == "WEAR":
+		v -= 35
+	elif condition == "DAMAGE":
+		v -= 85
+	if String(attrs.get("armored", "NONE")) == "ARMORED":
+		v += 50
+	if String(attrs.get("bladed", "NONE")) == "BLADED":
+		v += 80
+	if material == "CARBON_COMPOSITE" and interface in ["EMG_PLUS", "NEURAL"] and condition == "NONE" and String(attrs.get("armored", "")) == "ARMORED" and String(attrs.get("bladed", "")) == "BLADED":
+		v += 100
+	if material == "GOLD_PLATED" and interface == "NEURAL" and condition == "NONE":
+		v += 200
+	return maxi(v, 50)
+
+func _ribwich_value(attrs: Dictionary) -> int:
+	var wrap := int(attrs.get("wrap", 0))
+	if wrap in [1, 2]:
+		return 40
+	var year := int(attrs.get("year", attrs.get("production", "0000-01").substr(0, 4) if attrs.get("production", "") != "" else 0))
+	var month := int(attrs.get("month", 1))
+	var valid_date := month >= 1 and month <= 12 and ((year >= 425 and year <= 429) or (year >= 432 and year <= 438))
+	var facility := int(attrs.get("facility", 0))
+	var period := 1 if year >= 425 and year <= 429 else (2 if year >= 432 and year <= 438 else 0)
+	var counterfeit := (not valid_date) or facility < 1 or facility > 35 or int(attrs.get("davre_logo", 0)) != 0
+	if period == 2 and int(attrs.get("ribwich_logo", 0)) != 0:
+		counterfeit = true
+	if period == 1 and int(attrs.get("ribwich_logo", 0)) != -1:
+		counterfeit = true
+	if counterfeit:
+		return 40
+	var v := 150
+	if int(attrs.get("meat", 0)) == 1:
+		v += 800
+	if int(attrs.get("bun", 0)) == 1 and int(attrs.get("pickles", 0)) == 1:
+		v += 300
+	if (period == 1 and month == 1 and year == 425) or (period == 2 and month == 12 and year == 438):
+		v += 50
+	if year >= 425 and year <= 429:
+		v += 80
+	if facility in [1, 2, 5, 8, 21, 34]:
+		v += 50
+	elif facility in [7, 15, 18, 26, 31]:
+		v -= 50
+	return maxi(v, 40)
+
+func _plasma_value(attrs: Dictionary) -> int:
+	var v := 300
+	var wear := String(attrs.get("wear", "NONE"))
+	var crack := String(attrs.get("crack", "NONE"))
+	var uncovered := String(attrs.get("uncovered", "NONE"))
+	var reinforced := String(attrs.get("reinforced", "NONE"))
+	var color := String(attrs.get("color", "STANDARD"))
+	var seal := String(attrs.get("seal", "LL"))
+	if wear == "WEAR":
+		v -= 45
+	elif wear == "WEAR_HEAVY":
+		v -= 90
+	if crack == "CRACK":
+		v -= 150
+	if uncovered == "UNCOVERED":
+		v -= 60
+	if reinforced == "REINFORCED":
+		v += 60
+	if color in ["POOR1", "POOR2"]:
+		v -= 150
+	elif color == "HIGH_QUALITY":
+		v += 150
+	if seal == "LL" and color in ["STANDARD", "POOR1", "POOR2"]:
+		v += 60
+	elif seal == "ZHONGHUA" and wear == "NONE" and crack == "NONE" and uncovered == "NONE" and color == "STANDARD":
+		v += 120
+	elif seal == "REPUBLIC" and crack != "CRACK" and color == "STANDARD":
+		v += 120
+	elif seal == "IGNITION_LAB" and reinforced == "NONE" and wear == "NONE" and crack == "NONE" and uncovered == "NONE" and color == "HIGH_QUALITY":
+		v += 750
+	return maxi(v, 90)
+
+func _injector_correct_serial() -> String:
+	var recalled := [250, 251, 301, 355, 385, 386, 421]
+	var prefix := 0
+	for i in range(10):
+		prefix = rng.randi_range(125, 455)
+		if not recalled.has(prefix):
+			break
+	if recalled.has(prefix):
+		prefix = 133
+	return "%d%04d" % [prefix, rng.randi_range(1000, 9999)]
+
+func _injector_bad_serial() -> String:
+	var recalled := [250, 251, 301, 355, 385, 386, 421]
+	var mode := rng.randi_range(0, 3)
+	if mode == 0:
+		return str(rng.randi_range(100000, 999999))
+	if mode == 1:
+		return str(rng.randi_range(100, 124)) + str(rng.randi_range(1000, 9999))
+	if mode == 2:
+		return str(rng.randi_range(456, 999)) + str(rng.randi_range(1000, 9999))
+	return "%d%04d" % [int(recalled[rng.randi_range(0, recalled.size() - 1)]), rng.randi_range(1000, 9999)]
+
+func _injector_bad_company() -> String:
+	var arr := ["Micheal Pharmaceutical", "Carmicheal Inc.", "Carmiicheal Phamaceutical", "Carmicheal Pharmaceutical Ltd.", "Crmichal Pharmaceutical", "Carmicheal's Meds", "Carmicheal", ""]
+	return String(arr[rng.randi_range(0, arr.size() - 1)])
+
+func _injector_bad_model() -> String:
+	var arr := ["Immunivaxine", "Immunovax", "Imunivax", "ImmuniPro", "ImmuniVax 3000", "Im univax", "Immunivx", "Immunevax", "Imm nivax", ""]
+	return String(arr[rng.randi_range(0, arr.size() - 1)])
+
+func _family_attr_text(it: Dictionary) -> String:
+	var family := String(it.get("family", "generic"))
+	var fam: Dictionary = inspection_families.get(family, {})
+	if fam.is_empty():
+		return ""
+	var attrs: Dictionary = it.get("attrs", {})
+	var lines: Array = []
+	for a in fam.get("attributes", []):
+		var key := String(a.get("key", ""))
+		var label := String(a.get("label", key))
+		var value = attrs.get(key, "")
+		if key == "production":
+			value = String(attrs.get("production", "%04d-%02d" % [int(attrs.get("year", 0)), int(attrs.get("month", 0))]))
+			lines.append("%s：%s" % [label, str(value)])
+		elif key == "facility":
+			lines.append("%s：%d" % [label, int(value)])
+		elif key == "amount":
+			lines.append("%s：%d 代用点" % [label, int(value)])
+		elif key == "serial":
+			lines.append("%s：%s" % [label, str(value)])
+		elif key == "company":
+			lines.append("%s：%s" % [label, str(value)])
+		elif key == "model":
+			lines.append("%s：%s" % [label, str(value)])
+		else:
+			lines.append("%s：%s" % [label, _attr_label(family, key, value)])
+	return "\n".join(lines)
+
+func _family_issue_options(it: Dictionary) -> Array:
+	var family := String(it.get("family", "generic"))
+	var fam: Dictionary = inspection_families.get(family, {})
+	var out: Array = []
+	var seen := {}
+	for a in fam.get("attributes", []):
+		var issue := String(a.get("issue", ""))
+		if issue == "" or issue in seen:
+			continue
+		seen[issue] = true
+		out.append({"id": issue, "label": String(a.get("label", issue))})
+	if out.is_empty():
+		out.append({"id": "__genuine__", "label": "正品"})
+	return out
+
+func _feature_by_id(it: Dictionary, id: String) -> Dictionary:
+	for f in it.get("feature_list", []):
+		if String(f.get("id", "")) == id:
+			return f
+	return {}
+
+func _discover_features_with_tool(it: Dictionary, tool_id: String) -> Array:
+	var got: Array = []
+	for f in it.get("feature_list", []):
+		if String(f.get("tool", "")) == tool_id and not bool(f.get("discovered", false)):
+			f["discovered"] = true
+			got.append(String(f.get("label", f.get("id", ""))))
+	return got
+
+func _expose_feature_internal(it: Dictionary, fid: String) -> bool:
+	var f := _feature_by_id(it, fid)
+	if f.is_empty() or not bool(f.get("discovered", false)) or bool(f.get("exposed", false)):
+		return false
+	f["exposed"] = true
+	return true
+
+func inspection_tools_for_counter() -> Array:
+	var out: Array = []
+	if inventory_count("magnifier") > 0:
+		out.append({"id": "magnifier", "label": "放大镜", "count": inventory_count("magnifier")})
+	if inventory_count("flashlight") > 0:
+		out.append({"id": "flashlight", "label": "手电筒", "count": inventory_count("flashlight")})
+	if inventory_count("water_test_strip") > 0:
+		out.append({"id": "water_test_strip", "label": "水质试纸", "count": inventory_count("water_test_strip")})
+	if inventory_count("chem_scanner") > 0:
+		out.append({"id": "chem_scanner", "label": "化学扫描仪", "count": inventory_count("chem_scanner")})
+	if inventory_count("plant_analyser") > 0:
+		out.append({"id": "plant_analyser", "label": "植物分析仪", "count": inventory_count("plant_analyser")})
+	out.append({"id": "scale", "label": "电子秤", "count": 1})
+	return out
+
+func inspect_counter_with_tool(tool_id: String) -> Dictionary:
+	var it := counter_item
+	if it.is_empty():
+		return {"ok": false, "text": "柜台上没有物品。"}
+	if tool_id == "magnifier":
+		if inventory_count("magnifier") <= 0:
+			return {"ok": false, "text": "没有放大镜。"}
+		it["family_seen"] = true
+		var got := _discover_features_with_tool(it, "magnifier")
+		var text := "放大镜检查结果：\n" + _family_attr_text(it)
+		if not got.is_empty():
+			text += "\n发现：%s" % "、".join(got)
+		_append_inspection_note(it, text)
+		emit_signal("state_changed")
+		return {"ok": true, "text": text}
+	if tool_id == "flashlight":
+		if inventory_count("flashlight") <= 0:
+			return {"ok": false, "text": "没有手电筒。"}
+		var got2 := _discover_features_with_tool(it, "flashlight")
+		var text2 := "手电筒检查结果："
+		if got2.is_empty():
+			text2 += "没有发现明显的包装或锈蚀问题。"
+		else:
+			text2 += "发现 %s。" % "、".join(got2)
+		_append_inspection_note(it, text2)
+		emit_signal("state_changed")
+		return {"ok": true, "text": text2}
+	if tool_id == "water_test_strip":
+		if inventory_count("water_test_strip") <= 0:
+			return {"ok": false, "text": "没有水质试纸。"}
+		remove_inventory("water_test_strip", 1)
+		var wf := _feature_by_id(it, "water_rust")
+		if wf.is_empty():
+			wf = _feature_by_id(it, "water_gutter")
+		if wf.is_empty():
+			wf = _feature_by_id(it, "water_ghost")
+		if not wf.is_empty():
+			wf["discovered"] = true
+			wf["exposed"] = true
+			_refresh_customer_price(it)
+		var text3 := "水质试纸：%s。" % (String(wf.get("real_label", "水质正常")) if not wf.is_empty() else "水质正常")
+		_append_inspection_note(it, text3)
+		emit_signal("state_changed")
+		return {"ok": true, "text": text3}
+	if tool_id == "chem_scanner":
+		if inventory_count("chem_scanner") <= 0:
+			return {"ok": false, "text": "没有化学扫描仪。"}
+		var cf := _feature_by_id(it, "chem_starch")
+		if cf.is_empty():
+			cf = _feature_by_id(it, "chem_junk")
+		if cf.is_empty():
+			cf = _feature_by_id(it, "chem_cut")
+		if not cf.is_empty():
+			cf["discovered"] = true
+			cf["exposed"] = true
+			_refresh_customer_price(it)
+		var text4 := "化学扫描：%s。" % (String(cf.get("real_label", "街头标准")) if not cf.is_empty() else "街头标准")
+		_append_inspection_note(it, text4)
+		emit_signal("state_changed")
+		return {"ok": true, "text": text4}
+	if tool_id == "plant_analyser":
+		if inventory_count("plant_analyser") <= 0:
+			return {"ok": false, "text": "没有植物分析仪。"}
+		var text5 := "植物分析：营养区间 %d-%d，每周期耗水约 %dml。" % [int(it.get("condition", 100)) * 10, int(it.get("condition", 100)) * 14, 100]
+		_append_inspection_note(it, text5)
+		return {"ok": true, "text": text5}
+	if tool_id == "scale":
+		var wt := 0.0
+		for c in item_cells(it):
+			wt += 0.1
+		var text6 := "电子秤：约 %.2f kg。" % wt
+		var wfeat := _feature_by_id(it, "weight")
+		if wfeat.is_empty():
+			wfeat = _add_custom_feature(it, "weight", "weight", "重量", "未称重", text6, 0, 0)
+		wfeat["discovered"] = true
+		wfeat["real_label"] = text6
+		_append_inspection_note(it, text6)
+		emit_signal("state_changed")
+		return {"ok": true, "text": text6}
+	return {"ok": false, "text": "没有这个工具。"}
+
+func _append_inspection_note(it: Dictionary, text: String) -> void:
+	var notes: Array = it.get("inspect_notes", [])
+	if not notes.has(text):
+		notes.append(text)
+	it["inspect_notes"] = notes
+
+func expose_counter_feature(index: int) -> Dictionary:
+	var it := counter_item
+	var list: Array = it.get("feature_list", [])
+	if index < 0 or index >= list.size():
+		return {"ok": false, "text": "没有这个特征。"}
+	var f: Dictionary = list[index]
+	if not bool(f.get("discovered", false)):
+		return {"ok": false, "text": "尚未发现这个特征。"}
+	if bool(f.get("exposed", false)):
+		return {"ok": false, "text": "这个特征已经揭露。"}
+	f["exposed"] = true
+	_refresh_customer_price(it)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已揭露：%s。" % String(f.get("real_label", ""))}
+
+func _refresh_customer_price(it: Dictionary) -> void:
+	if current_customer.is_empty():
+		return
+	var cuid := int(current_customer.get("item", {}).get("uid", -1))
+	if cuid != int(it.get("uid", -2)):
+		return
+	var val := market_value(it, false, String(current_customer.get("arche", {}).get("faction", "lower")))
+	current_customer["item"]["min_price"] = maxi(1, int(round(float(val) * 0.7)))
+	current_customer["item"]["asking_price"] = maxi(1, int(round(float(val) * 0.9)))
+
+func confront_counter_item(issue_id: String) -> Dictionary:
+	var it := counter_item
+	if it.is_empty():
+		return {"ok": false, "text": "柜台上没有物品。"}
+	var family := String(it.get("family", "generic"))
+	if family not in ["cigarette", "stamp", "injector"]:
+		return {"ok": false, "text": "这件物品不支持对质。"}
+	if bool(it.get("confronted", false)):
+		return {"ok": false, "text": "已经对质过了。"}
+	var issues: Array = it.get("issues", [])
+	var correct := (issue_id == "__genuine__" and issues.is_empty()) or issues.has(issue_id)
+	if not correct:
+		add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), -2)
+		return {"ok": false, "text": "顾客否认了你的判断，你的声望下降了。"}
+	it["confronted"] = true
+	var public_auth := "正品" if issues.is_empty() else "假货"
+	var f := _add_custom_feature(it, "authenticity", "CATEGORY_AUTHENTICITY", "真伪", public_auth, public_auth, 0, 0)
+	f["discovered"] = true
+	f["exposed"] = true
+	if _feature_by_id(it, "confront_discount").is_empty():
+		var d := _add_custom_feature(it, "confront_discount", "confront", "验货折扣", "", "", 0, -15, "final")
+		d["discovered"] = true
+		d["exposed"] = true
+	if issues.is_empty():
+		add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), 2)
+	_refresh_customer_price(it)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "对质成功：顾客承认了问题，价格已下调。"}
+
+
 func next_uid() -> int:
 	uid_counter += 1
 	return uid_counter - 1
+
+func appraisal_rank_data(level: int = -1) -> Dictionary:
+	var lv := appraiser_level if level < 0 else level
+	lv = clampi(lv, 0, maxi(0, appraisal_ranks.size() - 1))
+	if appraisal_ranks.is_empty():
+		return {}
+	return appraisal_ranks[lv]
+
+func appraisal_rank_name() -> String:
+	var r := appraisal_rank_data()
+	return String(r.get("name", "初级鉴定师"))
+
+func appraisal_attraction_chance() -> int:
+	var r := appraisal_rank_data()
+	var base := int(r.get("attraction_chance", 33))
+	return mini(100, int(round(float(base) * (2 + appraisal_days_missed) / 2.0)))
+
+func appraisal_types_unlocked() -> Array:
+	var out: Array = []
+	for t in appraisal_item_defs:
+		if int(t.get("unlock_rank", 0)) <= appraiser_level and not appraisal_blacklist.has(String(t.get("id", ""))):
+			out.append(t)
+	return out
+
+func _appraisal_type_def(type_id: String) -> Dictionary:
+	for t in appraisal_item_defs:
+		if String(t.get("id", "")) == type_id:
+			return t
+	return {}
+
+func _create_appraisal_item(type_id: String) -> Dictionary:
+	var t := _appraisal_type_def(type_id)
+	if t.is_empty():
+		return {}
+	var ids: Array = t.get("item_ids", [])
+	if ids.is_empty():
+		return {}
+	var did := String(ids[rng.randi_range(0, ids.size() - 1)])
+	var it := make_item(did, rng.randi_range(65, 100), true, false)
+	it["family"] = String(t.get("family", it.get("family", "generic")))
+	it["appraisal_value"] = int(it.get("appraisal_value", effective_value(it)))
+	return it
+
+func _gen_appraisal_customer() -> Dictionary:
+	var pool := appraisal_types_unlocked()
+	if pool.is_empty():
+		pool = appraisal_item_defs
+	var t: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
+	var it := _create_appraisal_item(String(t.get("id", "")))
+	var arche: Dictionary = customer_defs[rng.randi_range(0, customer_defs.size() - 1)].duplicate(true)
+	return {
+		"arche": arche, "intent": "appraise", "patience": 3, "done": false,
+		"item": it, "impatience": 0,
+		"line": "我有件东西想请你估价。",
+	}
+
+func appraisal_precision(correct: int, value: int) -> int:
+	if correct <= 0:
+		return 5
+	var low := int(round(float(correct) * 0.95))
+	var high := int(round(float(correct) * 1.05))
+	if value >= low and value <= high:
+		return 1
+	if value < low:
+		if value <= int(round(float(correct) * 0.75)):
+			return 5
+		if value <= int(round(float(correct) * 0.85)):
+			return 4
+		if value <= int(round(float(correct) * 0.90)):
+			return 3
+		return 2
+	if value >= int(round(float(correct) * 1.25)):
+		return 5
+	if value >= int(round(float(correct) * 1.15)):
+		return 4
+	if value >= int(round(float(correct) * 1.10)):
+		return 3
+	return 2
+
+func _appraisal_acceptable(correct: int, value: int) -> int:
+	if value < int(round(float(correct) * 0.5)):
+		return -1
+	if value > int(round(float(correct) * 1.5)):
+		return 1
+	return 0
+
+func _appraisal_fee_percent(grade: int) -> int:
+	var r := appraisal_rank_data()
+	var arr: Array = r.get("fee_percent", [15, 12, 10, 8, 5])
+	return int(arr[clampi(grade, 1, 5) - 1])
+
+func _appraisal_grade_name(grade: int) -> String:
+	match grade:
+		1: return "完美"
+		2: return "优秀"
+		3: return "良好"
+		4: return "一般"
+	return "糟糕"
+
+func _appraisal_progress(grade: int) -> float:
+	var r := appraisal_rank_data()
+	var arr: Array = r.get("progress", [10, 7, 5, 4, 3])
+	return float(arr[clampi(grade, 1, 5) - 1])
+
+func _add_appraisal_progress(delta: float) -> void:
+	if appraiser_level >= 3 or appraisal_promotion_declined:
+		return
+	var threshold := float(appraisal_rank_data().get("progress_to_promote", 100))
+	appraisal_progress = clampf(appraisal_progress + delta, 0.0, threshold)
+	if appraisal_progress >= threshold:
+		appraisal_promotion_day = day + 1
+		pending_promotion = true
+
+func appraise_counter_item(value: int) -> Dictionary:
+	var it := counter_item
+	if it.is_empty() or current_customer.is_empty() or String(current_customer.get("intent", "")) != "appraise":
+		return {"ok": false, "text": "当前没有估价委托。"}
+	var correct := int(it.get("appraisal_value", effective_value(it)))
+	if int(current_customer.get("impatience", 0)) >= 100:
+		return _appraisal_walkout()
+	var acceptable := _appraisal_acceptable(correct, value)
+	var grade := appraisal_precision(correct, value)
+	if acceptable == 0 and _appraisal_fee_percent(grade) <= 0:
+		acceptable = 1 if value >= correct else -1
+	if acceptable != 0:
+		_add_appraisal_progress(minf(0.0, _appraisal_progress(grade)))
+		current_customer["impatience"] = int(current_customer.get("impatience", 0)) + 49
+		if int(current_customer["impatience"]) >= 100:
+			return _appraisal_walkout()
+		return {"ok": false, "text": "顾客认为你的报价%s。" % ("太高" if acceptable > 0 else "太低"), "too_high": acceptable > 0}
+	var pct := _appraisal_fee_percent(grade)
+	var fee := int(round(float(value) * float(pct) / 100.0)) + int(appraisal_rank_data().get("base_fee", 20))
+	cash += fee
+	daily["fees"] += fee
+	daily["inspected"] = int(daily.get("inspected", 0)) + 1
+	_add_appraisal_progress(_appraisal_progress(grade))
+	var slip_text := _appraisal_slip_text(grade, value, correct, fee, pct)
+	var slip := make_item("appraisal_slip", 100, true, false)
+	slip["custom_name"] = "估价单（%s）" % _appraisal_grade_name(grade)
+	slip["custom_desc"] = slip_text
+	slip["known"] = true
+	add_item(slip)
+	counter_item = {}
+	complete_customer(true)
+	return {
+		"ok": true, "text": "估价成功：%s。报酬 %d₵。" % [_appraisal_grade_name(grade), fee],
+		"fee": fee, "grade": grade, "slip": slip_text,
+	}
+
+func _appraisal_walkout() -> Dictionary:
+	_add_appraisal_progress(float(appraisal_rank_data().get("walkout_progress", 0)))
+	var lost := counter_item
+	counter_item = {}
+	complete_customer(false)
+	return {"ok": false, "text": "顾客失去耐心离开了。", "walkout": true, "lost_item": lost}
+
+func _appraisal_slip_text(grade: int, estimate: int, correct: int, fee: int, pct: int) -> String:
+	var accuracy := 100 - int(round(float(absi(estimate - correct)) * 100.0 / float(maxi(1, correct))))
+	return "估价单\n评级：%s（%d%%）\n估价：%d₵\n真实价值：%d₵\n\n服务费：%d₵（%d%% + 底费 %d₵）" % [_appraisal_grade_name(grade), accuracy, estimate, correct, fee, pct, int(appraisal_rank_data().get("base_fee", 20))]
+
+func promotion_cost() -> int:
+	if appraiser_level >= 3:
+		return 0
+	var r := appraisal_rank_data(appraiser_level + 1)
+	return int(round(85.0 * float(r.get("cost_share", 1.0))))
+
+func promote_appraiser() -> Dictionary:
+	if appraiser_level >= 3:
+		return {"ok": false, "text": "已经是最高等级。"}
+	var threshold := float(appraisal_rank_data().get("progress_to_promote", 100))
+	if appraisal_progress < threshold:
+		return {"ok": false, "text": "鉴定进度不足。"}
+	var cost := promotion_cost()
+	if cash < cost:
+		return {"ok": false, "text": "晋升需要 %d₵，现金不足。" % cost}
+	cash -= cost
+	appraiser_level += 1
+	appraisal_progress = 0.0
+	appraisal_promotion_day = -1
+	pending_promotion = false
+	appraisal_promotion_declined = false
+	var cert_id := String(appraisal_rank_data().get("certificate", "cert1"))
+	if items_def.has(cert_id):
+		add_item(make_item(cert_id, 100, true, false))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "晋升为%s，花费 %d₵。" % [appraisal_rank_name(), cost]}
+
+func decline_promotion(for_good: bool = false) -> void:
+	if for_good:
+		appraisal_promotion_declined = true
+		appraisal_promotion_day = -1
+	else:
+		appraisal_promotion_day = day + 7
+	pending_promotion = false
+	emit_signal("state_changed")
 
 func item_shape(item: Dictionary) -> Array:
 	var def := get_item_def(item["def_id"])
@@ -492,7 +1389,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 		var it := make_item(entry[0], entry[1], entry[2], entry[3])
 		it["known"] = true
 		add_item(it)
-	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
+	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["flashlight", 1], ["water_test_strip", 3], ["plant_analyser", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
 		if items_def.has(stock[0]):
 			for i in range(int(stock[1])):
 				var it2 := make_item(stock[0], 100, true, false)
@@ -528,6 +1425,14 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	bargain_bonus = 0
 	security_alarm_active = false
 	security_stop_rate = 0
+	appraiser_level = 0
+	appraisal_progress = 0.0
+	appraisal_promotion_day = -1
+	appraisal_promotion_declined = false
+	appraisal_days_missed = 0
+	appraisal_blacklist = []
+	appraisal_introduced = true
+	pending_promotion = false
 	start_day()
 
 func start_day() -> void:
@@ -547,6 +1452,14 @@ func start_day() -> void:
 		count += 1
 	for i in range(count):
 		customers_today.append(_gen_customer())
+	if appraisal_introduced and not customers_today.is_empty():
+		if rng.randi_range(1, 100) <= appraisal_attraction_chance():
+			customers_today[rng.randi_range(0, customers_today.size() - 1)] = _gen_appraisal_customer()
+			appraisal_days_missed = 0
+		else:
+			appraisal_days_missed += 1
+	if appraisal_promotion_day >= 0 and day >= appraisal_promotion_day:
+		pending_promotion = true
 	_queue_story_for_day()
 	emit_signal("state_changed")
 	if pending_story != "":
@@ -617,7 +1530,7 @@ func next_customer() -> void:
 		return
 	current_customer = customers_today[current_index]
 	phase = "customer"
-	counter_item = current_customer.get("item", {}) if current_customer.get("intent") == "sell" else {}
+	counter_item = current_customer.get("item", {}) if current_customer.get("intent") in ["sell", "appraise"] else {}
 	emit_signal("customer_changed")
 	emit_signal("state_changed")
 
@@ -654,14 +1567,23 @@ func effective_value(item: Dictionary) -> int:
 		return 0
 	var def := get_item_def(item.get("def_id", ""))
 	var base := float(def.get("base_value", 10))
+	if item.has("custom_base_value"):
+		base = float(item.get("custom_base_value", base))
 	var cond := clampf(float(item.get("condition", 100)) / 100.0, 0.2, 1.0)
 	var auth := 1.0 if item.get("authentic", true) else 0.35
 	var stolen := 0.9 if item.get("stolen", false) else 1.0
 	var contra := 1.0 + float(def.get("contraband", 0)) * 0.12
 	var feat_mod := 0
+	var final_mult := 1.0
 	for f in item.get("features", []):
 		feat_mod += int(f.get("mod", 0))
-	var feat_mult := clampf(1.0 + float(feat_mod) / 100.0, 0.5, 1.5)
+	for f in item.get("feature_list", []):
+		var mod := int(f.get("real_mod", 0)) if bool(f.get("exposed", false)) else int(f.get("public_mod", 0))
+		if String(f.get("stage", "innate")) == "final":
+			final_mult *= maxf(0.0, 1.0 + float(mod) / 100.0)
+		else:
+			feat_mod += mod
+	var feat_mult := clampf(1.0 + float(feat_mod) / 100.0, 0.2, 3.0) * final_mult
 	return int(round(base * cond * auth * stolen * contra * feat_mult))
 
 func market_value(item: Dictionary, for_sale: bool = false, faction: String = "") -> int:
@@ -2717,6 +3639,9 @@ func save_game(slot: int = 1) -> bool:
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults, "machine_recipes": machine_recipes,
 		"machine_active": machine_active, "machine_stock": machine_stock, "machine_cash": machine_cash, "machine_upgrades": machine_upgrades, "machine_state": machine_state,
 		"night_log": night_log, "next_day_power_bonus": next_day_power_bonus, "attraction_bonus": attraction_bonus, "security_alarm_active": security_alarm_active, "security_stop_rate": security_stop_rate,
+		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
+		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
+		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
@@ -2795,6 +3720,14 @@ func load_game(slot: int = 1) -> bool:
 	attraction_bonus = int(data.get("attraction_bonus", 100))
 	security_alarm_active = bool(data.get("security_alarm_active", false))
 	security_stop_rate = int(data.get("security_stop_rate", 0))
+	appraiser_level = int(data.get("appraiser_level", 0))
+	appraisal_progress = float(data.get("appraisal_progress", 0.0))
+	appraisal_promotion_day = int(data.get("appraisal_promotion_day", -1))
+	appraisal_promotion_declined = bool(data.get("appraisal_promotion_declined", false))
+	appraisal_days_missed = int(data.get("appraisal_days_missed", 0))
+	appraisal_blacklist = data.get("appraisal_blacklist", []).duplicate(true)
+	appraisal_introduced = bool(data.get("appraisal_introduced", true))
+	pending_promotion = bool(data.get("pending_promotion", false))
 	machine_jobs = data.get("machine_jobs", []).duplicate(true)
 	for j in machine_jobs:
 		j["remaining"] = float(j.get("remaining", 0.0))

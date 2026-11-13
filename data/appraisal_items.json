@@ -1,0 +1,37 @@
+[
+  {
+    "id": "hand",
+    "name": "机械手",
+    "unlock_rank": 0,
+    "family": "hand",
+    "item_ids": [
+      "hand_steel",
+      "hand_carbon",
+      "hand_gold"
+    ],
+    "base_value": 100,
+    "min_value": 50
+  },
+  {
+    "id": "ribwich",
+    "name": "Ribwich",
+    "unlock_rank": 1,
+    "family": "ribwich",
+    "item_ids": [
+      "ribwich"
+    ],
+    "base_value": 150,
+    "min_value": 40
+  },
+  {
+    "id": "plasma_fuel",
+    "name": "等离子电池",
+    "unlock_rank": 2,
+    "family": "plasma",
+    "item_ids": [
+      "plasma_fuel"
+    ],
+    "base_value": 300,
+    "min_value": 90
+  }
+]

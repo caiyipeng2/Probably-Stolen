@@ -1,0 +1,422 @@
+{
+  "families": {
+    "cigarette": {
+      "name": "香烟",
+      "tool": "magnifier",
+      "counterfeit_chance": 25,
+      "attributes": [
+        {
+          "key": "lettering",
+          "label": "字母印刷",
+          "issue": "CIGARETTE_LETTERING_ISSUE",
+          "options": {
+            "0": "拼写与间距正常",
+            "-1": "缺少字母",
+            "1": "字母错位",
+            "2": "印刷模糊",
+            "3": "字重异常",
+            "4": "间距不均",
+            "5": "油墨溢出",
+            "6": "拼写错误",
+            "7": "批次字体不符"
+          }
+        },
+        {
+          "key": "logo",
+          "label": "商标",
+          "issue": "CIGARETTE_LOGO_ISSUE",
+          "options": {
+            "0": "商标清晰",
+            "-1": "缺少商标",
+            "1": "商标变形",
+            "2": "颜色偏色",
+            "3": "比例错误",
+            "4": "边缘粗糙"
+          }
+        },
+        {
+          "key": "seal",
+          "label": "防伪封条",
+          "issue": "CIGARETTE_SEAL_ISSUE",
+          "options": {
+            "0": "封条完整",
+            "-1": "封条缺失",
+            "1": "封条二次粘贴"
+          }
+        },
+        {
+          "key": "box",
+          "label": "包装盒",
+          "issue": "CIGARETTE_BOX_ISSUE",
+          "options": {
+            "0": "包装正常",
+            "1": "包装压痕",
+            "2": "包装开胶",
+            "3": "包装尺寸异常",
+            "4": "包装材质不符"
+          }
+        },
+        {
+          "key": "color",
+          "label": "盒色",
+          "issue": "CIGARETTE_COLOR_ISSUE",
+          "options": {
+            "0": "颜色正确",
+            "1": "颜色偏浅",
+            "2": "颜色偏深",
+            "3": "颜色偏黄",
+            "4": "颜色不符"
+          }
+        }
+      ]
+    },
+    "stamp": {
+      "name": "食品券",
+      "tool": "magnifier",
+      "counterfeit_chance": 25,
+      "attributes": [
+        {
+          "key": "logo",
+          "label": "商标",
+          "issue": "STAMP_LOGO_ISSUE",
+          "options": {
+            "0": "商标正常",
+            "-1": "缺少商标",
+            "1": "商标变形",
+            "2": "比例错误",
+            "3": "颜色偏色",
+            "4": "边缘粗糙",
+            "5": "字体不符"
+          }
+        },
+        {
+          "key": "chip",
+          "label": "芯片",
+          "issue": "STAMP_CHIP_ISSUE",
+          "options": {
+            "0": "芯片正常",
+            "-1": "芯片缺失",
+            "1": "芯片损坏",
+            "2": "芯片型号错误",
+            "3": "芯片触点氧化"
+          }
+        },
+        {
+          "key": "lettering",
+          "label": "字母印刷",
+          "issue": "STAMP_LETTERING_ISSUE",
+          "options": {
+            "0": "印刷正常",
+            "-1": "缺少字母",
+            "1": "错位",
+            "2": "模糊",
+            "3": "字重异常",
+            "4": "间距不均",
+            "5": "油墨溢出",
+            "6": "拼写错误",
+            "7": "字体不符",
+            "8": "缺笔画"
+          }
+        },
+        {
+          "key": "amount",
+          "label": "面值",
+          "issue": "STAMP_AMOUNT_ISSUE",
+          "options": {
+            "0": "面值与标注一致"
+          }
+        },
+        {
+          "key": "seal",
+          "label": "防伪封条",
+          "issue": "STAMP_SEAL_ISSUE",
+          "options": {
+            "0": "封条完整",
+            "-1": "封条缺失或错误"
+          }
+        }
+      ]
+    },
+    "injector": {
+      "name": "注射剂",
+      "tool": "magnifier",
+      "counterfeit_chance": 25,
+      "attributes": [
+        {
+          "key": "indicator",
+          "label": "指示器",
+          "issue": "ISSUE_INDICATOR",
+          "options": {
+            "0": "指示正常",
+            "1": "已过期",
+            "3": "已使用/无法使用"
+          }
+        },
+        {
+          "key": "label",
+          "label": "标签",
+          "issue": "ISSUE_LABEL",
+          "options": {
+            "0": "公司/型号正确"
+          }
+        },
+        {
+          "key": "color",
+          "label": "瓶身颜色",
+          "issue": "ISSUE_COLOR",
+          "options": {
+            "0": "颜色正确",
+            "1": "颜色异常"
+          }
+        },
+        {
+          "key": "body",
+          "label": "瓶身",
+          "issue": "ISSUE_BODY",
+          "options": {
+            "0": "瓶身完好",
+            "1": "瓶身裂纹",
+            "2": "瓶身凹陷",
+            "3": "瓶身破损"
+          }
+        },
+        {
+          "key": "serial",
+          "label": "序列号",
+          "issue": "ISSUE_SERIAL",
+          "options": {
+            "0": "序列号有效"
+          }
+        },
+        {
+          "key": "company",
+          "label": "生产公司",
+          "issue": "ISSUE_LABEL",
+          "options": {
+            "0": "Carmicheal Pharmaceutical"
+          }
+        },
+        {
+          "key": "model",
+          "label": "型号",
+          "issue": "ISSUE_LABEL",
+          "options": {
+            "0": "Immunivax"
+          }
+        }
+      ]
+    },
+    "hand": {
+      "name": "机械手",
+      "tool": "magnifier",
+      "counterfeit_chance": 0,
+      "value_rule": "hand",
+      "attributes": [
+        {
+          "key": "material",
+          "label": "材质",
+          "options": {
+            "ALUMINUM_ALLOY": "铝合金",
+            "CARBON_COMPOSITE": "碳纤维复合",
+            "GOLD_PLATED": "镀金"
+          }
+        },
+        {
+          "key": "interface",
+          "label": "控制接口",
+          "options": {
+            "EMG": "肌电",
+            "EMG_PLUS": "肌电+",
+            "NEURAL": "神经直连",
+            "UNSPECIFIED": "未标明"
+          }
+        },
+        {
+          "key": "marking",
+          "label": "接口标记",
+          "options": {
+            "FULL": "完整",
+            "SYMBOL": "仅符号"
+          }
+        },
+        {
+          "key": "condition",
+          "label": "成色",
+          "options": {
+            "NONE": "良好",
+            "WEAR": "磨损",
+            "DAMAGE": "损坏"
+          }
+        },
+        {
+          "key": "armored",
+          "label": "护甲",
+          "options": {
+            "NONE": "无",
+            "ARMORED": "有"
+          }
+        },
+        {
+          "key": "bladed",
+          "label": "刀刃",
+          "options": {
+            "NONE": "无",
+            "BLADED": "有"
+          }
+        }
+      ]
+    },
+    "ribwich": {
+      "name": "Ribwich",
+      "tool": "magnifier",
+      "counterfeit_chance": 20,
+      "value_rule": "ribwich",
+      "attributes": [
+        {
+          "key": "wrap",
+          "label": "包装",
+          "options": {
+            "0": "完整",
+            "1": "左侧开封",
+            "2": "右侧开封"
+          }
+        },
+        {
+          "key": "pickles",
+          "label": "酸黄瓜",
+          "options": {
+            "-1": "无",
+            "0": "正常",
+            "1": "双份"
+          }
+        },
+        {
+          "key": "meat",
+          "label": "肉饼",
+          "options": {
+            "0": "单层",
+            "1": "双层"
+          }
+        },
+        {
+          "key": "bun",
+          "label": "面包",
+          "options": {
+            "0": "普通",
+            "1": "豪华"
+          }
+        },
+        {
+          "key": "davre_logo",
+          "label": "DAVRE 商标",
+          "options": {
+            "0": "正确"
+          }
+        },
+        {
+          "key": "ribwich_logo",
+          "label": "Ribwich 商标",
+          "options": {
+            "-1": "无",
+            "0": "正确"
+          }
+        },
+        {
+          "key": "production",
+          "label": "生产日期"
+        },
+        {
+          "key": "facility",
+          "label": "包装厂号"
+        }
+      ]
+    },
+    "plasma": {
+      "name": "等离子电池",
+      "tool": "magnifier",
+      "counterfeit_chance": 0,
+      "value_rule": "plasma",
+      "attributes": [
+        {
+          "key": "wear",
+          "label": "外壳磨损",
+          "options": {
+            "NONE": "无",
+            "WEAR": "轻度",
+            "WEAR_HEAVY": "严重"
+          }
+        },
+        {
+          "key": "crack",
+          "label": "外壳裂纹",
+          "options": {
+            "NONE": "无",
+            "CRACK": "有"
+          }
+        },
+        {
+          "key": "uncovered",
+          "label": "螺丝外露",
+          "options": {
+            "NONE": "无",
+            "UNCOVERED": "有"
+          }
+        },
+        {
+          "key": "reinforced",
+          "label": "加固",
+          "options": {
+            "NONE": "无",
+            "REINFORCED": "有"
+          }
+        },
+        {
+          "key": "color",
+          "label": "颜色",
+          "options": {
+            "STANDARD": "标准",
+            "HIGH_QUALITY": "高品质",
+            "POOR1": "劣质",
+            "POOR2": "劣质"
+          }
+        },
+        {
+          "key": "seal",
+          "label": "封口",
+          "options": {
+            "NONE": "无",
+            "LL": "LL",
+            "ZHONGHUA": "中华",
+            "REPUBLIC": "共和国",
+            "IGNITION_LAB": "点火实验室"
+          }
+        }
+      ]
+    },
+    "berry": {
+      "name": "浆果",
+      "tool": "magnifier",
+      "counterfeit_chance": 0,
+      "attributes": [
+        {
+          "key": "condition",
+          "label": "成色",
+          "options": {
+            "0": "正常",
+            "-1": "欠熟",
+            "-2": "霉变",
+            "2": "过小"
+          }
+        },
+        {
+          "key": "visual",
+          "label": "外观",
+          "options": {
+            "1": "欠两成",
+            "2": "过一成"
+          }
+        }
+      ]
+    }
+  }
+}

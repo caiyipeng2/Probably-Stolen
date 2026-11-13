@@ -48,6 +48,7 @@ var detail_price: Label
 var detail_rot_btn: Button
 var detail_display_btn: Button
 var detail_counter_btn: Button
+var detail_inspect_btn: Button
 var modal_layer: Control
 var modal_panel: Panel
 var modal_title: Label
@@ -71,6 +72,15 @@ var machine_aux_btn: Button
 var machine_special_btn: Button
 var machine_stock_btn: Button
 var machine_take_btn: Button
+var inspection_layer: Control
+var inspection_title: Label
+var inspection_info: Label
+var inspection_actions: VBoxContainer
+var inspection_status: Label
+var inspection_appraisal_input: LineEdit
+var inspection_uid := -1
+var inspection_owned := false
+var promotion_prompt_day := -1
 var select_layer: Control
 var select_list: VBoxContainer
 var select_title: Label
@@ -174,6 +184,7 @@ func _ready() -> void:
 	_dumpinspect_if_requested()
 	_testminigame_if_requested()
 	_testmachineui_if_requested()
+	_testinspect_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -332,6 +343,49 @@ func _testmachineui_if_requested() -> void:
 	selected_machine_id = "hydroponic"
 	_refresh_machine_panel()
 	print("MUI hydro recipe=", machine_recipe_btn.text, " io=", machine_io_label.text.replace("\n", " | "))
+	get_tree().quit()
+
+func _testinspect_if_requested() -> void:
+	if not "--testinspect" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	var cig := GameState.make_item("cig_red", 100, false, false)
+	GameState.counter_item = cig
+	GameState.current_customer = {"intent": "sell", "arche": {"faction": "lower", "name": "测试顾客", "sprite": "maleUpper_0.png"}, "item": cig, "patience": 3, "done": false}
+	GameState.phase = "customer"
+	_open_inspection()
+	await get_tree().process_frame
+	print("INSPECT title=", inspection_title.text)
+	print("INSPECT info=", inspection_info.text.replace("\n", " | "))
+	for b in inspection_actions.get_children():
+		if b is Button:
+			print("INSPECT BTN ", b.text)
+	GameState.inspect_counter_with_tool("magnifier")
+	_refresh_inspection_modal()
+	print("INSPECT after magnifier=", inspection_info.text.replace("\n", " | ").substr(0, 400))
+	GameState.confront_counter_item(String(cig.issues[0]))
+	_refresh_inspection_modal()
+	print("INSPECT after confront=", inspection_status.text)
+	var app_item := GameState.make_item("hand_steel", 100, true, false)
+	app_item.appraisal_value = 620
+	GameState.counter_item = app_item
+	GameState.current_customer = {"intent": "appraise", "arche": {"faction": "lower", "name": "估价客", "sprite": "maleUpper_0.png"}, "item": app_item, "patience": 3, "done": false, "impatience": 0}
+	GameState.phase = "customer"
+	_open_inspection()
+	await get_tree().process_frame
+	print("APPRAISE input_visible=", inspection_appraisal_input.visible, " default=", inspection_appraisal_input.text)
+	inspection_appraisal_input.text = "620"
+	_submit_appraisal()
+	await get_tree().process_frame
+	print("APPRAISE modal=", modal_title.text, " ", modal_text.text.replace("\n", " | ").substr(0, 300))
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -611,6 +665,7 @@ func _build_ui() -> void:
 	_build_counter()
 	_build_drawer()
 	_build_modal()
+	_build_inspection_layer()
 	_build_machine_bay()
 	_build_info_bay()
 	_build_story_layer()
@@ -731,6 +786,7 @@ func _build_drawer() -> void:
 	detail_rot_btn = _button(detail_panel, "旋转", Vector2(170, 190), Vector2(120, 48), C_TEXT, _on_rotate)
 	detail_display_btn = _button(detail_panel, "上架", Vector2(300, 190), Vector2(150, 48), C_TEXT, _on_display_toggle)
 	detail_counter_btn = _button(detail_panel, "放柜台", Vector2(460, 190), Vector2(160, 48), C_TEXT, _on_put_counter)
+	detail_inspect_btn = _button(detail_panel, "验货", Vector2(630, 190), Vector2(130, 48), C_CYAN, _on_inspect_owned)
 
 func _build_modal() -> void:
 	modal_layer = Control.new()
@@ -753,6 +809,55 @@ func _build_modal() -> void:
 	modal_actions.add_theme_constant_override("separation", 16)
 	modal_panel.add_child(modal_actions)
 	_button(modal_panel, "关闭", Vector2(1080, 16), Vector2(90, 44), C_MUTED, _close_modal)
+
+func _build_inspection_layer() -> void:
+	inspection_layer = Control.new()
+	inspection_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inspection_layer.visible = false
+	inspection_layer.z_index = 150
+	inspection_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(inspection_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.85)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	inspection_layer.add_child(dim)
+	var panel := _panel(inspection_layer, Vector2(260, 30), Vector2(1820, 1020), C_PANEL, C_CYAN, 3)
+	inspection_title = _label(panel, "验货", Vector2(30, 16), Vector2(900, 48), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(1660, 14), Vector2(130, 48), C_MUTED, _close_inspection)
+	var left := _panel(panel, Vector2(30, 80), Vector2(1100, 880), C_PANEL2, C_LINE, 2)
+	var lscroll := ScrollContainer.new()
+	lscroll.position = Vector2(20, 20)
+	lscroll.size = Vector2(1060, 840)
+	lscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	lscroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	lscroll.add_theme_stylebox_override("panel", _style(C_PANEL, C_LINE, 1))
+	left.add_child(lscroll)
+	inspection_info = _label(lscroll, "", Vector2(10, 10), Vector2(1030, 800), 22, C_TEXT)
+	inspection_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	inspection_info.custom_minimum_size = Vector2(1030, 800)
+	var right := _panel(panel, Vector2(1150, 80), Vector2(640, 880), C_PANEL2, C_LINE, 2)
+	_label(right, "工具与操作", Vector2(20, 14), Vector2(300, 32), 24, C_AMBER)
+	var rscroll := ScrollContainer.new()
+	rscroll.position = Vector2(20, 54)
+	rscroll.size = Vector2(600, 620)
+	rscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+	rscroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+	rscroll.add_theme_stylebox_override("panel", _style(C_PANEL, C_LINE, 1))
+	right.add_child(rscroll)
+	inspection_actions = VBoxContainer.new()
+	inspection_actions.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	inspection_actions.add_theme_constant_override("separation", 8)
+	rscroll.add_child(inspection_actions)
+	inspection_status = _label(right, "", Vector2(20, 686), Vector2(600, 70), 16, C_MUTED)
+	inspection_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	inspection_appraisal_input = LineEdit.new()
+	inspection_appraisal_input.position = Vector2(20, 770)
+	inspection_appraisal_input.size = Vector2(380, 52)
+	inspection_appraisal_input.placeholder_text = "输入估价"
+	inspection_appraisal_input.add_theme_font_size_override("font_size", 22)
+	right.add_child(inspection_appraisal_input)
+	var submit := _button(right, "提交估价", Vector2(410, 770), Vector2(210, 52), C_AMBER, _submit_appraisal)
+	submit.name = "AppraisalSubmit"
 
 func _build_machine_bay() -> void:
 	machine_layer = Control.new()
@@ -821,7 +926,7 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["通缉", "wanted"], ["档案", "archive"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["通缉", "wanted"], ["档案", "archive"]]
 	for i in range(tabs.size()):
 		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 156, 70), Vector2(144, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
@@ -1186,6 +1291,9 @@ func _refresh() -> void:
 	_rebuild_grid()
 	_update_detail()
 	_update_action_buttons()
+	if GameState.pending_promotion and promotion_prompt_day != GameState.day:
+		promotion_prompt_day = GameState.day
+		_show_promotion_modal()
 
 func _update_customer() -> void:
 	var c: Dictionary = GameState.current_customer
@@ -1199,7 +1307,7 @@ func _update_customer() -> void:
 	customer_rect.visible = true
 	var arche: Dictionary = c.get("arche", {})
 	customer_name_label.text = arche.get("name", "顾客")
-	var intent_text := "出售物品" if c.get("intent") == "sell" else "想买东西"
+	var intent_text := "出售物品" if c.get("intent") == "sell" else ("委托估价" if c.get("intent") == "appraise" else "想买东西")
 	customer_info_label.text = "阵营：%s\n意图：%s\n今日第 %d / %d 位" % [_faction_name(arche.get("faction", "lower")), intent_text, GameState.current_index + 1, GameState.customers_today.size()]
 	var sprite := String(arche.get("sprite", "maleUpper_0.png"))
 	var path := _customer_path(sprite)
@@ -1228,6 +1336,9 @@ func _update_counter() -> void:
 	if GameState.current_customer.get("intent") == "sell":
 		counter_price.text = "顾客开价 %d¥" % int(it.get("asking_price", 0))
 		counter_hint.text = "品相 %d%% · %s · %s" % [int(it.get("condition", 100)), "已鉴定" if it.get("known", false) else "未鉴定", "序列号可疑" if it.get("stolen", false) else "来源待确认"]
+	elif GameState.current_customer.get("intent") == "appraise":
+		counter_price.text = "委托估价"
+		counter_hint.text = "点右侧「估价」查看属性并提交估价。"
 	else:
 		counter_price.text = "顾客出价 %d¥" % int(GameState.current_customer.get("offer", 0))
 		counter_hint.text = "顾客预算 %d¥ · 可议价" % int(GameState.current_customer.get("budget", 0))
@@ -1315,6 +1426,7 @@ func _update_detail() -> void:
 		detail_rot_btn.disabled = true
 		detail_display_btn.disabled = true
 		detail_counter_btn.disabled = true
+		detail_inspect_btn.disabled = true
 		return
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var tip := GameState.item_icon_path(def)
@@ -1348,6 +1460,7 @@ func _update_detail() -> void:
 	detail_display_btn.text = "下架" if loc == "display" else "上架"
 	detail_display_btn.disabled = loc not in ["backpack", "display"]
 	detail_counter_btn.disabled = not (loc == "display" and GameState.current_customer.get("intent") == "buy")
+	detail_inspect_btn.disabled = loc not in ["backpack", "display"]
 
 func _loc_name(loc: String) -> String:
 	match loc:
@@ -1360,10 +1473,12 @@ func _update_action_buttons() -> void:
 	var c := GameState.current_customer
 	var has_customer := not c.is_empty() and GameState.phase == "customer"
 	var has_counter := not GameState.counter_item.is_empty()
-	action_buttons["inspect"].disabled = not (has_customer and c.get("intent") == "sell" and not GameState.counter_item.get("known", false))
-	action_buttons["bargain"].disabled = not (has_customer and has_counter)
-	action_buttons["threaten"].disabled = not (has_customer and has_counter)
-	action_buttons["deal"].disabled = not (has_customer and has_counter)
+	var intent := String(c.get("intent", ""))
+	action_buttons["inspect"].disabled = not (has_customer and intent in ["sell", "appraise"])
+	action_buttons["inspect"].text = "估价" if intent == "appraise" else "鉴定"
+	action_buttons["bargain"].disabled = not (has_customer and has_counter and intent == "sell")
+	action_buttons["threaten"].disabled = not (has_customer and has_counter and intent == "sell")
+	action_buttons["deal"].disabled = not (has_customer and has_counter and intent == "sell")
 	action_buttons["dismiss"].disabled = not has_customer
 	rail_buttons["end_day"].disabled = GameState.phase == "gameover"
 
@@ -1563,7 +1678,7 @@ func _on_end_day_pressed() -> void:
 		if not last_summary.is_empty():
 			_show_day_summary(last_summary)
 		else:
-			_toast("今天已经结束。")
+			GameState.finish_day()
 		return
 	if not GameState.tutorial_done and GameState.tutorial_step > 0:
 		GameState.tutorial_done = true
@@ -2100,6 +2215,12 @@ func _rebuild_info_list() -> void:
 		"professions":
 			for p in GameState.professions:
 				_add_info_button(String(p.get("name", p.get("id", ""))), String(p.get("id", "")))
+		"appraisal":
+			_add_info_button("鉴定师等级 · " + GameState.appraisal_rank_name(), "rank")
+			for t in GameState.appraisal_item_defs:
+				var unlocked := int(t.get("unlock_rank", 0)) <= GameState.appraiser_level
+				_add_info_button("%s · %s" % [t.get("name", t.get("id", "")), "已解锁" if unlocked else "需 %d 级" % int(t.get("unlock_rank", 0))], String(t.get("id", "")))
+			_add_info_button("晋升申请", "promotion")
 		"factions":
 			for f in GameState.factions:
 				var fid := String(f.get("id", ""))
@@ -2184,6 +2305,36 @@ func _refresh_info_detail() -> void:
 			info_action.text = "选择专精"
 			info_action.disabled = GameState.profession_chosen
 			info_status.text = "已选择：%s" % GameState.profession_id if GameState.profession_chosen else "仅本局第一次选择生效"
+		"appraisal":
+			var r: Dictionary = GameState.appraisal_rank_data()
+			if info_selected_id == "rank":
+				info_name.text = "鉴定师等级 · " + GameState.appraisal_rank_name()
+				info_meta.text = "底费 %d₵ · 吸引率 %d%% · 晋升进度 %.0f/%.0f" % [int(r.get("base_fee", 0)), GameState.appraisal_attraction_chance(), GameState.appraisal_progress, float(r.get("progress_to_promote", 0))]
+				var pcts: Array = r.get("fee_percent", [])
+				var body := "可接受评级与抽成：\n"
+				for i in range(pcts.size()):
+					body += "  %s：%s\n" % [GameState._appraisal_grade_name(i + 1), ("拒绝" if int(pcts[i]) <= 0 else "%d%%" % int(pcts[i]))]
+				body += "\n证书："
+				for c in GameState.inventory:
+					if String(c.get("def_id", "")).begins_with("cert"):
+						body += GameState.item_display_name(c) + " "
+				info_body.text = body
+			elif info_selected_id == "promotion":
+				var cost := GameState.promotion_cost()
+				info_name.text = "晋升申请"
+				info_meta.text = "下一等级花费：%d₵" % cost
+				info_body.text = "当前进度：%.0f / %.0f\n达到阈值后可申请晋升；拒绝可延期 7 天。\n" % [GameState.appraisal_progress, float(r.get("progress_to_promote", 0))]
+				info_action.visible = true
+				info_action.text = "晋升 %d₵" % cost
+				info_action.disabled = GameState.appraiser_level >= 3 or GameState.appraisal_progress < float(r.get("progress_to_promote", 0)) or GameState.cash < cost
+				info_status.text = "已是最高等级" if GameState.appraiser_level >= 3 else ("进度不足" if GameState.appraisal_progress < float(r.get("progress_to_promote", 0)) else ("现金不足" if GameState.cash < cost else "可晋升"))
+			else:
+				var t := GameState._appraisal_type_def(info_selected_id)
+				if t.is_empty():
+					return
+				info_name.text = String(t.get("name", ""))
+				info_meta.text = "解锁等级 %d · 基础价值 %d₵" % [int(t.get("unlock_rank", 0)), int(t.get("base_value", 0))]
+				info_body.text = "可估价的物品：%s\n最高鉴定师等级可解锁全部三类。" % "、".join(t.get("item_ids", []))
 		"factions":
 			var f := GameState.faction_def(info_selected_id)
 			if f.is_empty():
@@ -2273,6 +2424,13 @@ func _info_action() -> void:
 			_refresh()
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
+		"appraisal":
+			if info_selected_id == "promotion":
+				var res := GameState.promote_appraiser()
+				_refresh()
+				_rebuild_info_list()
+				_refresh_info_detail()
+				info_status.text = String(res.get("text", ""))
 		"phone":
 			var res := GameState.deliver_commission(info_selected_id)
 			_refresh()
@@ -2543,10 +2701,31 @@ func _skip_tutorial() -> void:
 	_close_modal()
 	_refresh()
 
-func _open_inspection() -> void:
-	if GameState.current_customer.is_empty() or GameState.current_customer.get("intent") != "sell":
-		_toast("只有顾客出售物品时才需要鉴定。")
+func _on_inspect_owned() -> void:
+	if selected_uid < 0:
+		_toast("先选择一件物品。")
 		return
+	if not GameState.current_customer.is_empty():
+		_toast("先送走当前顾客再自检物品。")
+		return
+	var it := GameState.find_item(selected_uid)
+	if it.is_empty():
+		_toast("没有找到这件物品。")
+		return
+	inspection_owned = true
+	GameState.counter_item = it
+	inspection_uid = -1
+	_open_inspection()
+
+func _open_inspection() -> void:
+	if not inspection_owned:
+		if GameState.current_customer.is_empty():
+			_toast("现在没有顾客。")
+			return
+		var intent := String(GameState.current_customer.get("intent", ""))
+		if intent not in ["sell", "appraise"]:
+			_toast("这位顾客不是来出售或估价的。")
+			return
 	if GameState.counter_item.is_empty():
 		_toast("柜台上没有物品。")
 		return
@@ -2554,51 +2733,174 @@ func _open_inspection() -> void:
 	if GameState.tutorial_step == 1:
 		GameState.tutorial_step = 2
 		_refresh()
+	_close_modal()
+	inspection_layer.visible = true
+	if inspection_uid != int(GameState.counter_item.get("uid", -1)):
+		inspection_uid = int(GameState.counter_item.get("uid", -1))
+		inspection_appraisal_input.text = str(int(GameState.get_item_def(String(GameState.counter_item.get("def_id", ""))).get("base_value", 100)))
 	_refresh_inspection_modal()
 
-func _inspection_methods(itype: String) -> Array:
-	match itype:
-		"water": return ["水质试纸 5¥", "UV 灯 5¥", "扫描仪 10¥"]
-		"cig": return ["检查封口 5¥", "查批次码 5¥", "扫描烟丝 10¥"]
-		"cyber": return ["看材质 10¥", "测磨损 10¥", "查序列号 10¥"]
-		"weapon": return ["看材质 10¥", "测磨损 10¥", "查序列号 10¥"]
-	return ["看外观 5¥", "查标签 5¥", "问来源 5¥"]
+func _close_inspection() -> void:
+	inspection_layer.visible = false
+	if inspection_owned:
+		GameState.counter_item = {}
+		inspection_owned = false
+		_refresh()
+	_play_sfx("soft")
+
+func _inspection_action_button(label: String, cb: Callable, color: Color = C_CYAN) -> void:
+	var b := _button(inspection_actions, label, Vector2.ZERO, Vector2(560, 50), color, cb)
+	b.custom_minimum_size = Vector2(560, 50)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 19)
 
 func _refresh_inspection_modal() -> void:
 	var it: Dictionary = GameState.counter_item
 	if it.is_empty():
-		_toast("柜台上没有物品。")
 		return
 	var def := GameState.get_item_def(it["def_id"])
-	var itype := String(def.get("inspect_type", "generic"))
-	var text := "物品：%s\n品相：%d%%\n\n选择鉴定方式。鉴定费从现金扣除，两次以上可得出结论。" % [GameState.item_display_name(it), int(it.get("condition", 100))]
-	if not it.get("clues", []).is_empty():
-		var clue_text := ""
-		for c in it["clues"]:
-			clue_text += "\n· " + String(c)
-		text += "\n\n已获得线索：" + clue_text
-	if it.get("known", false):
-		text += "\n\n鉴定结论：\n" + GameState._true_desc(it)
-	var actions: Array = []
-	if it.get("known", false):
-		actions.append({"label": "关闭", "cb": _close_modal})
-		actions.append({"label": "去议价", "cb": _open_bargain, "color": C_AMBER})
+	var family := String(it.get("family", "generic"))
+	var fam: Dictionary = GameState.inspection_families.get(family, {})
+	var intent := "owned" if inspection_owned else String(GameState.current_customer.get("intent", ""))
+	var cname := "自检" if inspection_owned else String(GameState.current_customer.get("arche", {}).get("name", "顾客"))
+	inspection_title.text = "验货 · %s" % GameState.item_display_name(it)
+	var text := "物品：%s\n家族：%s\n品相：%d%%\n顾客：%s（%s）\n" % [
+		GameState.item_display_name(it),
+		String(fam.get("name", family if family != "generic" else "普通物品")),
+		int(it.get("condition", 100)), cname, "估价委托" if intent == "appraise" else ("自检物品" if intent == "owned" else "出售物品")]
+	if bool(it.get("family_seen", false)) and not fam.is_empty():
+		text += "\n【目视属性】\n" + GameState._family_attr_text(it) + "\n"
+	text += "\n【公开特征】\n"
+	var features: Array = it.get("feature_list", [])
+	if features.is_empty():
+		text += "· 无明显异常\n"
 	else:
-		var methods := _inspection_methods(itype)
-		for i in range(methods.size()):
-			actions.append({"label": methods[i], "cb": _inspect_method.bind(i)})
-		actions.append({"label": "关闭", "cb": _close_modal})
-	_show_modal("鉴定 · " + GameState.item_display_name(it), text, actions)
+		for i in range(features.size()):
+			var f: Dictionary = features[i]
+			var shown := String(f.get("real_label", "")) if bool(f.get("exposed", false)) else String(f.get("public_label", ""))
+			var mark := "已揭露" if bool(f.get("exposed", false)) else ("已发现" if bool(f.get("discovered", false)) else "未发现")
+			text += "· %s：%s（%s）\n" % [String(f.get("label", f.get("id", ""))), shown, mark]
+	var notes: Array = it.get("inspect_notes", [])
+	if not notes.is_empty():
+		text += "\n【工具记录】\n"
+		for n in notes:
+			text += "· " + String(n) + "\n"
+	if not inspection_owned and String(it.get("family", "")) in ["cigarette", "stamp", "injector"]:
+		text += "\n【对质】\n观察属性后判断真伪；对质成功会让顾客降价。\n"
+	if intent == "appraise":
+		text += "\n【估价】\n输入你认为的真实价值，误差越小评级越高。\n"
+	inspection_info.text = text
+	_clear_children(inspection_actions)
+	var tools := GameState.inspection_tools_for_counter()
+	var relevant := ["magnifier", "flashlight", "scale"]
+	if family == "water":
+		relevant = ["magnifier", "water_test_strip", "flashlight"]
+	elif family == "chem":
+		relevant = ["magnifier", "chem_scanner"]
+	elif family == "plant":
+		relevant = ["magnifier", "plant_analyser", "scale"]
+	elif family in ["cigarette", "stamp", "injector", "hand", "ribwich", "plasma", "berry"]:
+		relevant = ["magnifier", "flashlight", "scale"]
+	for t in tools:
+		if not relevant.has(String(t.get("id", ""))):
+			continue
+		var label := "%s" % String(t.get("label", t.get("id", "")))
+		if int(t.get("count", 1)) > 1:
+			label += " ×%d" % int(t.get("count", 1))
+		_inspection_action_button(label, _inspect_tool.bind(String(t.get("id", ""))))
+	for i in range(features.size()):
+		var f: Dictionary = features[i]
+		if bool(f.get("discovered", false)) and not bool(f.get("exposed", false)):
+			_inspection_action_button("揭露：" + String(f.get("label", "")), _expose_counter_feature.bind(i), C_AMBER)
+	if not inspection_owned and String(it.get("family", "")) in ["cigarette", "stamp", "injector"] and not bool(it.get("confronted", false)):
+		_inspection_action_button("对质", _open_confront_select, C_RUST)
+	if intent == "appraise":
+		inspection_appraisal_input.visible = true
+		inspection_appraisal_input.get_parent().get_node_or_null("AppraisalSubmit").visible = true
+	else:
+		inspection_appraisal_input.visible = false
+		inspection_appraisal_input.get_parent().get_node_or_null("AppraisalSubmit").visible = false
+	if inspection_status.text == "":
+		inspection_status.text = "选择工具进一步检查。"
 
-func _inspect_method(method: int) -> void:
-	var clue := GameState.inspect_item(int(GameState.counter_item.get("uid", -1)), method)
+func _inspect_tool(tool_id: String) -> void:
+	var res := GameState.inspect_counter_with_tool(tool_id)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	inspection_status.text = String(res.get("text", "")).split("
+")[0]
+	_refresh_inspection_modal()
+	inspection_status.text = String(res.get("text", "")).split("
+")[0]
+
+func _expose_counter_feature(index: int) -> void:
+	var res := GameState.expose_counter_feature(index)
+	_play_sfx("cash" if bool(res.get("ok", false)) else "fail")
+	inspection_status.text = String(res.get("text", ""))
+	_refresh_inspection_modal()
+
+func _open_confront_select() -> void:
+	var it: Dictionary = GameState.counter_item
+	var items: Array = []
+	for opt in GameState._family_issue_options(it):
+		items.append({"id": opt.get("id", ""), "label": opt.get("label", opt.get("id", ""))})
+	if items.is_empty():
+		_toast("没有可对质的问题。")
+		return
+	_open_select("选择对质理由", items, _confront_choice)
+
+func _confront_choice(issue_id: String) -> void:
+	var res := GameState.confront_counter_item(issue_id)
+	_play_sfx("cash" if bool(res.get("ok", false)) else "fail")
+	inspection_status.text = String(res.get("text", ""))
+	_refresh_inspection_modal()
+
+func _show_promotion_modal() -> void:
+	var cost := GameState.promotion_cost()
+	var text := "鉴定委员会愿意提升你的等级。\n\n当前：%s\n下一级花费：%d₵\n晋升后底费与抽成提高，并解锁新的估价品类。\n现金：%d₵" % [GameState.appraisal_rank_name(), cost, GameState.cash]
+	_show_modal("鉴定师晋升", text, [
+		{"label": "接受晋升", "cb": _accept_promotion, "color": C_AMBER},
+		{"label": "延期 7 天", "cb": _decline_promotion.bind(false)},
+		{"label": "拒绝", "cb": _decline_promotion.bind(true), "color": C_RUST},
+		{"label": "关闭", "cb": _close_modal},
+	])
+
+func _accept_promotion() -> void:
+	var res := GameState.promote_appraiser()
 	_refresh()
-	if not GameState.counter_item.is_empty() and GameState.counter_item.get("known", false):
-		_refresh_inspection_modal()
+	_show_modal("晋升结果", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _decline_promotion(forever: bool) -> void:
+	GameState.decline_promotion(forever)
+	_refresh()
+	_show_modal("晋升", "已延期 7 天。" if not forever else "已永久拒绝晋升。", [{"label": "关闭", "cb": _close_modal}])
+
+func _submit_appraisal() -> void:
+	var value := int(inspection_appraisal_input.text.strip_edges())
+	if value <= 0:
+		inspection_status.text = "请输入有效的估价。"
+		return
+	var res := GameState.appraise_counter_item(value)
+	if bool(res.get("ok", false)):
+		inspection_layer.visible = false
+		_play_sfx("cash")
+		_refresh()
+		var actions: Array = [{"label": "关闭", "cb": _close_modal}]
+		_show_modal("估价结果", String(res.get("text", "")) + "\n\n" + String(res.get("slip", "")), actions)
 	else:
-		_refresh_inspection_modal()
+		_play_sfx("fail")
+		inspection_status.text = String(res.get("text", ""))
+		if bool(res.get("walkout", false)):
+			inspection_layer.visible = false
+			_refresh()
+			_show_modal("估价失败", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+		else:
+			_refresh_inspection_modal()
+			inspection_status.text = String(res.get("text", ""))
 
 func _open_bargain() -> void:
+	if GameState.current_customer.get("intent") == "appraise":
+		_open_inspection()
+		return
 	if GameState.current_customer.is_empty() or GameState.counter_item.is_empty():
 		_toast("当前没有可议价的物品。")
 		return
