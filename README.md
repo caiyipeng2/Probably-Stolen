@@ -1,10 +1,11 @@
-# 深空当铺手机版（M19）
+# 深空当铺手机版（M20）
 
 Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成；当前为 **M17 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、447+ 公开物品图标/公开音频、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M19 私有构建）：`build/probably_stolen_m19.apk`
+- APK（M20 私有构建）：`build/probably_stolen_m20.apk`
+- M19 APK：`build/probably_stolen_m19.apk`
 - M18 APK：`build/probably_stolen_m18.apk`
 - M17 APK：`build/probably_stolen_m17.apk`
 - M16 APK：`build/probably_stolen_m16.apk`
@@ -276,6 +277,14 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **测试**：`test_meta.gd` 验证原版模式第 6 天触发 `sc_georgio1_0`；M1/M5/M6/结局回归通过。
 - **明确残留**：396 个动态节点/选项 action、122 条未覆盖 key、随机客户池/阶层顾客刷新规则尚未逐条接入；这部分仍是第 1 条后续精修内容，不能宣称严格 1:1 全量完成。
 
+## M20 已完成（第 1 条残留补完）
+
+- **122 条未挂接对话**：全部生成 `unattached_dialogue` 图（122 节点），进入运行时图数据与档案；2544 条 key 全部有归属。
+- **396 个动态节点**：新增 Mechanic/UI/Item/ClientName 等本地化表解析，动态文本降至 231 个语义回退节点；全部生成运行时文本（源码字面量/候选/占位），`unresolved=0`、空白文本节点=0。
+- **运行时规模**：341 个客户、2165 节点、80 选项；53/55 场景使用图数据。
+- **测试**：`test_story_graphs.gd` 输出 341/2165/80；M1/M5/M6/结局回归通过。
+- **边界**：297 个 fallback_text 节点、231 个 semantic fallback 节点的条件/边仍是回退近似，逐条 1:1 语义保留为对照差异；不是“所有动态逻辑已精确还原”。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -291,7 +300,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m19.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m20.apk
 ```
 
 开发调试参数：

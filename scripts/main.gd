@@ -566,7 +566,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M19", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M20", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
