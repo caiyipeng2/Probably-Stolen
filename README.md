@@ -87,6 +87,10 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成
   - `60_m17_welcome.png` M17 欢迎界面
   - `61_m18_story_graph.png` 原版剧情图运行时
   - `62_m19_original_mode.png` 原版 1:1 长线模式入口
+  - `63_m20_welcome.png` M20 欢迎/原版入口
+  - `64_m20_original_day1.png` 原版模式第 1 天（无剧情，教程开始）
+  - `70_m20_day6_georgio.png` 原版第 6 天 Georgio 剧情
+  - `71_m20_archive_verify.png` 真机对话档案页
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -284,6 +288,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **运行时规模**：341 个客户、2165 节点、80 选项；53/55 场景使用图数据。
 - **测试**：`test_story_graphs.gd` 输出 341/2165/80；M1/M5/M6/结局回归通过。
 - **边界**：297 个 fallback_text 节点、231 个 semantic fallback 节点的条件/边仍是回退近似，逐条 1:1 语义保留为对照差异；不是“所有动态逻辑已精确还原”。
+- **真机复验（SM-S9280）**：M20 安装启动正常；选择「原版 1:1」后第 1 天无剧情、教程正常；推进到第 6 天成功触发 Georgio 原版剧情；档案页 34 组/463 条首组可滚动；无崩溃。
 
 ## 真机验收
 
