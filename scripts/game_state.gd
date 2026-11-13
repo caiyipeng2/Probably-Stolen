@@ -51,6 +51,8 @@ var story_scenes: Array = []
 var scene_seen: Array = []
 var dialogue_archive: Array = []
 var story_graphs: Dictionary = {}
+var original_days: Dictionary = {}
+var campaign_mode := "mobile"
 var combat_data: Array = []
 var wanted: Array = []
 var endings: Array = []
@@ -212,6 +214,11 @@ func _load_defs() -> void:
 			for node in data:
 				story_nodes[String(node.get("id", ""))] = node
 	_load_story_scenes()
+	var schedule := FileAccess.open("res://data_private/story_schedule_original.json", FileAccess.READ)
+	if schedule:
+		var sdata = JSON.parse_string(schedule.get_as_text())
+		if sdata is Dictionary:
+			original_days = sdata.get("days", {})
 	var graph_file := FileAccess.open("res://data_private/story_graphs.json", FileAccess.READ)
 	if graph_file:
 		var gdata = JSON.parse_string(graph_file.get_as_text())
@@ -401,8 +408,9 @@ func rotate_item(uid: int) -> bool:
 	emit_signal("state_changed")
 	return true
 
-func new_game(diff_id: String = "normal") -> void:
+func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	difficulty = diff_id if DIFFICULTY.has(diff_id) else "normal"
+	campaign_mode = mode if mode in ["mobile", "original"] else "mobile"
 	var dcfg: Dictionary = DIFFICULTY[difficulty]
 	day = 1
 	cash = int(dcfg["cash"])
@@ -1253,11 +1261,15 @@ func _queue_story_for_day() -> void:
 	story_queue.clear()
 	for nid in _queue_story_scenes():
 		story_queue.append(nid)
-	var map := {2: "mentor_day2", 3: "side_scavenger", 4: "security_day4", 6: "faction_day6", 7: "side_church", 8: "buyout_day8", 10: "finale_day10"}
-	if map.has(day):
-		var sid := String(map[day])
-		if not story_seen.has(sid):
-			story_queue.append(sid)
+	if campaign_mode == "original":
+		if day == 45 and not story_seen.has("finale_day10"):
+			story_queue.append("finale_day10")
+	else:
+		var map := {2: "mentor_day2", 3: "side_scavenger", 4: "security_day4", 6: "faction_day6", 7: "side_church", 8: "buyout_day8", 10: "finale_day10"}
+		if map.has(day):
+			var sid := String(map[day])
+			if not story_seen.has(sid):
+				story_queue.append(sid)
 	if not story_queue.is_empty():
 		pending_story = String(story_queue.pop_front())
 
@@ -1268,8 +1280,11 @@ func _queue_story_scenes() -> Array:
 		var sid := String(scene.get("id", ""))
 		if sid == "" or scene_seen.has(sid):
 			continue
-		var sday := int(scene.get("day", 0))
-		if sday == 0:
+		var sday := int(original_days.get(sid, 0)) if campaign_mode == "original" else int(scene.get("day", 0))
+		if campaign_mode == "original":
+			if sday != day:
+				continue
+		elif sday == 0:
 			if day < 11 or postgame_count >= 2:
 				continue
 		elif sday != day:
@@ -1670,7 +1685,7 @@ func save_game(slot: int = 1) -> bool:
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
-		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty,
+		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
 	}
 	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.WRITE)
 	if f == null:
@@ -1725,6 +1740,9 @@ func load_game(slot: int = 1) -> bool:
 	difficulty = String(data.get("difficulty", "normal"))
 	if not DIFFICULTY.has(difficulty):
 		difficulty = "normal"
+	campaign_mode = String(data.get("campaign_mode", "mobile"))
+	if campaign_mode not in ["mobile", "original"]:
+		campaign_mode = "mobile"
 	ending_id = String(data.get("ending_id", ""))
 	_refresh_upgrades()
 	machine_modules = data.get("machine_modules", {}).duplicate(true)

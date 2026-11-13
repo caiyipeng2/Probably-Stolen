@@ -566,7 +566,7 @@ func _build_ui() -> void:
 func _build_hud() -> void:
 	_panel(self, Vector2.ZERO, Vector2(2340, 80), C_PANEL, C_LINE)
 	_label(self, "深空当铺", Vector2(24, 8), Vector2(300, 48), 36, C_AMBER)
-	_label(self, "MOBILE PORT · M18", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
+	_label(self, "MOBILE PORT · M19", Vector2(26, 50), Vector2(300, 22), 16, C_MUTED)
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
@@ -1541,7 +1541,7 @@ func _next_day() -> void:
 
 func _restart_game() -> void:
 	_close_modal()
-	GameState.new_game(GameState.difficulty)
+	GameState.new_game(GameState.difficulty, GameState.campaign_mode)
 	selected_uid = -1
 	current_page = 0
 	last_summary = {}
@@ -2193,10 +2193,15 @@ func _show_welcome() -> void:
 		{"label": "简单", "cb": _choose_difficulty.bind("easy"), "color": C_GREEN},
 		{"label": "普通", "cb": _choose_difficulty.bind("normal"), "color": C_AMBER},
 		{"label": "困难", "cb": _choose_difficulty.bind("hard"), "color": C_RUST},
+		{"label": "原版 1:1", "cb": _choose_original, "color": C_CYAN},
 	])
 
 func _choose_difficulty(id: String) -> void:
 	GameState.new_game(id)
+	_welcome_done()
+
+func _choose_original() -> void:
+	GameState.new_game("normal", "original")
 	_welcome_done()
 
 func _welcome_done() -> void:

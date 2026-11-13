@@ -1,10 +1,11 @@
-# 深空当铺手机版（M18）
+# 深空当铺手机版（M19）
 
 Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成；当前为 **M17 私有构建**：后日谈剧情池、2544 条对话档案、26 台机器与深度玩法、3 存档槽、难度模式、17 种失败/终局结局、447+ 公开物品图标/公开音频、完整新手教程与 9 名通缉目标，Android APK 已真机验证。
 
 ## 当前交付
 
-- APK（M18 私有构建）：`build/probably_stolen_m18.apk`
+- APK（M19 私有构建）：`build/probably_stolen_m19.apk`
+- M18 APK：`build/probably_stolen_m18.apk`
 - M17 APK：`build/probably_stolen_m17.apk`
 - M16 APK：`build/probably_stolen_m16.apk`
 - M15 APK：`build/probably_stolen_m15.apk`
@@ -84,6 +85,7 @@ Steam《深空当铺：可能是偷的》手机移植项目。M1–M16 已完成
   - `59_m16_machine_catalog.png` 26 台机器目录
   - `60_m17_welcome.png` M17 欢迎界面
   - `61_m18_story_graph.png` 原版剧情图运行时
+  - `62_m19_original_mode.png` 原版 1:1 长线模式入口
 - 平台：Godot 4.7.2 stable，Android 横屏
 - 测试机：Samsung SM-S9280，Android 16，2340×1080
 
@@ -266,6 +268,14 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 - **测试**：`test_story_graphs.gd` 验证 340/2043/80 与 53 场景覆盖；M1/M5/M6/结局回归通过。
 - **未完成**：原版 `StoreClientManager` 的 40+ 天条件排期、396 个动态节点/选项 action 的逐条条件效果、随机客户池/阶层顾客刷新规则。第 1 条尚未达到严格 1:1。
 
+## M19 已完成（原版长线模式，第 1 条里程碑）
+
+- **原版 1:1 模式**：欢迎界面新增「原版 1:1」入口；按原版锚点排期（Georgio 第 6 天、Lun 11、Nellis 21、Eleanor 23、Serpico 40），55 个剧情场景按原版偏移分布；第 45 天触发终章，跳过移动版第 10 天终章/后日谈池。
+- **剧情图**：340 个客户、2043 节点、80 选项；53/55 场景使用图数据，`serpico7` 保留手工结局选项。
+- **存档**：`campaign_mode` 随存档保存；移动版 10 天模式仍保留。
+- **测试**：`test_meta.gd` 验证原版模式第 6 天触发 `sc_georgio1_0`；M1/M5/M6/结局回归通过。
+- **明确残留**：396 个动态节点/选项 action、122 条未覆盖 key、随机客户池/阶层顾客刷新规则尚未逐条接入；这部分仍是第 1 条后续精修内容，不能宣称严格 1:1 全量完成。
+
 ## 真机验收
 
 - 帧率：SurfaceFlinger 采样 127 帧，中位 8.30ms，约 120 FPS（设备刷新率上限），p95 8.92ms。
@@ -281,7 +291,7 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 "C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --import
 
 # 导出 Android debug APK
-"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m18.apk
+"C:/Users/EDY/Downloads/Godot_v4.7.2-stable_win64.exe/Godot_v4.7.2-stable_win64_console.exe" --path . --headless --export-debug "Android" build/probably_stolen_m19.apk
 ```
 
 开发调试参数：

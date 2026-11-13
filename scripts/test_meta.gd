@@ -7,6 +7,10 @@ func _init() -> void:
 	print("easy cash=", gs.cash, " rent=", gs.rent, " diff=", gs.difficulty)
 	gs.new_game("hard")
 	print("hard cash=", gs.cash, " rent=", gs.rent, " diff=", gs.difficulty)
+	gs.new_game("normal", "original")
+	gs.day = 6
+	gs.start_day()
+	print("original day6 pending=", gs.pending_story, " mode=", gs.campaign_mode)
 	gs.cash = 1234
 	gs.day = 5
 	print("save slot3=", gs.save_game(3), " has3=", gs.has_save(3))
