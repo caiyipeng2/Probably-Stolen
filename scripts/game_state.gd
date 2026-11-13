@@ -77,6 +77,18 @@ var machine_durability: Dictionary = {}
 var machine_faults: Dictionary = {}
 var machine_recipes: Dictionary = {}
 var modules_def: Array = []
+var machine_active: Dictionary = {}
+var machine_stock: Dictionary = {}
+var machine_cash: Dictionary = {}
+var machine_upgrades: Dictionary = {}
+var machine_state: Dictionary = {}
+var night_log: Array = []
+var next_day_power_bonus := 0
+var attraction_bonus := 100
+var bargain_bonus := 0
+var security_alarm_active := false
+var security_stop_rate := 0
+signal music_toggled(on: bool)
 
 var difficulty := "normal"
 var day := 1
@@ -105,12 +117,16 @@ func _ready() -> void:
 	_load_defs()
 	new_game()
 
+func _fmt_placeholder_name(text: String, count: int = 1) -> String:
+	return text.replace("{0}", str(count)).replace("{1}", str(count))
+
 func _load_defs() -> void:
 	var f := FileAccess.open("res://data/items.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			for d in data:
+				d["name"] = _fmt_placeholder_name(String(d.get("name", d["id"])), int(d.get("name_count", 1)))
 				items_def[d["id"]] = d
 	var priv := FileAccess.open("res://data_private/items_full.json", FileAccess.READ)
 	if priv:
@@ -127,7 +143,7 @@ func _load_defs() -> void:
 				norm["base_value"] = int(p.get("base_value", 0))
 				if int(norm["base_value"]) <= 0:
 					norm["base_value"] = 10
-				norm["name"] = String(p.get("name", id))
+				norm["name"] = _fmt_placeholder_name(String(p.get("name", id)), int(p.get("name_count", 1)))
 				norm["description"] = String(p.get("description", ""))
 				norm["icon"] = String(p.get("icon", ""))
 				norm["shape"] = p.get("shape", [1, 1])
@@ -163,6 +179,26 @@ func _load_defs() -> void:
 							btags.append(t)
 					base["tags"] = btags
 					items_def[id] = base
+	var supplement := FileAccess.open("res://data_private/items_supplement.json", FileAccess.READ)
+	if supplement:
+		var sdata = JSON.parse_string(supplement.get_as_text())
+		if sdata is Array:
+			for s in sdata:
+				var sid := String(s.get("id", ""))
+				if sid == "" or items_def.has(sid):
+					continue
+				var sn: Dictionary = s.duplicate(true)
+				sn["base_value"] = int(s.get("base_value", 10))
+				sn["name"] = _fmt_placeholder_name(String(s.get("name", sid)), int(s.get("name_count", 1)))
+				sn["description"] = String(s.get("description", ""))
+				sn["icon"] = String(s.get("icon", ""))
+				sn["shape"] = s.get("shape", [1, 1])
+				sn["inspect_type"] = String(s.get("inspect_type", "generic"))
+				var stags: Array = s.get("tags", []).duplicate()
+				if not stags.has(String(s.get("category", "misc"))):
+					stags.append(String(s.get("category", "misc")))
+				sn["tags"] = stags
+				items_def[sid] = sn
 	tradable_pool = []
 	var blocked_ids := ["hand", "rev_codeword", "animal_cage", "auto_butcher", "printer", "box_dispenser", "deal_maker", "wine_rack", "plant_dna_manipulator"]
 	for id in items_def.keys():
@@ -456,7 +492,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 		var it := make_item(entry[0], entry[1], entry[2], entry[3])
 		it["known"] = true
 		add_item(it)
-	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
+	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
 		if items_def.has(stock[0]):
 			for i in range(int(stock[1])):
 				var it2 := make_item(stock[0], 100, true, false)
@@ -481,10 +517,24 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	machine_durability = {}
 	machine_faults = {}
 	machine_recipes = {}
+	machine_active = {}
+	machine_stock = {}
+	machine_cash = {}
+	machine_upgrades = {}
+	machine_state = {}
+	night_log = []
+	next_day_power_bonus = 0
+	attraction_bonus = 100
+	bargain_bonus = 0
+	security_alarm_active = false
+	security_stop_rate = 0
 	start_day()
 
 func start_day() -> void:
-	power = max_power
+	_refresh_upgrades()
+	power = max_power + next_day_power_bonus
+	next_day_power_bonus = 0
+	bargain_bonus = 0
 	phase = "open"
 	current_index = -1
 	current_customer = {}
@@ -493,6 +543,8 @@ func start_day() -> void:
 	customers_today = []
 	_gen_commissions()
 	var count := rng.randi_range(3, 5)
+	if attraction_bonus >= 110:
+		count += 1
 	for i in range(count):
 		customers_today.append(_gen_customer())
 	_queue_story_for_day()
@@ -544,6 +596,7 @@ func _gen_customer() -> Dictionary:
 	else:
 		c["want_tags"] = arche.get("prefer_tags", [])
 		var bmult := (1.0 + float(upgrade_total("budget")) / 100.0) * float(DIFFICULTY[difficulty]["budget"])
+		bmult *= float(attraction_bonus) / 100.0
 		c["budget"] = int(round(float(rng.randi_range(int(arche["budget"][0]), int(arche["budget"][1]))) * bmult))
 		c["offer"] = 0
 		c["max_price"] = 0
@@ -553,6 +606,7 @@ func _gen_customer() -> Dictionary:
 func next_customer() -> void:
 	if phase == "gameover":
 		return
+	bargain_bonus = 0
 	current_index += 1
 	if current_index >= customers_today.size():
 		current_customer = {}
@@ -643,9 +697,10 @@ func put_display_on_counter(uid: int) -> bool:
 	var factor := 1.0 if match_tag else 0.55
 	var arche: Dictionary = current_customer["arche"]
 	var val := market_value(it, true, arche.get("faction", "lower"))
-	var pm := float(arche.get("price_mod", 1.0))
-	current_customer["offer"] = int(round(val * factor * pm * rng.randf_range(0.75, 0.95)))
-	current_customer["max_price"] = int(min(float(current_customer["budget"]), val * factor * pm * 1.05))
+	var pm := float(arche.get("price_mod", 1.0)) * (float(attraction_bonus) / 100.0)
+	var bargain := 1.0 + float(bargain_bonus) / 100.0
+	current_customer["offer"] = int(round(val * factor * pm * bargain * rng.randf_range(0.75, 0.95)))
+	current_customer["max_price"] = int(min(float(current_customer["budget"]), val * factor * pm * bargain * 1.05))
 	emit_signal("state_changed")
 	return true
 
@@ -731,7 +786,8 @@ func make_offer(price: int) -> Dictionary:
 	if price > cash:
 		return {"accepted": false, "text": "现金不足，你只有 %d₵。" % cash}
 	var item: Dictionary = current_customer["item"]
-	if price >= int(item.get("min_price", 0)):
+	var min_price := int(round(float(item.get("min_price", 0)) * (1.0 - float(bargain_bonus) / 100.0)))
+	if price >= min_price:
 		cash -= price
 		item["known"] = true
 		item["location"] = "backpack"
@@ -743,9 +799,9 @@ func make_offer(price: int) -> Dictionary:
 		return {"accepted": true, "text": "成交。你花 %d₵ 收下了 %s。" % [price, item_display_name(item)]}
 	current_customer["patience"] = int(current_customer.get("patience", 0)) - 1
 	if int(current_customer["patience"]) >= 0:
-		item["asking_price"] = int(item["min_price"])
+		item["asking_price"] = min_price
 		emit_signal("state_changed")
-		return {"accepted": false, "counter": int(item["min_price"]), "text": "顾客摇头：最低 %d₵，不能再少了。" % int(item["min_price"])}
+		return {"accepted": false, "counter": min_price, "text": "顾客摇头：最低 %d₵，不能再少了。" % min_price}
 	complete_customer(false)
 	return {"accepted": false, "text": "顾客失去耐心，转身离开了。"}
 
@@ -889,6 +945,9 @@ func advance_day() -> void:
 	if phase == "gameover":
 		return
 	advance_machines_one_cycle()
+	if phase == "gameover":
+		emit_signal("state_changed")
+		return
 	day += 1
 	start_day()
 	if events.size() > 0 and rng.randf() < 0.45:
@@ -1462,7 +1521,11 @@ func buy_upgrade(id: String) -> Dictionary:
 	return {"ok": true, "text": "已购买：%s。" % u.get("name", id)}
 
 func _refresh_upgrades() -> void:
-	max_power = 10 + upgrade_total("power")
+	var bonus := 0
+	var pb := machine_def("powerblock")
+	if not pb.is_empty() and bool(machine_active.get("powerblock", false)):
+		bonus += int(pb.get("special", {}).get("value", 2))
+	max_power = 10 + upgrade_total("power") + bonus
 	power = mini(power, max_power)
 
 func machine_def(id: String) -> Dictionary:
@@ -1508,9 +1571,138 @@ func machine_recipe(machine_id: String) -> Dictionary:
 			return r
 	return recipes[0]
 
+func machine_recipe_name(recipe: Dictionary) -> String:
+	var text := String(recipe.get("name", recipe.get("id", "")))
+	var count := 1
+	var outs: Array = recipe.get("outputs", [])
+	if not outs.is_empty():
+		count = int(outs[0].get("count", 1))
+	return text.replace("{0}", str(count)).replace("{1}", str(count))
+
 func set_machine_recipe(machine_id: String, recipe_id: String) -> void:
 	machine_recipes[machine_id] = recipe_id
 	emit_signal("state_changed")
+
+func machine_module_ids(machine_id: String) -> Array:
+	var raw = machine_modules.get(machine_id, [])
+	if raw is Array:
+		return raw.duplicate()
+	if raw is String and String(raw) != "":
+		return [String(raw)]
+	return []
+
+func machine_module_sums(machine_id: String) -> Dictionary:
+	var sums := {"performance": 0, "efficiency": 0, "quality": 0, "count": 0}
+	for mid in machine_module_ids(machine_id):
+		var md := module_def(String(mid))
+		if md.is_empty():
+			continue
+		sums["performance"] = int(sums["performance"]) + int(md.get("performance", 0))
+		sums["efficiency"] = int(sums["efficiency"]) + int(md.get("efficiency", 0))
+		sums["quality"] = int(sums["quality"]) + int(md.get("quality", 0))
+		sums["count"] = int(sums["count"]) + 1
+	return sums
+
+func machine_module_type_ok(machine_id: String, module_id: String) -> bool:
+	var m := machine_def(machine_id)
+	var md := module_def(module_id)
+	if m.is_empty() or md.is_empty():
+		return false
+	var allowed: Array = m.get("module_types", [])
+	if allowed.is_empty():
+		return false
+	return allowed.has(String(md.get("type", "")))
+
+func module_name(module_id: String) -> String:
+	var md := module_def(module_id)
+	return String(md.get("name", module_id))
+
+func _merge_outputs(outputs: Array, adds: Array) -> void:
+	for a in adds:
+		var aid := String(a.get("id", ""))
+		var acount := int(a.get("count", 1))
+		var found := false
+		for o in outputs:
+			if String(o.get("id", "")) == aid:
+				o["count"] = int(o.get("count", 1)) + acount
+				found = true
+				break
+		if not found:
+			outputs.append({"id": aid, "count": acount})
+
+func _replace_outputs(outputs: Array, reps: Array) -> void:
+	for r in reps:
+		var from_id := String(r.get("from", ""))
+		var to_id := String(r.get("to", ""))
+		for o in outputs:
+			if String(o.get("id", "")) == from_id:
+				o["id"] = to_id
+
+func _avg_input_condition(inputs: Array) -> int:
+	var total := 0
+	var count := 0
+	for inp in inputs:
+		var iid := String(inp.get("id", ""))
+		var want := int(inp.get("count", 1))
+		for it in inventory:
+			if want <= 0:
+				break
+			if String(it.get("def_id", "")) == iid:
+				total += int(it.get("condition", 100))
+				count += 1
+				want -= 1
+	if count <= 0:
+		return 50
+	return int(round(float(total) / float(count)))
+
+func machine_recipe_power(machine_id: String, recipe: Dictionary) -> int:
+	var m := machine_def(machine_id)
+	var base := int(recipe.get("power_cost", m.get("power", 0)))
+	var sums := machine_module_sums(machine_id)
+	var eff := float(sums["efficiency"])
+	base = int(round(float(base) * (1.0 - minf(50.0, eff) / 100.0)))
+	return maxi(0, base)
+
+func machine_recipe_cycles(machine_id: String, recipe: Dictionary) -> int:
+	var m := machine_def(machine_id)
+	var lvl := int(machine_temps.get(machine_id, 2))
+	var temp_time: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
+	var base := int(recipe.get("cycles", m.get("cycles", 2)))
+	var sums := machine_module_sums(machine_id)
+	var perf := float(sums["performance"])
+	var cycles := int(round(float(base) * temp_time * (1.0 - minf(50.0, perf) / 100.0)))
+	cycles = int(round(float(cycles) * (1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0)))
+	return maxi(1, cycles)
+
+func install_module(machine_id: String, module_id: String) -> Dictionary:
+	var md := module_def(module_id)
+	if md.is_empty():
+		return {"ok": false, "text": "没有这个模块。"}
+	if machine_module_type_ok(machine_id, module_id) == false:
+		return {"ok": false, "text": "%s 不能安装 %s。" % [machine_def(machine_id).get("name", machine_id), md.get("name", module_id)]}
+	var list := machine_module_ids(machine_id)
+	if list.has(module_id):
+		list.erase(module_id)
+		machine_modules[machine_id] = list
+		emit_signal("state_changed")
+		return {"ok": true, "text": "已卸下模块：%s。" % md.get("name", module_id)}
+	var slots := int(machine_def(machine_id).get("module_slots", 1))
+	if list.size() >= slots:
+		return {"ok": false, "text": "模块槽已满（%d/%d）。" % [list.size(), slots]}
+	list.append(module_id)
+	machine_modules[machine_id] = list
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已安装模块：%s（%d/%d）。" % [md.get("name", module_id), list.size(), slots]}
+
+func clear_modules(machine_id: String) -> void:
+	machine_modules[machine_id] = []
+	emit_signal("state_changed")
+
+func _make_output_item(oid: String, cond: int, features: Array) -> Dictionary:
+	var it := make_item(oid, clampi(cond, 0, 100), true, false)
+	for f in features:
+		it["features"].append(f.duplicate(true))
+	return it
 
 func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = false) -> Dictionary:
 	var m := machine_def(machine_id)
@@ -1524,26 +1716,56 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 		return {"ok": false, "text": "%s 故障：%s，请先维修。" % [m.get("name", machine_id), machine_fault_name(fault)]}
 	if int(machine_durability.get(machine_id, 100)) <= 0:
 		return {"ok": false, "text": "%s 已损坏，请先维修。" % m.get("name", machine_id)}
-	if m.get("inputs", []).is_empty() and m.get("outputs", []).is_empty():
-		return {"ok": false, "text": "%s 是辅助设备，没有生产配方。" % m.get("name", machine_id)}
-	var lvl := int(machine_temps.get(machine_id, 2))
-	var temp_time: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
-	var temp_power: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
 	var recipe := machine_recipe(machine_id)
-	var active_inputs: Array = recipe.get("inputs", m.get("inputs", [])) if not recipe.is_empty() else m.get("inputs", [])
-	var active_outputs: Array = recipe.get("outputs", m.get("outputs", [])) if not recipe.is_empty() else m.get("outputs", [])
-	var base_cycles := int(recipe.get("cycles", m.get("cycles", maxi(1, int(round(float(m.get("time", 4.0)) / 4.0)))))) if not recipe.is_empty() else int(m.get("cycles", 2))
-	var use_cycles := maxi(1, int(round(float(base_cycles) * temp_time)))
-	var use_power := maxi(1, int(round(float(m.get("power", 0)) * temp_power)))
-	var mod_id := String(machine_modules.get(machine_id, ""))
-	var md := module_def(mod_id)
-	if not md.is_empty():
-		var perf := float(md.get("performance", 0))
-		var eff := float(md.get("efficiency", 0))
-		use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, perf) / 100.0))))
-		use_power = maxi(1, int(round(float(use_power) * (1.0 - minf(50.0, eff) / 100.0))))
-	use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, float(upgrade_total("machine"))) / 100.0))))
+	if recipe.is_empty():
+		return {"ok": false, "text": "%s 是辅助设备，请使用专用操作。" % m.get("name", machine_id)}
+	var installed := machine_module_ids(machine_id)
+	for req in recipe.get("requires_modules", []):
+		if not installed.has(String(req)):
+			return {"ok": false, "text": "缺少模块：%s。" % module_name(String(req))}
+	for req in recipe.get("requires_items", []):
+		if inventory_count(String(req)) < 1:
+			return {"ok": false, "text": "缺少所需芯片：%s。" % String(get_item_def(String(req)).get("name", req))}
+	var unlock := int(recipe.get("unlock_upgrade", 0))
+	if unlock > int(machine_upgrades.get(machine_id, 0)):
+		return {"ok": false, "text": "需要升级到 %d 级才能使用该配方。" % unlock}
+	var active_inputs: Array = recipe.get("inputs", []).duplicate(true)
+	var active_outputs: Array = recipe.get("outputs", []).duplicate(true)
+	var quality_delta := 0
+	var neutralized := false
+	var effects: Dictionary = recipe.get("module_effects", {})
+	for mid in installed:
+		var eff: Dictionary = effects.get(String(mid), {})
+		if eff.is_empty():
+			continue
+		if eff.has("input_mult"):
+			for inp in active_inputs:
+				inp["count"] = int(ceil(float(inp.get("count", 1)) * float(eff["input_mult"])))
+		if eff.has("outputs"):
+			active_outputs = eff["outputs"].duplicate(true)
+		if eff.has("add_outputs"):
+			_merge_outputs(active_outputs, eff["add_outputs"])
+		if eff.has("replace_outputs"):
+			_replace_outputs(active_outputs, eff["replace_outputs"])
+		quality_delta += int(eff.get("quality_delta", 0))
+		if bool(eff.get("clear_contraband", false)):
+			neutralized = true
+	if bool(recipe.get("melee", false)) and installed.has("printer_module_melee_batch"):
+		for o in active_outputs:
+			o["count"] = int(o.get("count", 1)) + 1
+	var avg_cond := _avg_input_condition(active_inputs)
+	if bool(recipe.get("count_from_input_condition", false)) and not active_outputs.is_empty():
+		var count := 2
+		if avg_cond >= 95:
+			count = 5
+		elif avg_cond >= 80:
+			count = 4
+		elif avg_cond >= 40:
+			count = 3
+		active_outputs[0]["count"] = count
+	var use_cycles := machine_recipe_cycles(machine_id, recipe)
 	use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - clampf(quality, 0.0, 1.0) * 0.2))))
+	var use_power := machine_recipe_power(machine_id, recipe)
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
 	for inp in active_inputs:
@@ -1551,11 +1773,47 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 			var d := get_item_def(String(inp.get("id", "")))
 			return {"ok": false, "text": "缺少原料：%s x%d。" % [d.get("name", inp.get("id", "")), int(inp.get("count", 1))]}
 	if dry_run:
-		return {"ok": true, "text": "%s 可以启动。" % String(m.get("name", machine_id))}
+		return {"ok": true, "text": "%s 可以启动（%d 夜 / %d 电力）。" % [m.get("name", machine_id), use_cycles, use_power]}
 	for inp in active_inputs:
 		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
 	power -= use_power
-	var job := {"machine_id": machine_id, "name": String(m.get("name", machine_id)), "remaining": use_cycles, "total": use_cycles, "outputs": active_outputs.duplicate(true), "recipe": String(recipe.get("id", ""))}
+	var sums := machine_module_sums(machine_id)
+	var quality_mod := int(sums["quality"]) + int(round(clampf(quality, 0.0, 1.0) * 20.0)) + quality_delta
+	var features: Array = []
+	if quality_mod != 0:
+		features.append({"id": "machine_quality", "name": "精工" if quality_mod > 0 else "粗糙", "mod": quality_mod})
+	if neutralized:
+		features.append({"id": "neutralized", "name": "已中和", "mod": 10})
+	var out_cond := 100
+	if bool(recipe.get("melee", false)):
+		out_cond = clampi(20 + rng.randi_range(20, 30) + quality_mod / 4 + avg_cond / 10, 0, 100)
+	if bool(recipe.get("chem_loss", false)) or machine_id == "chem_finisher":
+		var chem_mods := 0
+		for mid in installed:
+			if String(module_def(String(mid)).get("type", "")) == "MODULE_TYPE_CHEM":
+				chem_mods += 1
+		var losses: Array = [12, 6, 3, 1, 0]
+		if machine_id == "blender":
+			losses = [35, 20, 10, 5, 0]
+		var loss := int(losses[mini(chem_mods, losses.size() - 1)])
+		if loss > 0:
+			features.append({"id": "impurity", "name": "杂质", "mod": -loss})
+	var job := {
+		"machine_id": machine_id, "name": String(m.get("name", machine_id)),
+		"remaining": use_cycles, "total": use_cycles,
+		"outputs": active_outputs.duplicate(true), "recipe": String(recipe.get("id", "")),
+		"quality_mod": quality_mod, "features": features, "out_cond": out_cond,
+	}
+	if machine_id == "plant_dna_manipulator":
+		var dna_sp: Dictionary = m.get("special", {})
+		var chance := int(dna_sp.get("base_success", 70))
+		if installed.has("dna_manipulator_module_stabilizer"):
+			chance += int(dna_sp.get("stabilizer_bonus", 15))
+		if installed.has("dna_manipulator_module_precision"):
+			chance += int(dna_sp.get("precision_bonus", 10))
+		chance += int(sums["quality"]) / 2
+		job["dna_fail"] = rng.randi_range(1, 100) > chance
+		job["dna_chance"] = chance
 	var growth := machine_id in GROWTH_MACHINES
 	if growth:
 		job["growth"] = true
@@ -1567,14 +1825,6 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 	if growth:
 		return {"ok": true, "text": "%s 已播种，预计 %d 夜成熟。" % [job["name"], job["remaining"]]}
 	return {"ok": true, "text": "%s 已启动，预计 %d 夜。" % [job["name"], job["remaining"]]}
-
-func install_module(machine_id: String, module_id: String) -> Dictionary:
-	var md := module_def(module_id)
-	if md.is_empty():
-		return {"ok": false, "text": "没有这个模块。"}
-	machine_modules[machine_id] = module_id
-	emit_signal("state_changed")
-	return {"ok": true, "text": "已安装模块：%s。" % md.get("name", module_id)}
 
 func set_machine_temp(machine_id: String, level: int) -> void:
 	machine_temps[machine_id] = clampi(level, 1, 3)
@@ -1619,6 +1869,22 @@ func repair_machine(machine_id: String) -> Dictionary:
 	emit_signal("state_changed")
 	return {"ok": true, "text": "%s 已维修，花费 %d₵。" % [m.get("name", machine_id), cost]}
 
+func _grant_job_outputs(job: Dictionary) -> Array:
+	if bool(job.get("dna_fail", false)):
+		return []
+	var got: Array = []
+	var cond := int(job.get("out_cond", 100))
+	var features: Array = job.get("features", [])
+	for out in job.get("outputs", []):
+		var oid := String(out.get("id", ""))
+		if not items_def.has(oid):
+			continue
+		for n in range(int(out.get("count", 1))):
+			var it := _make_output_item(oid, cond, features)
+			add_item(it)
+			got.append(String(get_item_def(oid).get("name", oid)))
+	return got
+
 func harvest_machine(machine_id: String) -> Dictionary:
 	var idx := -1
 	for i in range(machine_jobs.size()):
@@ -1632,14 +1898,7 @@ func harvest_machine(machine_id: String) -> Dictionary:
 		return {"ok": false, "text": "这台机器不能收获。"}
 	if not bool(j.get("ready", false)):
 		return {"ok": false, "text": "作物还在生长，暂时不能收获。"}
-	var got: Array = []
-	for out in j.get("outputs", []):
-		var oid := String(out.get("id", ""))
-		if not items_def.has(oid):
-			continue
-		for n in range(int(out.get("count", 1))):
-			add_item(make_item(oid, 100, true, false))
-			got.append(String(get_item_def(oid).get("name", oid)))
+	var got: Array = _grant_job_outputs(j)
 	var mid := machine_id
 	var wear: int = [1, 2, 3][clampi(int(machine_temps.get(mid, 2)), 1, 3) - 1] + rng.randi_range(0, 1)
 	var dur := maxi(0, int(machine_durability.get(mid, 100)) - wear)
@@ -1666,8 +1925,751 @@ func harvest_machine(machine_id: String) -> Dictionary:
 func _process(_delta: float) -> void:
 	pass
 
+func _machine_state(machine_id: String) -> Dictionary:
+	if not machine_state.has(machine_id) or not (machine_state[machine_id] is Dictionary):
+		machine_state[machine_id] = {}
+	return machine_state[machine_id]
+
+func machine_is_active(machine_id: String) -> bool:
+	return bool(machine_active.get(machine_id, false))
+
+func machine_toggle_active(machine_id: String) -> Dictionary:
+	var m := machine_def(machine_id)
+	if m.is_empty():
+		return {"ok": false, "text": "没有这台机器。"}
+	if m.get("special", {}).is_empty():
+		return {"ok": false, "text": "这台机器不需要启用。"}
+	if int(machine_durability.get(machine_id, 100)) <= 0:
+		return {"ok": false, "text": "%s 已损坏，请先维修。" % m.get("name", machine_id)}
+	if machine_faults.has(machine_id):
+		return {"ok": false, "text": "%s 有故障，请先维修。" % m.get("name", machine_id)}
+	var now := not machine_is_active(machine_id)
+	machine_active[machine_id] = now
+	if machine_id == "powerblock":
+		_refresh_upgrades()
+	emit_signal("state_changed")
+	return {"ok": true, "text": "%s 已%s。" % [m.get("name", machine_id), "启用" if now else "停用"]}
+
+func _aux_can_draw(machine_id: String, amount: int) -> bool:
+	if amount <= 0:
+		return true
+	if power < amount:
+		_add_night_log(String(machine_def(machine_id).get("name", machine_id)) + " 电力不足，未运行。")
+		return false
+	power -= amount
+	return true
+
+func _add_night_log(text: String) -> void:
+	night_log.append(text)
+
+func machine_aux_power(machine_id: String) -> int:
+	var sp: Dictionary = machine_def(machine_id).get("special", {})
+	return int(sp.get("power", machine_def(machine_id).get("power", 0)))
+
+func _run_auxiliary_machines() -> void:
+	night_log = []
+	security_alarm_active = false
+	security_stop_rate = 0
+	attraction_bonus = 100
+	var moisture_count := 0
+	for m in machines:
+		if String(m.get("id", "")) == "moisture_farm" and machine_is_active("moisture_farm"):
+			moisture_count += 1
+	var feed_kcal := 0
+	for m in machines:
+		var mid := String(m.get("id", ""))
+		if String(m.get("special", {}).get("kind", "")) == "feed" and machine_is_active(mid):
+			feed_kcal += int(_machine_state(mid).get("kcal", 0))
+	for m in machines:
+		var mid := String(m.get("id", ""))
+		var sp: Dictionary = m.get("special", {})
+		if sp.is_empty() or not machine_is_active(mid):
+			continue
+		if int(machine_durability.get(mid, 100)) <= 0 or machine_faults.has(mid):
+			continue
+		var kind := String(sp.get("kind", ""))
+		match kind:
+			"recharge":
+				next_day_power_bonus += int(sp.get("rate", 3))
+				_add_night_log("充能器为电池组补充 %d 电力。" % int(sp.get("rate", 3)))
+			"reactor":
+				_run_reactor(mid, sp)
+				if phase == "gameover":
+					return
+			"alarm":
+				if _aux_can_draw(mid, int(sp.get("power", 4))):
+					security_alarm_active = true
+					security_stop_rate = clampi(int(sp.get("base_stop", 50)) + int(machine_module_sums(mid)["performance"]), 0, 100)
+			"attract":
+				if _aux_can_draw(mid, int(sp.get("power", 16))):
+					var sums := machine_module_sums(mid)
+					attraction_bonus = int(sp.get("base", 100)) + int(sums["quality"]) / maxi(1, int(sp.get("quality_div", 2))) + int(sums["performance"]) / maxi(1, int(sp.get("performance_div", 4)))
+					_add_night_log("幻影投影仪运行，明日吸引力 %d%%。" % attraction_bonus)
+			"vending":
+				_run_vending(mid, sp)
+			"fountain":
+				_run_fountain(mid, sp)
+			"wine":
+				_run_wine_rack(mid, sp)
+			"fridge":
+				_run_fridge(mid, sp)
+			"cage":
+				_run_cage(mid, sp, feed_kcal)
+			"feed":
+				_run_feed(mid, sp)
+			"vacuum":
+				_run_vacuum(mid, sp)
+			"moisture":
+				_run_moisture(mid, sp, moisture_count)
+			"ras":
+				_run_ras(mid, sp)
+	_run_theft_check()
+
+func _run_reactor(mid: String, sp: Dictionary) -> void:
+	var st := _machine_state(mid)
+	if not st.has("integrity"):
+		st["integrity"] = int(sp.get("max_integrity", 100))
+		st["max_integrity"] = int(sp.get("max_integrity", 100))
+		st["upgrades"] = 0
+		st["waste"] = 0
+	var max_int := int(st.get("max_integrity", 100))
+	var integrity := int(st.get("integrity", max_int))
+	var upgrades := int(st.get("upgrades", 0))
+	var decay := maxi(0, int(sp.get("decay", 18)) - upgrades)
+	integrity = maxi(0, integrity - decay)
+	st["waste"] = int(st.get("waste", 0)) + decay
+	while int(st["waste"]) >= int(sp.get("waste_per_damage", 160)):
+		st["waste"] = int(st["waste"]) - int(sp.get("waste_per_damage", 160))
+		if items_def.has("nuclear_waste"):
+			add_item(make_item("nuclear_waste", 100, true, false))
+			_add_night_log("反应堆排出 1 份核废料。")
+	st["integrity"] = integrity
+	if integrity <= 0:
+		_add_night_log("简易反应堆爆炸了。")
+		phase = "gameover"
+		ending_id = "reactor"
+		emit_signal("state_changed")
+		return
+	if integrity > int(sp.get("power_threshold", 25)):
+		var charge := mini(int(sp.get("max_charge", 4)), int(sp.get("base_charge", 1)) + upgrades / maxi(1, int(sp.get("upgrades_per_charge", 5))))
+		next_day_power_bonus += charge
+	_add_night_log("反应堆完整度 %d/%d，充能 %d。" % [integrity, max_int, mini(int(sp.get("max_charge", 4)), int(sp.get("base_charge", 1)) + upgrades / maxi(1, int(sp.get("upgrades_per_charge", 5))))])
+
+func _stock_items(mid: String) -> Array:
+	if not machine_stock.has(mid) or not (machine_stock[mid] is Array):
+		machine_stock[mid] = []
+	return machine_stock[mid]
+
+func _eligible_for_stock(mid: String, it: Dictionary) -> bool:
+	var kind := String(machine_def(mid).get("special", {}).get("kind", ""))
+	var def := get_item_def(String(it.get("def_id", "")))
+	var tags: Array = def.get("tags", [])
+	var cat := String(def.get("category", ""))
+	match kind:
+		"vending":
+			var vid := String(it.get("def_id", ""))
+			if vid in ["water_jug", "water_bottle_full", "large_water_bottle_full", "small_bottled_water", "bottled_water", "large_bottled_water", "mini_bottle"]:
+				return false
+			if int(def.get("contraband", 0)) > 0 or cat == "furniture" or cat == "machine":
+				return false
+			if tags.has("CONTAINER_TAG") or tags.has("container"):
+				return false
+			if cat == "water" and not vid.contains("wine"):
+				return false
+			return true
+		"fountain":
+			return cat == "water" or String(it.get("def_id", "")) in ["water_jug", "small_bottled_water", "bottled_water", "large_bottled_water", "mini_bottle", "water_bottle_full", "large_water_bottle_full"]
+		"wine":
+			var did := String(it.get("def_id", ""))
+			return cat == "food" and (did.contains("wine") or did == "red_beer" or did == "wine_bottle")
+		"fridge":
+			return cat in ["food", "organ", "medical"]
+		"cage":
+			var did2 := String(it.get("def_id", ""))
+			if did2.begins_with("feces"):
+				return false
+			return did2 == "rat" or (tags.has("animal") and int(def.get("base_value", 0)) <= 0)
+		"feed":
+			return cat == "food" or cat == "animal"
+		"butcher":
+			var did3 := String(it.get("def_id", ""))
+			return did3 == "rat" or tags.has("animal_item_tag")
+		"mark":
+			var did4 := String(it.get("def_id", ""))
+			return did4 == "rat" or tags.has("animal_item_tag") or tags.has("animal")
+	return false
+
+func machine_stock_limit(machine_id: String) -> int:
+	var sp: Dictionary = machine_def(machine_id).get("special", {})
+	var kind := String(sp.get("kind", ""))
+	match kind:
+		"vending": return 8 * (int(sp.get("capacity", 2)) + int(machine_upgrades.get(machine_id, 0)) / 2)
+		"fountain": return 9
+		"wine": return int(sp.get("bottle_capacity", 6))
+		"fridge": return 10 + int(machine_upgrades.get(machine_id, 0)) * 2
+		"cage": return (int(sp.get("size", 3)) + int(machine_upgrades.get(machine_id, 0))) * 10
+		"feed": return 20
+		"butcher": return int(sp.get("keep_max", 10))
+	return 10
+
+func machine_stock_add(machine_id: String, uid: int) -> Dictionary:
+	var idx := -1
+	for i in range(inventory.size()):
+		if int(inventory[i].get("uid", -1)) == uid:
+			idx = i
+			break
+	if idx < 0:
+		return {"ok": false, "text": "背包里没有这件物品。"}
+	var it: Dictionary = inventory[idx]
+	if not _eligible_for_stock(machine_id, it):
+		return {"ok": false, "text": "这件物品不能存入该机器。"}
+	if _stock_items(machine_id).size() >= machine_stock_limit(machine_id):
+		return {"ok": false, "text": "机器库存已满。"}
+	inventory.remove_at(idx)
+	it["location"] = "machine"
+	_stock_items(machine_id).append(it)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已存入：%s。" % String(get_item_def(String(it.get("def_id", ""))).get("name", ""))}
+
+func machine_stock_take_all(machine_id: String) -> Dictionary:
+	var stock := _stock_items(machine_id)
+	var got := 0
+	var failed := 0
+	while not stock.is_empty():
+		var it: Dictionary = stock[0]
+		it["location"] = "backpack"
+		if add_item(it):
+			stock.remove_at(0)
+			got += 1
+		else:
+			failed += 1
+			break
+	emit_signal("state_changed")
+	return {"ok": got > 0, "text": "取回 %d 件物品%s。" % [got, "，背包空间不足" if failed > 0 else ""]}
+
+func _run_vending(mid: String, sp: Dictionary) -> void:
+	if not _aux_can_draw(mid, int(sp.get("power", 2))):
+		return
+	var stock := _stock_items(mid)
+	if stock.is_empty():
+		return
+	var capacity := int(sp.get("capacity", 2)) + int(machine_upgrades.get(mid, 0)) / 2
+	var limit := 1 + capacity / 3
+	var sold := 0
+	while sold < limit and not stock.is_empty():
+		var it: Dictionary = stock.pop_front()
+		var val := market_value(it, true)
+		machine_cash[mid] = int(machine_cash.get(mid, 0)) + val
+		sold += 1
+	if sold > 0:
+		_add_night_log("自动售货机卖出 %d 件，收入 %d₵（待收取）。" % [sold, int(machine_cash.get(mid, 0))])
+
+func _run_fountain(mid: String, sp: Dictionary) -> void:
+	if not _aux_can_draw(mid, int(sp.get("power", 2))):
+		return
+	var stock := _stock_items(mid)
+	if stock.is_empty():
+		return
+	var attract := int(sp.get("attractiveness", 15)) + int(machine_upgrades.get(mid, 0)) * int(sp.get("attract_per_upgrade", 5))
+	var limit := 1 + attract / 40
+	var sold := 0
+	while sold < limit and not stock.is_empty():
+		var it: Dictionary = stock.pop_front()
+		var val := int(round(float(market_value(it, true)) * 1.3))
+		machine_cash[mid] = int(machine_cash.get(mid, 0)) + val
+		sold += 1
+	if sold > 0:
+		_add_night_log("自动售水机卖出 %d 份水，收入 %d₵（待收取）。" % [sold, int(machine_cash.get(mid, 0))])
+
+func _run_wine_rack(mid: String, sp: Dictionary) -> void:
+	if not _aux_can_draw(mid, int(sp.get("power", 24))):
+		return
+	var stock := _stock_items(mid)
+	if stock.is_empty():
+		return
+	var sums := machine_module_sums(mid)
+	var days := 1 + maxi(0, int(sums["quality"])) / maxi(1, int(sp.get("quality_div", 125)))
+	for it in stock:
+		it["aged_days"] = int(it.get("aged_days", 0)) + days
+		var mod := mini(100, int(it["aged_days"]) * 10)
+		var found := false
+		for f in it.get("features", []):
+			if String(f.get("id", "")) == "aged":
+				f["mod"] = mod
+				found = true
+				break
+		if not found:
+			it["features"].append({"id": "aged", "name": "陈年", "mod": mod})
+	_add_night_log("催陈器陈化 %d 瓶酒，每瓶 +%d 天。" % [stock.size(), days])
+
+func _run_fridge(mid: String, sp: Dictionary) -> void:
+	if not _aux_can_draw(mid, int(sp.get("power", 2))):
+		return
+	for it in _stock_items(mid):
+		var found := false
+		for f in it.get("features", []):
+			if String(f.get("id", "")) == "chilled":
+				f["mod"] = int(sp.get("chill_bonus", 20))
+				found = true
+				break
+		if not found:
+			it["features"].append({"id": "chilled", "name": "冷藏", "mod": int(sp.get("chill_bonus", 20))})
+
+func _run_cage(mid: String, sp: Dictionary, feed_kcal: int) -> void:
+	var stock := _stock_items(mid)
+	var animals := 0
+	for it in stock:
+		if _eligible_for_stock(mid, it):
+			animals += 1
+	if animals <= 0:
+		return
+	var st := _machine_state(mid)
+	if not st.has("health"):
+		st["health"] = int(sp.get("health", 100))
+	var health := int(st.get("health", 100))
+	var max_health := int(sp.get("max_health", 100)) + int(machine_upgrades.get(mid, 0)) * 20
+	var wear := animals / maxi(1, int(sp.get("wear_divisor", 4)))
+	health = maxi(0, health - wear)
+	if feed_kcal >= animals * 100:
+		health = mini(max_health, health + animals * 5)
+		for m in machines:
+			if String(m.get("special", {}).get("kind", "")) == "feed" and machine_is_active(String(m.get("id", ""))):
+				var fs := _machine_state(String(m.get("id", "")))
+				fs["kcal"] = maxi(0, int(fs.get("kcal", 0)) - animals * 100)
+				break
+	st["health"] = health
+	if health < int(sp.get("escape_threshold", 20)):
+		var chance := 5
+		if health <= 0:
+			chance = int(sp.get("escape_chance_zero", 25))
+		else:
+			chance = int(round(lerpf(25.0, 5.0, float(health) / float(sp.get("escape_threshold", 20)))))
+		if rng.randi_range(1, 100) <= chance and not stock.is_empty():
+			var escaped: Dictionary = stock.pop_back()
+			_add_night_log("笼中动物逃脱：%s。" % String(get_item_def(String(escaped.get("def_id", ""))).get("name", "")))
+	for i in range(animals):
+		if rng.randf() < 0.25 and items_def.has("feces_small"):
+			add_item(make_item("feces_small", 100, true, false))
+
+func _run_feed(mid: String, sp: Dictionary) -> void:
+	var st := _machine_state(mid)
+	if not st.has("kcal"):
+		st["kcal"] = 0
+	var stock := _stock_items(mid)
+	var converted := 0
+	while not stock.is_empty() and int(st["kcal"]) < int(sp.get("max_kcal", 40000)):
+		var it: Dictionary = stock.pop_front()
+		var did := String(it.get("def_id", ""))
+		var kcal := 100
+		if did == "raw_meat":
+			kcal = 2000
+		elif did == "small_raw_meat":
+			kcal = 800
+		elif did == "meat_scrap":
+			kcal = 300
+		elif did == "processed_meat":
+			kcal = 1000
+		elif did == "nutrifruit":
+			kcal = 500
+		st["kcal"] = mini(int(sp.get("max_kcal", 40000)), int(st["kcal"]) + kcal)
+		converted += 1
+	if converted > 0:
+		_add_night_log("饲料分配器转化 %d 份食物，储存 %d kcal。" % [converted, int(st["kcal"])])
+
+func _run_vacuum(mid: String, sp: Dictionary) -> void:
+	var gained := 0
+	for i in range(inventory.size() - 1, -1, -1):
+		var did := String(inventory[i].get("def_id", ""))
+		if did in ["feces_small", "feces_medium", "feces_large"]:
+			inventory.remove_at(i)
+			gained += 1
+	if gained > 0:
+		next_day_power_bonus += gained * int(sp.get("power_per_feces", 1))
+		_add_night_log("清洁机器人焚化 %d 份粪便，回收 %d 电力。" % [gained, gained * int(sp.get("power_per_feces", 1))])
+
+func _run_moisture(mid: String, sp: Dictionary, active_count: int) -> void:
+	if not _aux_can_draw(mid, int(sp.get("power", 6))):
+		return
+	var st := _machine_state(mid)
+	if not st.has("ml"):
+		st["ml"] = 0
+	var sums := machine_module_sums(mid)
+	var base := int(round(float(sp.get("base_ml", 850)) * (1.0 + float(sums["performance"]) / 100.0)))
+	var count := maxi(1, active_count)
+	var volume := int(round(float(base) / (1.0 + float(sp.get("shared_air", 0.25)) * float(count - 1))))
+	st["ml"] = int(st["ml"]) + volume
+	while int(st["ml"]) >= 1000 and items_def.has("water_jug"):
+		st["ml"] = int(st["ml"]) - 1000
+		var it := make_item("water_jug", 100, true, false)
+		var quality := int(sums["quality"])
+		it["features"].append({"id": "water_quality", "name": "纯净水" if quality >= 50 else ("基础水" if quality >= 0 else "锈水"), "mod": quality})
+		add_item(it)
+	_add_night_log("湿气农场产出 %dml 水（共用空气 %d 台）。" % [volume, count])
+
+func _run_ras(mid: String, sp: Dictionary) -> void:
+	if not _aux_can_draw(mid, int(sp.get("power", 5))):
+		return
+	var st := _machine_state(mid)
+	if not st.has("growth"):
+		st["growth"] = 0
+	var feed := "industrial_fish_feed"
+	if inventory_count(feed) <= 0:
+		_add_night_log("循环水养殖系统缺饲料，未生长。")
+		return
+	remove_inventory(feed, 1)
+	st["growth"] = int(st["growth"]) + 25
+	if int(st["growth"]) >= 100:
+		st["growth"] = 0
+		for i in range(2):
+			add_item(make_item("fish_fillet", 100, true, false))
+		_add_night_log("循环水养殖系统收获 2 份鱼片。")
+	else:
+		_add_night_log("循环水养殖系统生长 %d%%。" % int(st["growth"]))
+
+func _run_theft_check() -> void:
+	if display.is_empty():
+		return
+	if rng.randf() >= 0.12:
+		return
+	if security_alarm_active and rng.randi_range(1, 100) <= security_stop_rate:
+		_add_night_log("警报系统阻止了一次店内盗窃（阻止率 %d%%）。" % security_stop_rate)
+		return
+	var idx := rng.randi_range(0, display.size() - 1)
+	var stolen: Dictionary = display[idx]
+	display.remove_at(idx)
+	_add_night_log("店内失窃：%s。" % String(get_item_def(String(stolen.get("def_id", ""))).get("name", "")))
+	add_rep("lower", -1)
+
+func machine_special_action(machine_id: String) -> Dictionary:
+	var m := machine_def(machine_id)
+	if m.is_empty():
+		return {"ok": false, "text": "没有这台机器。"}
+	var sp: Dictionary = m.get("special", {})
+	if sp.is_empty():
+		return {"ok": false, "text": "这台机器没有专用操作。"}
+	var kind := String(sp.get("kind", ""))
+	match kind:
+		"bargain":
+			if current_customer.is_empty():
+				return {"ok": false, "text": "现在没有顾客。"}
+			if bargain_bonus > 0:
+				return {"ok": false, "text": "这位顾客已经受过 Deal Maker 影响。"}
+			var need := int(sp.get("power", 25))
+			if power < need:
+				return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [need, power]}
+			power -= need
+			bargain_bonus = int(sp.get("base", 10)) + int(machine_module_sums(machine_id)["quality"]) / maxi(1, int(sp.get("quality_div", 1)))
+			emit_signal("state_changed")
+			return {"ok": true, "text": "Deal Maker 已启用：本次议价 +%d%%。" % bargain_bonus}
+		"vending", "fountain":
+			return _vending_action(machine_id, sp)
+		"reactor":
+			return _reactor_action(machine_id, sp)
+		"cage":
+			return _cage_action(machine_id, sp)
+		"bottle_printer", "fridge", "ras":
+			return _upgrade_action(machine_id, sp)
+		"storage_preset":
+			return _storage_preset_action(machine_id)
+		"music":
+			var st := _machine_state(machine_id)
+			st["on"] = not bool(st.get("on", false))
+			emit_signal("music_toggled", bool(st["on"]))
+			emit_signal("state_changed")
+			return {"ok": true, "text": "磁带播放器已%s。" % ("播放" if bool(st["on"]) else "停止")}
+		"mark":
+			var cage_stock := _stock_items("animal_cage")
+			if cage_stock.is_empty():
+				return {"ok": false, "text": "动物笼里没有可标记的动物。"}
+			var animal: Dictionary = cage_stock[0]
+			var colors: Array = sp.get("colors", ["red"])
+			var color := String(colors[rng.randi_range(0, colors.size() - 1)])
+			animal["features"] = animal.get("features", [])
+			animal["features"].append({"id": "mark_" + color, "name": "标记：" + color, "mod": 0})
+			emit_signal("state_changed")
+			return {"ok": true, "text": "已标记：%s（%s）。" % [String(get_item_def(String(animal.get("def_id", ""))).get("name", "")), color]}
+		"purify", "distill", "heat":
+			return {"ok": false, "text": "请选择要处理的液体/食物。", "select": kind}
+		"butcher":
+			if not _stock_items(machine_id).is_empty():
+				return {"ok": false, "text": "选择屠宰操作。", "select_options": [
+					{"id": "butcher_stock", "label": "屠宰库存中的 1 只动物"},
+					{"id": "cancel", "label": "取消"}], "select_cb": "butcher", "machine": machine_id}
+			return {"ok": false, "text": "请选择要屠宰的动物。", "select": "butcher"}
+		_:
+			return {"ok": false, "text": "这台机器会自动运行，无需手动操作。"}
+
+func _reactor_action(mid: String, sp: Dictionary) -> Dictionary:
+	var st := _machine_state(mid)
+	var integrity := int(st.get("integrity", sp.get("max_integrity", 100)))
+	var max_int := int(st.get("max_integrity", 100))
+	var upgrades := int(st.get("upgrades", 0))
+	var options: Array = []
+	if integrity < max_int:
+		if inventory_count("scrap_metal") > 0:
+			options.append({"id": "repair_scrap", "label": "废金属维修（+%d 完整度）" % int(sp.get("repair_scrap", 60))})
+		if inventory_count("junk") > 0:
+			options.append({"id": "repair_junk", "label": "垃圾维修（+%d，上限 -%d）" % [int(sp.get("repair_junk", 30)), int(sp.get("junk_max_loss", 5))]})
+	if upgrades < int(sp.get("max_upgrades", 18)) and inventory_count("common_electronic") > 0:
+		options.append({"id": "upgrade", "label": "电子件升级（%d/%d）" % [upgrades, int(sp.get("max_upgrades", 18))]})
+	if options.is_empty():
+		return {"ok": false, "text": "没有可用的维修/升级材料。"}
+	options.append({"id": "cancel", "label": "取消"})
+	return {"ok": false, "text": "选择反应堆操作。", "select_options": options, "select_cb": "reactor", "machine": mid}
+
+func _cage_action(mid: String, sp: Dictionary) -> Dictionary:
+	var st := _machine_state(mid)
+	var options: Array = []
+	if inventory_count("metal_ingot") > 0 and int(machine_upgrades.get(mid, 0)) < int(sp.get("max_size", 8)) - int(sp.get("size", 3)):
+		options.append({"id": "upgrade", "label": "金属锭扩容（%d 级）" % int(machine_upgrades.get(mid, 0))})
+	if int(st.get("health", 100)) < int(sp.get("max_health", 100)) and inventory_count("scrap_metal") > 0:
+		options.append({"id": "repair", "label": "废金属修理"})
+	if options.is_empty():
+		return {"ok": false, "text": "没有可用的升级/修理材料。"}
+	options.append({"id": "cancel", "label": "取消"})
+	return {"ok": false, "text": "选择动物笼操作。", "select_options": options, "select_cb": "cage", "machine": mid}
+
+func reactor_apply(mid: String, action: String) -> Dictionary:
+	var sp: Dictionary = machine_def(mid).get("special", {})
+	var st := _machine_state(mid)
+	var integrity := int(st.get("integrity", sp.get("max_integrity", 100)))
+	var max_int := int(st.get("max_integrity", 100))
+	match action:
+		"repair_scrap":
+			if inventory_count("scrap_metal") <= 0:
+				return {"ok": false, "text": "缺少废金属。"}
+			remove_inventory("scrap_metal", 1)
+			st["integrity"] = mini(max_int, integrity + int(sp.get("repair_scrap", 60)))
+			emit_signal("state_changed")
+			return {"ok": true, "text": "反应堆完整度恢复到 %d/%d。" % [int(st["integrity"]), max_int]}
+		"repair_junk":
+			if inventory_count("junk") <= 0:
+				return {"ok": false, "text": "缺少垃圾。"}
+			remove_inventory("junk", 1)
+			max_int = maxi(0, max_int - int(sp.get("junk_max_loss", 5)))
+			st["max_integrity"] = max_int
+			st["integrity"] = mini(max_int, integrity + int(sp.get("repair_junk", 30)))
+			emit_signal("state_changed")
+			return {"ok": true, "text": "反应堆完整度恢复到 %d/%d（上限下降）。" % [int(st["integrity"]), max_int]}
+		"upgrade":
+			if inventory_count("common_electronic") <= 0:
+				return {"ok": false, "text": "缺少电子件。"}
+			remove_inventory("common_electronic", 1)
+			st["upgrades"] = int(st.get("upgrades", 0)) + 1
+			emit_signal("state_changed")
+			return {"ok": true, "text": "反应堆升级到 %d 级。" % int(st["upgrades"])}
+	return {"ok": false, "text": "取消。"}
+
+func cage_apply(mid: String, action: String) -> Dictionary:
+	var sp: Dictionary = machine_def(mid).get("special", {})
+	var st := _machine_state(mid)
+	match action:
+		"upgrade":
+			if inventory_count("metal_ingot") <= 0:
+				return {"ok": false, "text": "缺少金属锭。"}
+			remove_inventory("metal_ingot", 1)
+			machine_upgrades[mid] = int(machine_upgrades.get(mid, 0)) + 1
+			emit_signal("state_changed")
+			return {"ok": true, "text": "动物笼扩容到 %d 级。" % int(machine_upgrades[mid])}
+		"repair":
+			if inventory_count("scrap_metal") <= 0:
+				return {"ok": false, "text": "缺少废金属。"}
+			remove_inventory("scrap_metal", 1)
+			st["health"] = mini(int(sp.get("max_health", 100)) + int(machine_upgrades.get(mid, 0)) * 20, int(st.get("health", 0)) + 50)
+			emit_signal("state_changed")
+			return {"ok": true, "text": "动物笼已修理。"}
+	return {"ok": false, "text": "取消。"}
+
+func _upgrade_action(mid: String, sp: Dictionary) -> Dictionary:
+	var max_level := 9
+	var material := "common_electronic"
+	if mid == "fridge":
+		max_level = 14
+	elif mid == "ras":
+		max_level = 20
+	elif mid == "vending_machine":
+		max_level = 27
+	elif mid == "vending_fountain":
+		max_level = 17
+	var level := int(machine_upgrades.get(mid, 0))
+	if level >= max_level:
+		return {"ok": false, "text": "已经升到最高级。"}
+	if inventory_count(material) <= 0:
+		return {"ok": false, "text": "缺少升级材料：%s。" % String(get_item_def(material).get("name", material))}
+	remove_inventory(material, 1)
+	machine_upgrades[mid] = level + 1
+	emit_signal("state_changed")
+	return {"ok": true, "text": "%s 升级到 %d 级。" % [machine_def(mid).get("name", mid), level + 1]}
+
+func _vending_action(mid: String, sp: Dictionary) -> Dictionary:
+	var options: Array = []
+	var cash_in := int(machine_cash.get(mid, 0))
+	if cash_in > 0:
+		options.append({"id": "collect", "label": "收取现金 %d₵" % cash_in})
+	var material := String(sp.get("upgrade_material", "common_electronic"))
+	if inventory_count(material) > 0:
+		options.append({"id": "upgrade", "label": "升级（消耗 1 %s）" % String(get_item_def(material).get("name", material))})
+	if options.is_empty():
+		return {"ok": false, "text": "没有待收现金，也缺少升级材料。"}
+	if options.size() == 1:
+		return machine_special_choice(mid, String(options[0]["id"]))
+	options.append({"id": "cancel", "label": "取消"})
+	return {"ok": false, "text": "选择操作。", "select_options": options, "select_cb": "vending", "machine": mid}
+
+func machine_special_choice(machine_id: String, action: String) -> Dictionary:
+	var sp: Dictionary = machine_def(machine_id).get("special", {})
+	if action == "cancel":
+		return {"ok": false, "text": "已取消。"}
+	if action == "collect":
+		var cash_in := int(machine_cash.get(machine_id, 0))
+		if cash_in <= 0:
+			return {"ok": false, "text": "机器里没有待收取的现金。"}
+		cash += cash_in
+		daily["sales"] += cash_in
+		machine_cash[machine_id] = 0
+		emit_signal("state_changed")
+		return {"ok": true, "text": "收取 %d₵。" % cash_in}
+	if action == "butcher_stock":
+		return _butcher_stock(machine_id)
+	if action == "upgrade":
+		if String(sp.get("kind", "")) == "cage":
+			return cage_apply(machine_id, action)
+		return _upgrade_action(machine_id, sp)
+	if action in ["repair_scrap", "repair_junk"]:
+		return reactor_apply(machine_id, action)
+	if action == "repair":
+		return cage_apply(machine_id, action)
+	return {"ok": false, "text": "未知操作。"}
+
+func _storage_preset_action(mid: String) -> Dictionary:
+	var st := _machine_state(mid)
+	if not st.has("preset"):
+		var preset: Array = []
+		for it in display:
+			preset.append(String(it.get("def_id", "")))
+		st["preset"] = preset
+		emit_signal("state_changed")
+		return {"ok": true, "text": "已保存货架预设（%d 件）。" % preset.size()}
+	var restored := 0
+	for did in st["preset"]:
+		if display.size() >= DISPLAY_SLOTS:
+			break
+		for i in range(inventory.size()):
+			if String(inventory[i].get("def_id", "")) == String(did):
+				var it: Dictionary = inventory[i]
+				inventory.remove_at(i)
+				it["location"] = "display"
+				display.append(it)
+				restored += 1
+				break
+	emit_signal("state_changed")
+	return {"ok": true, "text": "按预设补货 %d 件。" % restored}
+
+func is_water_container_item(def_id: String) -> bool:
+	var def := get_item_def(def_id)
+	var tags: Array = def.get("tags", [])
+	for t in tags:
+		if String(t) in ["WATER_PURIFICATION_TABLET", "WATER_TESTING_STRIP_TAG", "WATER_FILTER", "PRE_CONTAINER_TAG"]:
+			return false
+	if def_id.contains("tablet") or def_id.contains("filter") or def_id.contains("strip"):
+		return false
+	if tags.has("LIQUID_CONTAINER_TAG"):
+		return true
+	if String(def.get("inspect_type", "")) != "water" and not tags.has("water"):
+		return false
+	return def_id.contains("bottle") or def_id.contains("jug") or def_id.contains("pitcher") or def_id.contains("tank") or def_id.contains("ration")
+
+func apply_item_service(machine_id: String, uid: int) -> Dictionary:
+	var m := machine_def(machine_id)
+	var sp: Dictionary = m.get("special", {})
+	var kind := String(sp.get("kind", ""))
+	var idx := -1
+	for i in range(inventory.size()):
+		if int(inventory[i].get("uid", -1)) == uid:
+			idx = i
+			break
+	if idx < 0:
+		return {"ok": false, "text": "背包里没有这件物品。"}
+	var it: Dictionary = inventory[idx]
+	var did := String(it.get("def_id", ""))
+	var def := get_item_def(did)
+	var tags: Array = def.get("tags", [])
+	if kind in ["purify", "distill", "heat"]:
+		if not is_water_container_item(did):
+			return {"ok": false, "text": "只能处理液体容器。"}
+		var need := int(sp.get("power", 0)) if kind != "heat" else 0
+		if power < need:
+			return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [need, power]}
+		power -= need
+		if kind == "purify":
+			for f in it.get("features", []):
+				if int(f.get("mod", 0)) < 0:
+					f["mod"] = 0
+			it["features"].append({"id": "purified", "name": "已净化", "mod": 15})
+		elif kind == "distill":
+			it["features"].append({"id": "distilled", "name": "蒸馏", "mod": 20})
+			if machine_module_ids(machine_id).has(String(sp.get("solvent_module", ""))):
+				it["features"].append({"id": "solvent", "name": "溶剂回收", "mod": 10})
+		else:
+			it["features"].append({"id": "heated", "name": "已加热", "mod": 8})
+		emit_signal("state_changed")
+		return {"ok": true, "text": "%s 已处理：%s。" % [m.get("name", machine_id), String(def.get("name", did))]}
+	if kind == "mark":
+		var color := "red"
+		var colors: Array = sp.get("colors", ["red"])
+		color = String(colors[rng.randi_range(0, colors.size() - 1)])
+		it["features"].append({"id": "mark_" + color, "name": "标记：" + color, "mod": 0})
+		emit_signal("state_changed")
+		return {"ok": true, "text": "已标记：%s（%s）。" % [String(def.get("name", did)), color]}
+	if kind == "butcher":
+		if not _eligible_for_stock(machine_id, it):
+			return {"ok": false, "text": "这件物品不能屠宰。"}
+		inventory.remove_at(idx)
+		var cuts := 1
+		if did == "rat":
+			cuts = 1
+			add_item(make_item("small_raw_meat", 100, true, false))
+			add_item(make_item("meat_scrap", 100, true, false))
+		else:
+			add_item(make_item("small_raw_meat", 100, true, false))
+		emit_signal("state_changed")
+		return {"ok": true, "text": "已屠宰：%s，获得 %d 份肉。" % [String(def.get("name", did)), cuts + 1]}
+	return {"ok": false, "text": "无法处理。"}
+
+func _butcher_stock(machine_id: String) -> Dictionary:
+	var stock := _stock_items(machine_id)
+	if stock.is_empty():
+		return {"ok": false, "text": "屠宰机库存里没有动物。"}
+	var it: Dictionary = stock.pop_front()
+	var did := String(it.get("def_id", ""))
+	var def := get_item_def(did)
+	var produced: Array = []
+	if did == "rat":
+		if add_item(make_item("small_raw_meat", 100, true, false)):
+			produced.append(String(get_item_def("small_raw_meat").get("name", "small_raw_meat")))
+		if add_item(make_item("meat_scrap", 100, true, false)):
+			produced.append(String(get_item_def("meat_scrap").get("name", "meat_scrap")))
+	else:
+		if add_item(make_item("small_raw_meat", 100, true, false)):
+			produced.append(String(get_item_def("small_raw_meat").get("name", "small_raw_meat")))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已屠宰 %s，获得：%s。" % [String(def.get("name", did)), "、".join(produced)]}
+
+func machine_stock_summary(machine_id: String) -> String:
+	var stock := _stock_items(machine_id)
+	var counts := {}
+	for it in stock:
+		var did := String(it.get("def_id", ""))
+		counts[did] = int(counts.get(did, 0)) + 1
+	var parts: Array = []
+	for did in counts.keys():
+		parts.append("%s×%d" % [String(get_item_def(String(did)).get("name", did)), int(counts[did])])
+	return "、".join(parts)
+
 func advance_machines_one_cycle() -> void:
+	_run_auxiliary_machines()
 	if machine_jobs.is_empty():
+		emit_signal("state_changed")
 		return
 	var finished: Array = []
 	var k := 0
@@ -1688,19 +2690,16 @@ func advance_machines_one_cycle() -> void:
 		else:
 			k += 1
 	for j in finished:
-		var got: Array = []
-		for out in j.get("outputs", []):
-			var oid := String(out.get("id", ""))
-			if not items_def.has(oid):
-				continue
-			for n in range(int(out.get("count", 1))):
-				add_item(make_item(oid, 100, true, false))
-				got.append(String(get_item_def(oid).get("name", oid)))
+		var got: Array = _grant_job_outputs(j)
 		var mid := String(j.get("machine_id", ""))
 		var wear: int = [1, 2, 3][clampi(int(machine_temps.get(mid, 2)), 1, 3) - 1] + rng.randi_range(0, 1)
 		var dur := maxi(0, int(machine_durability.get(mid, 100)) - wear)
 		machine_durability[mid] = dur
 		var msg := "%s 完成：+%s" % [j.get("name", ""), "、".join(got)]
+		if bool(j.get("dna_fail", false)):
+			msg = "%s 完成：性状操作失败（成功率 %d%%）。" % [j.get("name", ""), int(j.get("dna_chance", 0))]
+		elif got.is_empty():
+			msg = "%s 完成，没有产出。" % j.get("name", "")
 		if dur <= 0:
 			msg += "（机器损坏，需要维修）"
 		var fault := _roll_machine_fault(mid)
@@ -1716,6 +2715,8 @@ func save_game(slot: int = 1) -> bool:
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults, "machine_recipes": machine_recipes,
+		"machine_active": machine_active, "machine_stock": machine_stock, "machine_cash": machine_cash, "machine_upgrades": machine_upgrades, "machine_state": machine_state,
+		"night_log": night_log, "next_day_power_bonus": next_day_power_bonus, "attraction_bonus": attraction_bonus, "security_alarm_active": security_alarm_active, "security_stop_rate": security_stop_rate,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
@@ -1784,10 +2785,23 @@ func load_game(slot: int = 1) -> bool:
 	machine_durability = data.get("machine_durability", {}).duplicate(true)
 	machine_faults = data.get("machine_faults", {}).duplicate(true)
 	machine_recipes = data.get("machine_recipes", {}).duplicate(true)
+	machine_active = data.get("machine_active", {}).duplicate(true)
+	machine_stock = data.get("machine_stock", {}).duplicate(true)
+	machine_cash = data.get("machine_cash", {}).duplicate(true)
+	machine_upgrades = data.get("machine_upgrades", {}).duplicate(true)
+	machine_state = data.get("machine_state", {}).duplicate(true)
+	night_log = data.get("night_log", []).duplicate(true)
+	next_day_power_bonus = int(data.get("next_day_power_bonus", 0))
+	attraction_bonus = int(data.get("attraction_bonus", 100))
+	security_alarm_active = bool(data.get("security_alarm_active", false))
+	security_stop_rate = int(data.get("security_stop_rate", 0))
 	machine_jobs = data.get("machine_jobs", []).duplicate(true)
 	for j in machine_jobs:
 		j["remaining"] = float(j.get("remaining", 0.0))
 		j["total"] = float(j.get("total", 1.0))
+	for mid in machine_stock.keys():
+		for it in machine_stock[mid]:
+			_normalize_item(it)
 	pending_event = {}
 	phase = "open"
 	start_day()

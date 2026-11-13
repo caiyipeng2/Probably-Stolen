@@ -7,23 +7,24 @@
     "time": 4.0,
     "cycles": 1,
     "temp": 24,
-    "inputs": [
-      {
-        "id": "water_bottle_full",
-        "count": 1
-      },
-      {
-        "id": "water_tablet",
-        "count": 1
-      }
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
     ],
-    "outputs": [
-      {
-        "id": "bottled_water_premium",
-        "count": 1
-      }
-    ],
-    "source": "extracted+port"
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "净化液体容器中的污染物；每夜耗电 4，按污染度决定清除量，模块品质提高纯净度上限。",
+    "special": {
+      "kind": "purify",
+      "power": 4,
+      "removal_mult": 1.25,
+      "flat_budget": 25000,
+      "volume_permille": 3,
+      "max_purity": 9901
+    },
+    "passive": true
   },
   {
     "id": "furnace",
@@ -48,8 +49,8 @@
     "source": "extracted+port",
     "recipes": [
       {
-        "id": "smelt",
-        "name": "smelt",
+        "id": "smelt_scrap",
+        "name": "熔炼废金属",
         "inputs": [
           {
             "id": "scrap_metal",
@@ -62,11 +63,52 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 1,
+        "module_effects": {
+          "furnace_module_blast": {
+            "input_mult": 1.5,
+            "outputs": [
+              {
+                "id": "metal_ingot",
+                "count": 2
+              }
+            ],
+            "quality_delta": -1
+          }
+        }
+      },
+      {
+        "id": "smelt_ore",
+        "name": "熔炼矿石",
+        "inputs": [
+          {
+            "id": "common_ore",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "metal_ingot",
+            "count": 1
+          }
+        ],
+        "cycles": 1,
+        "module_effects": {
+          "furnace_module_blast": {
+            "input_mult": 1.5,
+            "outputs": [
+              {
+                "id": "metal_ingot",
+                "count": 2
+              }
+            ],
+            "quality_delta": -1
+          }
+        }
       },
       {
         "id": "junk_recycle",
-        "name": "junk_recycle",
+        "name": "垃圾再生",
         "inputs": [
           {
             "id": "junk",
@@ -79,9 +121,19 @@
             "count": 4
           }
         ],
-        "cycles": 2
+        "cycles": 1,
+        "requires_modules": [
+          "furnace_module_junk"
+        ]
       }
-    ]
+    ],
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_FURNACE"
+    ],
+    "module_slots": 3,
+    "quality_ratio": 100,
+    "rule_text": "熔炼废金属/矿石为金属锭。高炉模组把每次投料改为 3 份并额外产 1 锭；垃圾处理模组可用 6 份垃圾再生 4 份废金属。"
   },
   {
     "id": "printer",
@@ -120,7 +172,10 @@
             "count": 1
           }
         ],
-        "cycles": 5
+        "cycles": 5,
+        "requires_items": [
+          "printer_chip_pistol"
+        ]
       },
       {
         "id": "printer_chip_pistol_double",
@@ -137,7 +192,10 @@
             "count": 2
           }
         ],
-        "cycles": 6
+        "cycles": 6,
+        "requires_items": [
+          "printer_chip_pistol_double"
+        ]
       },
       {
         "id": "printer_chip_makeshift_rds",
@@ -158,7 +216,10 @@
             "count": 4
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_makeshift_rds"
+        ]
       },
       {
         "id": "printer_chip_makeshift_toy_laser",
@@ -179,7 +240,10 @@
             "count": 4
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_makeshift_toy_laser"
+        ]
       },
       {
         "id": "printer_chip_small_bottle",
@@ -196,7 +260,10 @@
             "count": 6
           }
         ],
-        "cycles": 1
+        "cycles": 1,
+        "requires_items": [
+          "printer_chip_small_bottle"
+        ]
       },
       {
         "id": "printer_chip_internal_springs_improved",
@@ -213,7 +280,10 @@
             "count": 4
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_internal_springs_improved"
+        ]
       },
       {
         "id": "printer_chip_rds",
@@ -234,7 +304,10 @@
             "count": 2
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_rds"
+        ]
       },
       {
         "id": "printer_chip_laser_sight",
@@ -255,7 +328,10 @@
             "count": 2
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_laser_sight"
+        ]
       },
       {
         "id": "printer_chip_silencer",
@@ -272,7 +348,10 @@
             "count": 2
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_silencer"
+        ]
       },
       {
         "id": "printer_chip_22_mag",
@@ -289,7 +368,10 @@
             "count": 2
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "requires_items": [
+          "printer_chip_22_mag"
+        ]
       },
       {
         "id": "printer_chip_22_mag_ext",
@@ -306,7 +388,10 @@
             "count": 2
           }
         ],
-        "cycles": 5
+        "cycles": 5,
+        "requires_items": [
+          "printer_chip_22_mag_ext"
+        ]
       },
       {
         "id": "printer_chip_22_mag_high",
@@ -323,7 +408,10 @@
             "count": 2
           }
         ],
-        "cycles": 4
+        "cycles": 4,
+        "requires_items": [
+          "printer_chip_22_mag_high"
+        ]
       },
       {
         "id": "printer_chip_10_mag",
@@ -340,7 +428,13 @@
             "count": 2
           }
         ],
-        "cycles": 4
+        "cycles": 4,
+        "requires_modules": [
+          "printer_module_metal"
+        ],
+        "requires_items": [
+          "printer_chip_10_mag"
+        ]
       },
       {
         "id": "printer_chip_10_mag_ext",
@@ -357,7 +451,13 @@
             "count": 1
           }
         ],
-        "cycles": 6
+        "cycles": 6,
+        "requires_modules": [
+          "printer_module_metal"
+        ],
+        "requires_items": [
+          "printer_chip_10_mag_ext"
+        ]
       },
       {
         "id": "printer_chip_10_mag_high",
@@ -374,7 +474,13 @@
             "count": 1
           }
         ],
-        "cycles": 5
+        "cycles": 5,
+        "requires_modules": [
+          "printer_module_metal"
+        ],
+        "requires_items": [
+          "printer_chip_10_mag_high"
+        ]
       },
       {
         "id": "printer_chip_handmade_pistol_frame",
@@ -391,7 +497,14 @@
             "count": 1
           }
         ],
-        "cycles": 6
+        "cycles": 6,
+        "requires_modules": [
+          "printer_module_metal",
+          "printer_module_cnc"
+        ],
+        "requires_items": [
+          "printer_chip_handmade_pistol_frame"
+        ]
       },
       {
         "id": "printer_chip_heavy_handmade_pistol_frame",
@@ -412,7 +525,14 @@
             "count": 1
           }
         ],
-        "cycles": 7
+        "cycles": 7,
+        "requires_modules": [
+          "printer_module_metal",
+          "printer_module_cnc"
+        ],
+        "requires_items": [
+          "printer_chip_heavy_handmade_pistol_frame"
+        ]
       },
       {
         "id": "printer_chip_gun_part",
@@ -429,7 +549,15 @@
             "count": 3
           }
         ],
-        "cycles": 3
+        "cycles": 3,
+        "requires_modules": [
+          "printer_module_metal",
+          "printer_module_cnc"
+        ],
+        "count_from_input_condition": true,
+        "requires_items": [
+          "printer_chip_gun_part"
+        ]
       },
       {
         "id": "printer_chip_box_cutter",
@@ -446,7 +574,11 @@
             "count": 3
           }
         ],
-        "cycles": 3
+        "cycles": 3,
+        "melee": true,
+        "requires_items": [
+          "printer_chip_box_cutter"
+        ]
       },
       {
         "id": "printer_chip_kitchen_knife",
@@ -463,7 +595,11 @@
             "count": 4
           }
         ],
-        "cycles": 6
+        "cycles": 6,
+        "melee": true,
+        "requires_items": [
+          "printer_chip_kitchen_knife"
+        ]
       },
       {
         "id": "printer_chip_hatchet",
@@ -480,7 +616,11 @@
             "count": 4
           }
         ],
-        "cycles": 8
+        "cycles": 8,
+        "melee": true,
+        "requires_items": [
+          "printer_chip_hatchet"
+        ]
       },
       {
         "id": "printer_chip_kitchen_cleaver",
@@ -497,7 +637,11 @@
             "count": 4
           }
         ],
-        "cycles": 8
+        "cycles": 8,
+        "melee": true,
+        "requires_items": [
+          "printer_chip_kitchen_cleaver"
+        ]
       },
       {
         "id": "printer_chip_combat_knife",
@@ -514,7 +658,14 @@
             "count": 5
           }
         ],
-        "cycles": 10
+        "cycles": 10,
+        "requires_modules": [
+          "printer_module_metal"
+        ],
+        "melee": true,
+        "requires_items": [
+          "printer_chip_combat_knife"
+        ]
       },
       {
         "id": "printer_chip_combat_machete",
@@ -531,24 +682,33 @@
             "count": 3
           }
         ],
-        "cycles": 12
+        "cycles": 12,
+        "requires_modules": [
+          "printer_module_metal"
+        ],
+        "melee": true,
+        "requires_items": [
+          "printer_chip_combat_machete"
+        ]
       }
-    ]
+    ],
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_PRINTER"
+    ],
+    "module_slots": 4,
+    "quality_ratio": 100,
+    "rule_text": "按打印芯片生产，进度 24/夜。金属类芯片需金属打印模组，框架/枪零件还需数控模组；近战批量模组让近战芯片每次多产 1 件。"
   },
   {
     "id": "bottle_printer",
     "name": "瓶装机",
     "category": "print",
-    "power": 2,
+    "power": 0,
     "time": 5.0,
     "cycles": 2,
     "temp": 24,
-    "inputs": [
-      {
-        "id": "printer_plastic",
-        "count": 1
-      }
-    ],
+    "inputs": [],
     "outputs": [
       {
         "id": "small_bottled_water",
@@ -559,56 +719,65 @@
     "recipes": [
       {
         "id": "small",
-        "name": "small",
-        "inputs": [
-          {
-            "id": "printer_plastic",
-            "count": 1
-          }
-        ],
+        "name": "打印小水瓶",
+        "inputs": [],
         "outputs": [
           {
             "id": "small_bottled_water",
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 1,
+        "power_cost": 4,
+        "unlock_upgrade": 0
       },
       {
         "id": "normal",
-        "name": "normal",
-        "inputs": [
-          {
-            "id": "printer_plastic",
-            "count": 1
-          }
-        ],
+        "name": "打印普通水瓶",
+        "inputs": [],
         "outputs": [
           {
             "id": "bottled_water",
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 1,
+        "power_cost": 6,
+        "unlock_upgrade": 3
       },
       {
         "id": "large",
-        "name": "large",
-        "inputs": [
-          {
-            "id": "printer_plastic",
-            "count": 1
-          }
-        ],
+        "name": "打印大水瓶",
+        "inputs": [],
         "outputs": [
           {
             "id": "large_bottled_water",
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 1,
+        "power_cost": 11,
+        "unlock_upgrade": 9
       }
-    ]
+    ],
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
+    ],
+    "module_slots": 1,
+    "quality_ratio": 100,
+    "rule_text": "直接消耗电力打印水瓶：小瓶 4 点、普通瓶 6 点（3 级解锁）、大瓶 11 点（9 级解锁）。升级消耗通用电子件。",
+    "upgrades": {
+      "kind": "bottle_printer",
+      "max": 9,
+      "material": "common_electronic",
+      "normal_unlock": 3,
+      "large_unlock": 9
+    },
+    "special": {
+      "kind": "bottle_printer",
+      "material": "common_electronic",
+      "max": 9
+    }
   },
   {
     "id": "plant_dna_manipulator",
@@ -634,7 +803,20 @@
         "count": 1
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_DNA_MANIPULATOR"
+    ],
+    "module_slots": 4,
+    "quality_ratio": 100,
+    "rule_text": "对种子写入/提取性状，基础成功率 70%；稳定器与精度模组提高成功率，正/负向过滤模组改变性状倾向。",
+    "special": {
+      "kind": "dna",
+      "base_success": 70,
+      "stabilizer_bonus": 15,
+      "precision_bonus": 10
+    }
   },
   {
     "id": "hydroponic",
@@ -681,7 +863,18 @@
             "count": 5
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "water_ml": 100,
+        "module_effects": {
+          "farm_module_nutrifruit": {
+            "add_outputs": [
+              {
+                "id": "nutrifruit",
+                "count": 1
+              }
+            ]
+          }
+        }
       },
       {
         "id": "kotton_seed",
@@ -702,7 +895,18 @@
             "count": 9
           }
         ],
-        "cycles": 3
+        "cycles": 3,
+        "water_ml": 176,
+        "module_effects": {
+          "farm_module_kotton_loom": {
+            "replace_outputs": [
+              {
+                "from": "kotton_fiber",
+                "to": "kotton_fabric"
+              }
+            ]
+          }
+        }
       },
       {
         "id": "dream_cap_seed",
@@ -723,7 +927,27 @@
             "count": 8
           }
         ],
-        "cycles": 3
+        "cycles": 3,
+        "water_ml": 100,
+        "module_effects": {
+          "farm_module_dream_cap": {
+            "add_outputs": [
+              {
+                "id": "dream_cap",
+                "count": 2
+              }
+            ],
+            "clear_contraband": true
+          },
+          "farm_module_nightmare_cap": {
+            "replace_outputs": [
+              {
+                "from": "dream_cap",
+                "to": "nightmare_cap"
+              }
+            ]
+          }
+        }
       },
       {
         "id": "coffee_bean",
@@ -744,7 +968,9 @@
             "count": 8
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "water_ml": 100,
+        "module_effects": {}
       },
       {
         "id": "fillerweed_seed",
@@ -765,7 +991,18 @@
             "count": 4
           }
         ],
-        "cycles": 1
+        "cycles": 1,
+        "water_ml": 287,
+        "module_effects": {
+          "farm_module_fillerweed_production": {
+            "add_outputs": [
+              {
+                "id": "fillerweed",
+                "count": 4
+              }
+            ]
+          }
+        }
       },
       {
         "id": "hydroreed_seed",
@@ -786,7 +1023,18 @@
             "count": 0
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "water_ml": 20,
+        "module_effects": {
+          "farm_module_hydroreed_filter": {
+            "add_outputs": [
+              {
+                "id": "hydroreed_filter",
+                "count": 1
+              }
+            ]
+          }
+        }
       },
       {
         "id": "bloomberry_seed",
@@ -807,9 +1055,18 @@
             "count": 8
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "water_ml": 100,
+        "module_effects": {}
       }
-    ]
+    ],
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_HYDROPONIC"
+    ],
+    "module_slots": 4,
+    "quality_ratio": 100,
+    "rule_text": "水培植物，每夜消耗水和电力推进生长。不同植物每回合耗水不同；对应水培模组可增加产量、改变产物或产出滤芯。"
   },
   {
     "id": "ras",
@@ -819,23 +1076,24 @@
     "time": 12.0,
     "cycles": 3,
     "temp": 22,
-    "inputs": [
-      {
-        "id": "industrial_fish_feed",
-        "count": 1
-      },
-      {
-        "id": "water_jug",
-        "count": 1
-      }
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
     ],
-    "outputs": [
-      {
-        "id": "fish_fillet",
-        "count": 2
-      }
-    ],
-    "source": "extracted+port"
+    "module_slots": 1,
+    "quality_ratio": 100,
+    "rule_text": "循环水养殖：需要水、滤芯和饲料；鱼在箱中生长，可自动屠宰。宽度/高度升级扩容，省电升级降低耗电（下限 1）。",
+    "special": {
+      "kind": "ras",
+      "water_capacity_ml": 12000,
+      "filters": 4,
+      "max_width": 4,
+      "max_height": 4,
+      "max_power": 12
+    },
+    "passive": true
   },
   {
     "id": "heating_plate",
@@ -845,19 +1103,21 @@
     "time": 4.0,
     "cycles": 1,
     "temp": 180,
-    "inputs": [
-      {
-        "id": "raw_meat",
-        "count": 1
-      }
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_CHEM"
     ],
-    "outputs": [
-      {
-        "id": "processed_meat",
-        "count": 1
-      }
-    ],
-    "source": "extracted+port"
+    "module_slots": 3,
+    "quality_ratio": 100,
+    "rule_text": "把液体容器加热到 99°C；装 2 个化学模组后可调至 160°C。不耗电。",
+    "special": {
+      "kind": "heat",
+      "low_temp": 99,
+      "high_temp": 160
+    },
+    "passive": true
   },
   {
     "id": "fridge",
@@ -867,23 +1127,27 @@
     "time": 5.0,
     "cycles": 1,
     "temp": 4,
-    "inputs": [
-      {
-        "id": "organ_heart",
-        "count": 1
-      },
-      {
-        "id": "water_tablet",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "organ_heart",
-        "count": 1
-      }
-    ],
-    "source": "extracted+port"
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "冷藏 3°C、冷冻 -18°C，保存食物与器官。存储升级每级 +2 耗电并扩容；省电升级每级 -2 耗电（下限 2）。",
+    "special": {
+      "kind": "fridge",
+      "chill_bonus": 20,
+      "freeze_bonus": 25,
+      "max_upgrades": 7,
+      "material": "scrap_metal"
+    },
+    "upgrades": {
+      "kind": "fridge",
+      "max": 7,
+      "material": "scrap_metal",
+      "electronic": "common_electronic"
+    },
+    "passive": true
   },
   {
     "id": "auto_butcher",
@@ -893,19 +1157,18 @@
     "time": 4.0,
     "cycles": 1,
     "temp": 24,
-    "inputs": [
-      {
-        "id": "small_raw_meat",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "meat_scrap",
-        "count": 2
-      }
-    ],
-    "source": "extracted+port"
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "passive": true,
+    "rule_text": "按设定规则自动屠宰笼中动物或水箱中的鱼，产出肉块/鱼片。",
+    "special": {
+      "kind": "butcher",
+      "keep_max": 10
+    }
   },
   {
     "id": "blender",
@@ -927,7 +1190,44 @@
         "count": 1
       }
     ],
-    "source": "extracted+port"
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_CHEM"
+    ],
+    "module_slots": 3,
+    "quality_ratio": 100,
+    "rule_text": "把可混合原料打成液体。化学模组越多损耗越低：0/1/2/3/4+ 个对应 35/20/10/5/0%。",
+    "special": {
+      "kind": "blend",
+      "loss_by_modules": [
+        35,
+        20,
+        10,
+        5,
+        0
+      ]
+    },
+    "recipes": [
+      {
+        "id": "blend_nutrifruit",
+        "name": "搅拌营养果",
+        "inputs": [
+          {
+            "id": "nutrifruit",
+            "count": 2
+          }
+        ],
+        "outputs": [
+          {
+            "id": "processed_juice",
+            "count": 1
+          }
+        ],
+        "cycles": 1,
+        "power_cost": 0,
+        "chem_loss": true
+      }
+    ]
   },
   {
     "id": "livestock_feed_dispenser",
@@ -937,23 +1237,19 @@
     "time": 8.0,
     "cycles": 2,
     "temp": 24,
-    "inputs": [
-      {
-        "id": "nutrifruit",
-        "count": 1
-      },
-      {
-        "id": "water_jug",
-        "count": 1
-      }
-    ],
-    "outputs": [
-      {
-        "id": "industrial_fish_feed",
-        "count": 2
-      }
-    ],
-    "source": "extracted+port"
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "passive": true,
+    "rule_text": "把食物转化为 kcal 储存，自动喂食笼中动物；上限 40000 kcal。",
+    "special": {
+      "kind": "feed",
+      "max_kcal": 40000,
+      "target_percent": 85
+    }
   },
   {
     "id": "chem_finisher",
@@ -965,8 +1261,8 @@
     "temp": 80,
     "inputs": [
       {
-        "id": "dream_cap_extract",
-        "count": 1
+        "id": "dream_cap",
+        "count": 2
       }
     ],
     "outputs": [
@@ -982,8 +1278,8 @@
         "name": "一小瓶“梦尘”",
         "inputs": [
           {
-            "id": "dream_cap_extract",
-            "count": 1
+            "id": "dream_cap",
+            "count": 2
           }
         ],
         "outputs": [
@@ -992,15 +1288,17 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 2000,
+        "require_dry": true
       },
       {
         "id": "nightmare_dust",
         "name": "一小瓶“梦魇尘”",
         "inputs": [
           {
-            "id": "nightmare_extract",
-            "count": 1
+            "id": "nightmare_cap",
+            "count": 2
           }
         ],
         "outputs": [
@@ -1009,15 +1307,17 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 4000,
+        "require_dry": true
       },
       {
         "id": "caffeine_pill",
         "name": "咖啡因药片",
         "inputs": [
           {
-            "id": "caffeine",
-            "count": 1
+            "id": "coffee_bean",
+            "count": 3
           }
         ],
         "outputs": [
@@ -1026,15 +1326,17 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 5000,
+        "require_dry": true
       },
       {
         "id": "zyanide_pill",
         "name": "山奈德片",
         "inputs": [
           {
-            "id": "zyanide",
-            "count": 1
+            "id": "restricted_chemical",
+            "count": 2
           }
         ],
         "outputs": [
@@ -1043,14 +1345,16 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 600,
+        "require_dry": true
       },
       {
         "id": "birth_control_pill",
         "name": "避孕药",
         "inputs": [
           {
-            "id": "contraceptive",
+            "id": "common_chemical",
             "count": 1
           }
         ],
@@ -1060,15 +1364,17 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 100,
+        "require_dry": true
       },
       {
         "id": "fanta_pill",
         "name": "芬太片",
         "inputs": [
           {
-            "id": "fanta",
-            "count": 1
+            "id": "common_chemical",
+            "count": 2
           }
         ],
         "outputs": [
@@ -1077,15 +1383,17 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 500,
+        "require_dry": true
       },
       {
         "id": "pink_alt_injector",
         "name": "奥克莫吸注射器",
         "inputs": [
           {
-            "id": "nomore",
-            "count": 1
+            "id": "restricted_chemical",
+            "count": 3
           }
         ],
         "outputs": [
@@ -1094,9 +1402,27 @@
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 2,
+        "volume_ul": 4000,
+        "require_dry": true
       }
-    ]
+    ],
+    "module_types": [
+      "MODULE_TYPE_CHEM"
+    ],
+    "module_slots": 4,
+    "quality_ratio": 100,
+    "rule_text": "按所选化学配方，用液体体积与有效成分成型。化学模组越多杂质越少：0/1/2/3/4+ 个对应 12/6/3/1/0%。",
+    "special": {
+      "kind": "chem",
+      "loss_by_modules": [
+        12,
+        6,
+        3,
+        1,
+        0
+      ]
+    }
   },
   {
     "id": "evaporator",
@@ -1106,23 +1432,23 @@
     "time": 6.0,
     "cycles": 2,
     "temp": 110,
-    "inputs": [
-      {
-        "id": "water_jug",
-        "count": 2
-      }
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_EVAPORATOR"
     ],
-    "outputs": [
-      {
-        "id": "smelling_salt",
-        "count": 1
-      },
-      {
-        "id": "water_tablet",
-        "count": 1
-      }
-    ],
-    "source": "extracted+port"
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "蒸发液体并回收蒸馏物；溶剂回收模组让非酒精溶剂不被蒸发。",
+    "special": {
+      "kind": "distill",
+      "base_budget_ml": 300000,
+      "solvent_module": "evaporator_module_solvent_recovery",
+      "power": 6
+    },
+    "passive": true
   },
   {
     "id": "moisture_farm",
@@ -1132,23 +1458,21 @@
     "time": 10.0,
     "cycles": 2,
     "temp": 24,
-    "inputs": [
-      {
-        "id": "water_jug",
-        "count": 1
-      },
-      {
-        "id": "nutrifruit_seed",
-        "count": 1
-      }
+    "inputs": [],
+    "outputs": [],
+    "source": "extracted+port",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
     ],
-    "outputs": [
-      {
-        "id": "kotton_fiber",
-        "count": 2
-      }
-    ],
-    "source": "extracted+port"
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "每夜从空气取水 850ml；多台同时运行会分摊空气，产量按 1/(1+0.25(n-1)) 衰减。品质由模块品质决定。",
+    "special": {
+      "kind": "moisture",
+      "base_ml": 850,
+      "shared_air": 0.25
+    },
+    "passive": true
   },
   {
     "id": "desequencer",
@@ -1160,13 +1484,13 @@
     "temp": 70,
     "inputs": [
       {
-        "id": "sec_keycard",
+        "id": "blank_keycard",
         "count": 1
       }
     ],
     "outputs": [
       {
-        "id": "crypto_module_sec",
+        "id": "sec_keycard",
         "count": 1
       }
     ],
@@ -1174,107 +1498,136 @@
     "recipes": [
       {
         "id": "crypto_module_sec",
-        "name": "密码解序器芯片（治安）",
+        "name": "改写为治安门禁卡",
         "inputs": [
+          {
+            "id": "blank_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
           {
             "id": "sec_keycard",
             "count": 1
           }
         ],
-        "outputs": [
-          {
-            "id": "crypto_module_sec",
-            "count": 1
-          }
-        ],
-        "cycles": 12
+        "cycles": 4,
+        "requires_items": [
+          "crypto_module_sec"
+        ]
       },
       {
         "id": "crypto_module_cmd",
-        "name": "密码解序器芯片（指挥）",
+        "name": "改写为指挥门禁卡",
         "inputs": [
+          {
+            "id": "blank_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
           {
             "id": "cmd_keycard",
             "count": 1
           }
         ],
-        "outputs": [
-          {
-            "id": "crypto_module_cmd",
-            "count": 1
-          }
-        ],
-        "cycles": 15
+        "cycles": 5,
+        "requires_items": [
+          "crypto_module_cmd"
+        ]
       },
       {
         "id": "crypto_module_med",
-        "name": "密码解序器芯片（医疗）",
+        "name": "改写为医疗门禁卡",
         "inputs": [
+          {
+            "id": "blank_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
           {
             "id": "med_keycard",
             "count": 1
           }
         ],
-        "outputs": [
-          {
-            "id": "crypto_module_med",
-            "count": 1
-          }
-        ],
-        "cycles": 10
+        "cycles": 4,
+        "requires_items": [
+          "crypto_module_med"
+        ]
       },
       {
         "id": "crypto_module_eng",
-        "name": "密码解序器芯片（工程）",
+        "name": "改写为工程门禁卡",
         "inputs": [
+          {
+            "id": "blank_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
           {
             "id": "eng_keycard",
             "count": 1
           }
         ],
-        "outputs": [
-          {
-            "id": "crypto_module_eng",
-            "count": 1
-          }
-        ],
-        "cycles": 10
+        "cycles": 4,
+        "requires_items": [
+          "crypto_module_eng"
+        ]
       },
       {
         "id": "crypto_module_sup",
-        "name": "密码解序器芯片（补给）",
+        "name": "改写为补给门禁卡",
         "inputs": [
+          {
+            "id": "blank_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
           {
             "id": "sup_keycard",
             "count": 1
           }
         ],
-        "outputs": [
-          {
-            "id": "crypto_module_sup",
-            "count": 1
-          }
-        ],
-        "cycles": 8
+        "cycles": 3,
+        "requires_items": [
+          "crypto_module_sup"
+        ]
       },
       {
         "id": "crypto_module_ser",
-        "name": "密码解序器芯片（服务）",
+        "name": "改写为服务门禁卡",
         "inputs": [
+          {
+            "id": "blank_keycard",
+            "count": 1
+          }
+        ],
+        "outputs": [
           {
             "id": "ser_keycard",
             "count": 1
           }
         ],
-        "outputs": [
-          {
-            "id": "crypto_module_ser",
-            "count": 1
-          }
-        ],
-        "cycles": 8
+        "cycles": 3,
+        "requires_items": [
+          "crypto_module_ser"
+        ]
       }
-    ]
+    ],
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_ALARM"
+    ],
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "用密码解序器芯片改写空白门禁卡；芯片不消耗，产物为目标门禁卡。机器本身为 2 级违禁品。",
+    "special": {
+      "kind": "desequencer"
+    },
+    "contraband": 2
   },
   {
     "id": "deal_maker",
@@ -1287,7 +1640,19 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineDealMaker"
+    "source": "MachineDealMaker",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
+    ],
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "顾客在场时启用，消耗 25 电力，使本次议价成功率 +10% + 模块品质。每位顾客限一次。",
+    "special": {
+      "kind": "bargain",
+      "power": 25,
+      "base": 10,
+      "quality_div": 1
+    }
   },
   {
     "id": "recharger",
@@ -1300,7 +1665,16 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineRecharger"
+    "source": "MachineRecharger",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "每夜为店内电池组充能 3 点（原版商业电力为 6 点）。需要启用并保持供电。",
+    "special": {
+      "kind": "recharge",
+      "rate": 3,
+      "commercial_rate": 6
+    }
   },
   {
     "id": "powerblock",
@@ -1313,7 +1687,15 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "CreatePowerBlock"
+    "source": "CreatePowerBlock",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "能量阵列：启用后提供额外 2 点电力容量。",
+    "special": {
+      "kind": "max_power",
+      "value": 2
+    }
   },
   {
     "id": "makeshift_reactor",
@@ -1326,7 +1708,27 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "ReactorHelper"
+    "source": "ReactorHelper",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "简易反应堆：每晚为电池充能 1（每 5 级 +1，上限 4），完整度每晚 -18。完整度低于 25 不供电，归零会爆炸。废金属维修 +60、垃圾维修 +30（上限 -5），电子件升级。",
+    "special": {
+      "kind": "reactor",
+      "integrity": 100,
+      "max_integrity": 100,
+      "decay": 18,
+      "power_threshold": 25,
+      "base_charge": 1,
+      "max_charge": 4,
+      "upgrades_per_charge": 5,
+      "max_upgrades": 18,
+      "waste_per_damage": 160,
+      "repair_scrap": 60,
+      "repair_junk": 30,
+      "junk_max_loss": 5,
+      "upgrade_material": "common_electronic"
+    }
   },
   {
     "id": "security_alarm",
@@ -1339,7 +1741,19 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineAlarm"
+    "source": "MachineAlarm",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL",
+      "MODULE_TYPE_ALARM"
+    ],
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "每晚耗电 4，阻止店内盗窃。阻止率 = 50 + 性能加成（上限 100）。",
+    "special": {
+      "kind": "alarm",
+      "power": 4,
+      "base_stop": 50
+    }
   },
   {
     "id": "storage_coordinator",
@@ -1352,7 +1766,14 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineStorageCoordinator"
+    "source": "MachineStorageCoordinator",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "保存/恢复货架预设：第一次启用保存当前陈列，之后启用按预设从背包补货。",
+    "special": {
+      "kind": "storage_preset"
+    }
   },
   {
     "id": "mirage_projector",
@@ -1365,22 +1786,30 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineProjector"
+    "source": "MachineProjector",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
+    ],
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "每晚耗电 16，提高顾客吸引力；加成 = 100 + 品质/2 + 性能/4。",
+    "special": {
+      "kind": "attract",
+      "power": 16,
+      "base": 100,
+      "quality_div": 2,
+      "performance_div": 4
+    }
   },
   {
     "id": "box_dispenser",
     "name": "box_dispenser",
     "category": "misc",
-    "power": 2,
+    "power": 0,
     "time": 4.0,
     "cycles": 2,
     "temp": 24,
-    "inputs": [
-      {
-        "id": "printer_plastic",
-        "count": 1
-      }
-    ],
+    "inputs": [],
     "outputs": [
       {
         "id": "ammo_box",
@@ -1392,22 +1821,22 @@
     "recipes": [
       {
         "id": "dispense_ammo_box",
-        "name": "dispense_ammo_box",
-        "inputs": [
-          {
-            "id": "printer_plastic",
-            "count": 1
-          }
-        ],
+        "name": "吐出弹药盒",
+        "inputs": [],
         "outputs": [
           {
             "id": "ammo_box",
             "count": 1
           }
         ],
-        "cycles": 2
+        "cycles": 1,
+        "power_cost": 1
       }
-    ]
+    ],
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "消耗 1 电力吐出 1 个弹药盒。"
   },
   {
     "id": "cassette_player",
@@ -1420,7 +1849,14 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineCassettePlayer"
+    "source": "MachineCassettePlayer",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "播放磁带音乐并调节音量。",
+    "special": {
+      "kind": "music"
+    }
   },
   {
     "id": "vending_machine",
@@ -1433,7 +1869,23 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "VendingMachineHelper"
+    "source": "VendingMachineHelper",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
+    ],
+    "module_slots": 1,
+    "quality_ratio": 100,
+    "rule_text": "自动售货机：夜间出售库存商品并把现金存入机器。初始容量 2 行、吸引力 15；升级提升容量/吸引力。",
+    "special": {
+      "kind": "vending",
+      "power": 2,
+      "capacity": 2,
+      "attractiveness": 15,
+      "max_capacity": 10,
+      "max_attractiveness": 17,
+      "attract_per_upgrade": 5,
+      "upgrade_material": "common_electronic"
+    }
   },
   {
     "id": "vending_fountain",
@@ -1446,7 +1898,20 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "VendingFountainHelper"
+    "source": "VendingFountainHelper",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
+    ],
+    "module_slots": 1,
+    "quality_ratio": 100,
+    "rule_text": "自动售水机：夜间出售水源，吸引力决定容器规格和销量；每 2 级升级 +1 耗电。",
+    "special": {
+      "kind": "fountain",
+      "power": 2,
+      "attractiveness": 15,
+      "parts_per_power": 2,
+      "upgrade_material": "common_electronic"
+    }
   },
   {
     "id": "vending_machine_core",
@@ -1459,7 +1924,14 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "VendingMachineHelper"
+    "source": "VendingMachineHelper",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "自动售货机核心；容量/吸引力升级材料。",
+    "special": {
+      "kind": "core"
+    }
   },
   {
     "id": "vending_fountain_core",
@@ -1472,7 +1944,14 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "VendingFountainHelper"
+    "source": "VendingFountainHelper",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "自动售水机核心；吸引力升级材料。",
+    "special": {
+      "kind": "core"
+    }
   },
   {
     "id": "wine_rack",
@@ -1485,7 +1964,19 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineWineRack"
+    "source": "MachineWineRack",
+    "module_types": [
+      "MODULE_TYPE_UNIVERSAL"
+    ],
+    "module_slots": 2,
+    "quality_ratio": 100,
+    "rule_text": "每晚耗电 24，催陈葡萄酒；品质加成每 125 点额外陈化 1 天。",
+    "special": {
+      "kind": "wine",
+      "power": 24,
+      "quality_div": 125,
+      "bottle_capacity": 6
+    }
   },
   {
     "id": "animal_cage",
@@ -1498,7 +1989,24 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "AnimalCage"
+    "source": "AnimalCage",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "笼养动物；动物越多健康下降越快，健康低于 20 有逃脱风险（健康 0 时 25%）。可用金属锭扩容、废金属修理。",
+    "special": {
+      "kind": "cage",
+      "health": 100,
+      "max_health": 100,
+      "size": 3,
+      "max_size": 8,
+      "wear_divisor": 4,
+      "escape_threshold": 20,
+      "escape_chance": 5,
+      "escape_chance_zero": 25,
+      "upgrade_material": "metal_ingot",
+      "repair_material": "scrap_metal"
+    }
   },
   {
     "id": "marking_pen",
@@ -1511,7 +2019,21 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "AnimalMarkHelper"
+    "source": "AnimalMarkHelper",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "给动物/鱼做颜色标记；标记不影响属性，只用于管理。",
+    "special": {
+      "kind": "mark",
+      "colors": [
+        "red",
+        "purple",
+        "green",
+        "blue",
+        "orange"
+      ]
+    }
   },
   {
     "id": "vacuum_robot",
@@ -1524,7 +2046,15 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "VacuumRobot"
+    "source": "VacuumRobot",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "自动收集笼中粪便；开启焚化后把粪便转化为电力。",
+    "special": {
+      "kind": "vacuum",
+      "power_per_feces": 1
+    }
   },
   {
     "id": "ras_water_tank",
@@ -1537,6 +2067,14 @@
     "inputs": [],
     "outputs": [],
     "passive": true,
-    "source": "MachineRAS"
+    "source": "MachineRAS",
+    "module_types": [],
+    "module_slots": 0,
+    "quality_ratio": 100,
+    "rule_text": "RAS 水箱，容量 12000ml。",
+    "special": {
+      "kind": "water_tank",
+      "capacity_ml": 12000
+    }
   }
 ]

@@ -67,6 +67,10 @@ var machine_start_btn: Button
 var machine_repair_btn: Button
 var machine_harvest_btn: Button
 var machine_recipe_btn: Button
+var machine_aux_btn: Button
+var machine_special_btn: Button
+var machine_stock_btn: Button
+var machine_take_btn: Button
 var select_layer: Control
 var select_list: VBoxContainer
 var select_title: Label
@@ -157,6 +161,7 @@ func _ready() -> void:
 	GameState.day_finished.connect(_on_day_finished)
 	GameState.event_started.connect(_on_event_started)
 	GameState.machine_finished.connect(_on_machine_finished)
+	GameState.music_toggled.connect(_on_music_toggled)
 	GameState.story_available.connect(_on_story_available)
 	GameState.combat_started.connect(_on_combat_started)
 	GameState.combat_updated.connect(_on_combat_updated)
@@ -168,6 +173,7 @@ func _ready() -> void:
 	_dumpui_if_requested()
 	_dumpinspect_if_requested()
 	_testminigame_if_requested()
+	_testmachineui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -289,6 +295,43 @@ func _testminigame_if_requested() -> void:
 	dna_input_label.text = "你的序列： " + " ".join(dna_input)
 	_confirm_dna()
 	print("MINIGAME dna_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
+	get_tree().quit()
+
+func _testmachineui_if_requested() -> void:
+	if not "--testmachineui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	_open_machines()
+	selected_machine_id = "printer"
+	_refresh_machine_panel()
+	print("MUI printer io=", machine_io_label.text.replace("\n", " | "))
+	selected_machine_id = "recharger"
+	_refresh_machine_panel()
+	print("MUI recharger aux=", machine_aux_btn.visible, " special=", machine_special_btn.visible, " rule=", machine_io_label.text.replace("\n", " | "))
+	print("MUI recharger toggle=", GameState.machine_toggle_active("recharger").get("text", ""))
+	selected_machine_id = "vending_machine"
+	_refresh_machine_panel()
+	print("MUI vending stockbtn=", machine_stock_btn.visible, " rule=", machine_io_label.text.replace("\n", " | "))
+	GameState.machine_toggle_active("vending_machine")
+	_refresh_machine_panel()
+	print("MUI vending special=", machine_special_btn.text, " stock=", machine_stock_btn.visible)
+	selected_machine_id = "makeshift_reactor"
+	_refresh_machine_panel()
+	print("MUI reactor special=", machine_special_btn.text)
+	selected_machine_id = "animal_cage"
+	_refresh_machine_panel()
+	print("MUI cage special=", machine_special_btn.text, " stock=", machine_stock_btn.visible)
+	selected_machine_id = "hydroponic"
+	_refresh_machine_panel()
+	print("MUI hydro recipe=", machine_recipe_btn.text, " io=", machine_io_label.text.replace("\n", " | "))
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -428,6 +471,14 @@ func _save_audio_setting() -> void:
 	if f:
 		f.store_string(JSON.stringify({"enabled": audio_enabled}))
 		f.close()
+
+func _on_music_toggled(on: bool) -> void:
+	if music_player == null:
+		return
+	if on and audio_enabled and music_player.stream:
+		music_player.play()
+	elif not on:
+		music_player.stop()
 
 func _on_audio_toggle() -> void:
 	audio_enabled = not audio_enabled
@@ -735,19 +786,23 @@ func _build_machine_bay() -> void:
 	var detail := _panel(panel, Vector2(570, 80), Vector2(1280, 600), C_PANEL2, C_LINE, 2)
 	machine_name_label = _label(detail, "", Vector2(24, 16), Vector2(900, 44), 36, C_TEXT)
 	machine_meta_label = _label(detail, "", Vector2(24, 66), Vector2(1230, 30), 22, C_AMBER)
-	machine_io_label = _label(detail, "", Vector2(24, 108), Vector2(1230, 200), 22, C_TEXT)
+	machine_io_label = _label(detail, "", Vector2(24, 100), Vector2(1230, 220), 20, C_TEXT)
 	machine_module_label = _label(detail, "", Vector2(24, 322), Vector2(1230, 30), 22, C_CYAN)
 	var install := _button(detail, "安装模块", Vector2(24, 362), Vector2(220, 54), C_CYAN, _open_module_select)
-	machine_recipe_btn = _button(detail, "配方", Vector2(720, 362), Vector2(300, 54), C_AMBER, _open_recipe_select)
+	machine_recipe_btn = _button(detail, "配方", Vector2(660, 362), Vector2(290, 54), C_AMBER, _open_recipe_select)
 	install.name = "InstallModule"
 	var temps := [["低温", 1], ["标准", 2], ["高温", 3]]
 	for t in temps:
-		var tb := _button(detail, t[0], Vector2(270 + (int(t[1]) - 1) * 136, 362), Vector2(124, 54), C_MUTED, _set_temp.bind(int(t[1])))
+		var tb := _button(detail, t[0], Vector2(254 + (int(t[1]) - 1) * 130, 362), Vector2(120, 54), C_MUTED, _set_temp.bind(int(t[1])))
 		temp_buttons.append(tb)
+	machine_aux_btn = _button(detail, "启用", Vector2(960, 362), Vector2(290, 54), C_CYAN, _toggle_machine_active)
 	machine_start_btn = _button(detail, "启动生产", Vector2(24, 440), Vector2(300, 72), C_AMBER, _start_selected_machine)
-	machine_repair_btn = _button(detail, "维修", Vector2(340, 440), Vector2(200, 72), C_CYAN, _repair_selected_machine)
-	machine_harvest_btn = _button(detail, "收获", Vector2(560, 440), Vector2(180, 72), C_GREEN, _harvest_selected_machine)
-	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(760, 454), Vector2(500, 70), 22, C_MUTED)
+	machine_repair_btn = _button(detail, "维修", Vector2(340, 440), Vector2(190, 72), C_CYAN, _repair_selected_machine)
+	machine_harvest_btn = _button(detail, "收获", Vector2(540, 440), Vector2(180, 72), C_GREEN, _harvest_selected_machine)
+	machine_special_btn = _button(detail, "特殊操作", Vector2(730, 440), Vector2(230, 72), C_AMBER, _machine_special_pressed)
+	machine_stock_btn = _button(detail, "存入", Vector2(970, 440), Vector2(130, 72), C_CYAN, _open_machine_stock)
+	machine_take_btn = _button(detail, "取回", Vector2(1110, 440), Vector2(130, 72), C_MUTED, _take_machine_stock)
+	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(24, 520), Vector2(1230, 64), 20, C_MUTED)
 	var jobs_panel := _panel(panel, Vector2(570, 700), Vector2(1280, 250), C_PANEL2, C_LINE, 2)
 	_label(jobs_panel, "运行队列", Vector2(24, 12), Vector2(300, 32), 24, C_AMBER)
 	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 180), 22, C_TEXT)
@@ -1597,6 +1652,8 @@ func _open_machines() -> void:
 		if not GameState.machines.is_empty():
 			selected_machine_id = String(GameState.machines[0].get("id", ""))
 	_refresh_machine_panel()
+	if machine_status_label:
+		machine_status_label.text = "已选择：%s。" % String(GameState.machine_def(selected_machine_id).get("name", selected_machine_id))
 
 func _close_machines() -> void:
 	machine_layer.visible = false
@@ -1628,23 +1685,26 @@ func _refresh_machine_selection() -> void:
 func _select_machine(machine_id: String) -> void:
 	selected_machine_id = machine_id
 	_refresh_machine_panel()
+	machine_status_label.text = "已选择：%s。" % String(GameState.machine_def(machine_id).get("name", machine_id))
 
 func _refresh_machine_panel() -> void:
 	var m := GameState.machine_def(selected_machine_id)
 	if m.is_empty():
 		return
-	var lvl := int(GameState.machine_temps.get(selected_machine_id, 2))
-	var time_mul: float = [1.2, 1.0, 0.8][clampi(lvl, 1, 3) - 1]
-	var power_mul: float = [1.0, 1.0, 1.5][clampi(lvl, 1, 3) - 1]
 	var recipe := GameState.machine_recipe(selected_machine_id)
-	var base_cycles := int(recipe.get("cycles", m.get("cycles", 2))) if not recipe.is_empty() else int(m.get("cycles", 2))
-	var use_cycles := maxi(1, int(round(float(base_cycles) * time_mul)))
-	var use_power: int = maxi(1, int(round(float(m.get("power", 0)) * power_mul)))
-	var mod_id := String(GameState.machine_modules.get(selected_machine_id, ""))
-	var md := GameState.module_def(mod_id)
-	if not md.is_empty():
-		use_cycles = maxi(1, int(round(float(use_cycles) * (1.0 - minf(50.0, float(md.get("performance", 0))) / 100.0))))
-		use_power = maxi(1, int(round(float(use_power) * (1.0 - minf(50.0, float(md.get("efficiency", 0))) / 100.0))))
+	var use_cycles := 1
+	var use_power := 0
+	if not recipe.is_empty():
+		use_cycles = GameState.machine_recipe_cycles(selected_machine_id, recipe)
+		use_power = GameState.machine_recipe_power(selected_machine_id, recipe)
+	else:
+		use_power = GameState.machine_aux_power(selected_machine_id)
+	var sums := GameState.machine_module_sums(selected_machine_id)
+	var mods := GameState.machine_module_ids(selected_machine_id)
+	var lvl := int(GameState.machine_temps.get(selected_machine_id, 2))
+	var active := GameState.machine_is_active(selected_machine_id)
+	var sp: Dictionary = m.get("special", {})
+	var kind := String(sp.get("kind", ""))
 	machine_name_label.text = String(m.get("name", ""))
 	var dur := int(GameState.machine_durability.get(selected_machine_id, 100))
 	var fault := String(GameState.machine_faults.get(selected_machine_id, ""))
@@ -1654,9 +1714,13 @@ func _refresh_machine_panel() -> void:
 		if String(j.get("machine_id", "")) == selected_machine_id and bool(j.get("growth", false)):
 			growth_job = j
 			break
-	machine_meta_label.text = "电力 %d · 周期 %d 夜 · 温度 %d°C · 耐久 %d/100%s" % [use_power, use_cycles, int(m.get("temp", 24)), dur, state_text]
-	var active_inputs: Array = recipe.get("inputs", m.get("inputs", [])) if not recipe.is_empty() else m.get("inputs", [])
-	var active_outputs: Array = recipe.get("outputs", m.get("outputs", [])) if not recipe.is_empty() else m.get("outputs", [])
+	var upgrade_lv := int(GameState.machine_upgrades.get(selected_machine_id, 0))
+	var meta := "电力 %d · 周期 %d 夜 · 温度 %d°C · 耐久 %d/100 · 模块 %d/%d" % [use_power, use_cycles, int(m.get("temp", 24)), dur, mods.size(), int(m.get("module_slots", 1))]
+	if upgrade_lv > 0:
+		meta += " · 升级 %d" % upgrade_lv
+	machine_meta_label.text = meta + state_text
+	var active_inputs: Array = recipe.get("inputs", []) if not recipe.is_empty() else []
+	var active_outputs: Array = recipe.get("outputs", []) if not recipe.is_empty() else []
 	var ins: Array = []
 	for i in active_inputs:
 		var d := GameState.get_item_def(String(i.get("id", "")))
@@ -1670,26 +1734,41 @@ func _refresh_machine_panel() -> void:
 		var iid := String(i.get("id", ""))
 		var dd := GameState.get_item_def(iid)
 		held.append("%sx%d" % [_short_item_name(iid, String(dd.get("name", iid))), GameState.inventory_count(iid)])
-	machine_io_label.text = "配方：%s
-输入：%s
-输出：%s
-原料持有：%s" % [recipe.get("name", recipe.get("id", "默认")) if not recipe.is_empty() else "默认", " + ".join(ins), " + ".join(outs), " ".join(held)]
-	if md.is_empty():
-		machine_module_label.text = "模块：无"
+	var rule := String(m.get("rule_text", ""))
+	if recipe.is_empty():
+		machine_io_label.text = "规则：%s\n库存：%s\n待收现金：%d₵" % [rule, GameState.machine_stock_summary(selected_machine_id) if kind in ["vending", "fountain", "wine", "fridge", "cage", "feed"] else "—", int(GameState.machine_cash.get(selected_machine_id, 0))]
 	else:
-		machine_module_label.text = "模块：%s（性能 +%d%%，效率 +%d%%，品质 +%d%%）" % [md.get("name", mod_id), int(md.get("performance", 0)), int(md.get("efficiency", 0)), int(md.get("quality", 0))]
-	machine_recipe_btn.text = "配方：%s" % (recipe.get("name", recipe.get("id", "默认")) if not recipe.is_empty() else "默认")
+		var recipe_label := GameState.machine_recipe_name(recipe)
+		var extra := ""
+		if recipe.has("water_ml"):
+			extra = "\n耗水：%dml/夜" % int(recipe.get("water_ml", 0))
+		if recipe.has("volume_ul"):
+			extra = "\n目标体积：%dμl" % int(recipe.get("volume_ul", 0))
+		var req_text := ""
+		for req in recipe.get("requires_modules", []):
+			if not mods.has(String(req)):
+				req_text += " 缺少模块：" + GameState.module_name(String(req))
+		for req in recipe.get("requires_items", []):
+			if GameState.inventory_count(String(req)) < 1:
+				req_text += " 缺少芯片：" + String(GameState.get_item_def(String(req)).get("name", req))
+		machine_io_label.text = "配方：%s\n输入：%s\n输出：%s\n原料持有：%s\n规则：%s%s%s" % [recipe_label, " + ".join(ins) if not ins.is_empty() else "无", " + ".join(outs), " ".join(held) if not held.is_empty() else "无", rule, extra, req_text]
+	var mod_names: Array = []
+	for mm in mods:
+		mod_names.append(GameState.module_name(String(mm)))
+	machine_module_label.text = "模块：无" if mods.is_empty() else "模块：%s（性能 %+d / 效率 %+d / 品质 %+d）" % [", ".join(mod_names), int(sums["performance"]), int(sums["efficiency"]), int(sums["quality"])]
+	machine_recipe_btn.text = "配方：%s" % (GameState.machine_recipe_name(recipe) if not recipe.is_empty() else "无")
 	machine_recipe_btn.disabled = m.get("recipes", []).size() <= 1
 	for i in range(temp_buttons.size()):
 		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
 	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
-	machine_start_btn.disabled = dur <= 0 or fault != "" or (m.get("outputs", []).is_empty() and m.get("inputs", []).is_empty())
+	machine_start_btn.disabled = recipe.is_empty() or dur <= 0 or fault != "" or bool(m.get("passive", false))
 	for j in GameState.machine_jobs:
 		if String(j.get("machine_id", "")) == selected_machine_id:
 			machine_start_btn.disabled = true
 	if machine_harvest_btn:
 		var ready := not growth_job.is_empty() and bool(growth_job.get("ready", false))
 		machine_harvest_btn.disabled = not ready
+		machine_harvest_btn.visible = selected_machine_id in ["hydroponic", "ras"]
 		if not growth_job.is_empty():
 			if ready:
 				machine_status_label.text = "作物可收获（剩余 %d 次）。" % int(growth_job.get("harvests_left", 0))
@@ -1698,6 +1777,33 @@ func _refresh_machine_panel() -> void:
 	if machine_repair_btn:
 		machine_repair_btn.text = "维修 %d₵" % GameState.machine_repair_cost(selected_machine_id)
 		machine_repair_btn.disabled = dur >= 100 and fault == ""
+	if machine_aux_btn:
+		machine_aux_btn.visible = not sp.is_empty() and kind not in ["core"] and recipe.is_empty()
+		machine_aux_btn.text = "停用" if active else "启用"
+		machine_aux_btn.disabled = sp.is_empty() or dur <= 0 or fault != ""
+	if machine_stock_btn:
+		machine_stock_btn.visible = kind in ["vending", "fountain", "wine", "fridge", "cage", "feed", "butcher"]
+		machine_stock_btn.disabled = not active
+	if machine_take_btn:
+		machine_take_btn.visible = kind in ["vending", "fountain", "wine", "fridge", "cage", "feed", "butcher"]
+		machine_take_btn.disabled = GameState.machine_stock_summary(selected_machine_id).is_empty()
+	if machine_special_btn:
+		var action_kinds := ["bargain", "vending", "fountain", "reactor", "cage", "bottle_printer", "fridge", "ras", "storage_preset", "music", "mark", "purify", "distill", "heat", "butcher"]
+		machine_special_btn.visible = kind in action_kinds
+		match kind:
+			"bargain": machine_special_btn.text = "启用 Deal Maker"
+			"vending", "fountain": machine_special_btn.text = "收取/升级"
+			"reactor", "cage": machine_special_btn.text = "维修/升级"
+			"bottle_printer", "fridge", "ras": machine_special_btn.text = "升级"
+			"storage_preset": machine_special_btn.text = "货架预设"
+			"music": machine_special_btn.text = "播放/停止"
+			"mark": machine_special_btn.text = "标记"
+			"purify": machine_special_btn.text = "净化"
+			"distill": machine_special_btn.text = "蒸馏"
+			"heat": machine_special_btn.text = "加热"
+			"butcher": machine_special_btn.text = "屠宰"
+			_: machine_special_btn.text = "特殊操作"
+		machine_special_btn.disabled = dur <= 0 or fault != "" or (kind in ["mark", "purify", "distill", "heat", "butcher"] and not active)
 	_refresh_machine_jobs()
 	_refresh_machine_selection()
 
@@ -1716,7 +1822,11 @@ func _short_item_name(id: String, fallback: String) -> String:
 
 func _refresh_machine_jobs() -> void:
 	if GameState.machine_jobs.is_empty():
-		machine_jobs_label.text = "无"
+		if GameState.night_log.is_empty():
+			machine_jobs_label.text = "无"
+		else:
+			var logs: Array = GameState.night_log.slice(maxi(0, GameState.night_log.size() - 4))
+			machine_jobs_label.text = "昨夜：\n" + "\n".join(logs)
 		return
 	var text := ""
 	for j in GameState.machine_jobs:
@@ -1813,8 +1923,18 @@ func _close_select() -> void:
 func _open_recipe_select() -> void:
 	var m := GameState.machine_def(selected_machine_id)
 	var items: Array = []
+	var lv := int(GameState.machine_upgrades.get(selected_machine_id, 0))
 	for r in m.get("recipes", []):
-		items.append({"id": r.get("id", ""), "label": "%s（%d 夜）" % [r.get("name", r.get("id", "")), int(r.get("cycles", 1))]})
+		var lock := int(r.get("unlock_upgrade", 0))
+		var suffix := ""
+		if lock > lv:
+			suffix += "（需升级 %d 级）" % lock
+		for req in r.get("requires_items", []):
+			if GameState.inventory_count(String(req)) < 1:
+				suffix += "（缺芯片：%s）" % String(GameState.get_item_def(String(req)).get("name", req))
+		var cyc := GameState.machine_recipe_cycles(selected_machine_id, r)
+		var pw := GameState.machine_recipe_power(selected_machine_id, r)
+		items.append({"id": r.get("id", ""), "label": "%s · %d 夜 · %d 电%s" % [GameState.machine_recipe_name(r), cyc, pw, suffix]})
 	if items.is_empty():
 		_toast("这台机器没有可选配方。")
 		return
@@ -1825,17 +1945,102 @@ func _choose_recipe(id: String) -> void:
 	_refresh_machine_panel()
 
 func _open_module_select() -> void:
+	var m := GameState.machine_def(selected_machine_id)
+	var allowed: Array = m.get("module_types", [])
+	var installed := GameState.machine_module_ids(selected_machine_id)
 	var items: Array = []
+	items.append({"id": "__clear__", "label": "清空全部模块"})
 	for md in GameState.modules_def:
-		items.append({"id": md.get("id", ""), "label": "%s · 性能+%d / 效率+%d / 品质+%d" % [md.get("name", md.get("id", "")), int(md.get("performance", 0)), int(md.get("efficiency", 0)), int(md.get("quality", 0))]})
-	if items.is_empty():
-		_toast("没有可用模块。")
+		if not allowed.has(String(md.get("type", ""))):
+			continue
+		var mark := " · 已安装" if installed.has(String(md.get("id", ""))) else ""
+		items.append({"id": md.get("id", ""), "label": "%s · 性能%+d / 效率%+d / 品质%+d%s" % [md.get("name", md.get("id", "")), int(md.get("performance", 0)), int(md.get("efficiency", 0)), int(md.get("quality", 0)), mark]})
+	if items.size() <= 1:
+		_toast("这台机器没有可用模块。")
 		return
-	_open_select("安装模块 · %s" % selected_machine_id, items, _choose_module)
+	_open_select("安装模块 · %s（槽位 %d/%d）" % [m.get("name", ""), installed.size(), int(m.get("module_slots", 1))], items, _choose_module)
 
 func _choose_module(id: String) -> void:
-	var res := GameState.install_module(selected_machine_id, id)
+	if id == "__clear__":
+		GameState.clear_modules(selected_machine_id)
+	elif id != "":
+		GameState.install_module(selected_machine_id, id)
 	_refresh_machine_panel()
+
+func _toggle_machine_active() -> void:
+	var res := GameState.machine_toggle_active(selected_machine_id)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _machine_special_pressed() -> void:
+	var res := GameState.machine_special_action(selected_machine_id)
+	if res.has("select_options"):
+		var items: Array = []
+		for o in res.get("select_options", []):
+			items.append({"id": o.get("id", ""), "label": o.get("label", o.get("id", ""))})
+		_open_select(String(res.get("text", "选择操作")), items, _machine_special_choice.bind(selected_machine_id))
+		return
+	if res.has("select"):
+		_open_service_select(String(res.get("select", "")))
+		return
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _machine_special_choice(id: String, mid: String) -> void:
+	var res := GameState.machine_special_choice(mid, id)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _open_service_select(kind: String) -> void:
+	var items: Array = []
+	for it in GameState.inventory:
+		var did := String(it.get("def_id", ""))
+		var def := GameState.get_item_def(did)
+		var tags: Array = def.get("tags", [])
+		var ok := false
+		if kind in ["purify", "distill", "heat"]:
+			ok = GameState.is_water_container_item(did)
+		elif kind in ["mark", "butcher"]:
+			ok = did == "rat" or tags.has("animal_item_tag") or tags.has("animal")
+		if ok:
+			items.append({"id": str(it.get("uid", 0)), "label": "%s · 品相 %d%%" % [String(def.get("name", did)), int(it.get("condition", 100))]})
+	if items.is_empty():
+		_toast("背包里没有可处理的物品。")
+		return
+	_open_select("选择物品 · %s" % GameState.machine_def(selected_machine_id).get("name", ""), items, _service_choice.bind(selected_machine_id, kind))
+
+func _service_choice(uid_text: String, mid: String, kind: String) -> void:
+	var res := GameState.apply_item_service(mid, int(uid_text))
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _open_machine_stock() -> void:
+	var items: Array = []
+	for it in GameState.inventory:
+		if GameState._eligible_for_stock(selected_machine_id, it):
+			var did := String(it.get("def_id", ""))
+			var def := GameState.get_item_def(did)
+			items.append({"id": str(it.get("uid", 0)), "label": "%s · 品相 %d%% · 估值 %d₵" % [String(def.get("name", did)), int(it.get("condition", 100)), GameState.effective_value(it)]})
+	if items.is_empty():
+		_toast("背包里没有可存入的物品。")
+		return
+	_open_select("存入 · %s" % GameState.machine_def(selected_machine_id).get("name", ""), items, _stock_choice)
+
+func _stock_choice(uid_text: String) -> void:
+	var res := GameState.machine_stock_add(selected_machine_id, int(uid_text))
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
+
+func _take_machine_stock() -> void:
+	var res := GameState.machine_stock_take_all(selected_machine_id)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh_machine_panel()
+	machine_status_label.text = String(res.get("text", ""))
 	machine_status_label.text = String(res.get("text", ""))
 
 func _set_temp(level: int) -> void:

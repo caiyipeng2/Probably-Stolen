@@ -9,6 +9,7 @@ func _init() -> void:
 		recipes += m.get("recipes", []).size()
 	print("machines=", gs.machines.size(), " recipes=", recipes, " modules=", gs.modules_def.size())
 	gs.set_machine_recipe("printer", "printer_chip_pistol_double")
+	gs.add_item(gs.make_item("printer_chip_pistol_double", 100, true, false))
 	print("printer recipe=", gs.machine_recipe("printer").get("id", ""), " cycles=", gs.machine_recipe("printer").get("cycles", 0))
 	var r = gs.start_machine("printer")
 	print("printer start=", r.get("text", ""), " remaining=", gs.machine_jobs[0].get("remaining", 0) if not gs.machine_jobs.is_empty() else -1)
