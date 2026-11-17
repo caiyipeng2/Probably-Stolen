@@ -1,0 +1,8 @@
+{
+  "defaults": {"pixel_tolerance": 3, "diff_ratio_max": 0.001},
+  "profiles": {
+    "desktop-1280x720-win": {"diff_ratio_max": 0.001},
+    "device-SM-S9280-2340x1080-16": {"diff_ratio_max": 0.003}
+  },
+  "overrides": {}
+}

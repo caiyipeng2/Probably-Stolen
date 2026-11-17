@@ -1,0 +1,781 @@
+{
+  "screens": {
+    "welcome": {
+      "btn_easy": {
+        "type": "button",
+        "text": "简单",
+        "scope": "modal_layer"
+      },
+      "btn_normal": {
+        "type": "button",
+        "text": "普通",
+        "scope": "modal_layer"
+      },
+      "btn_hard": {
+        "type": "button",
+        "text": "困难",
+        "scope": "modal_layer"
+      },
+      "btn_original": {
+        "type": "button",
+        "text": "原版 1:1",
+        "scope": "modal_layer"
+      }
+    },
+    "tutorial": {
+      "btn_skip": {
+        "type": "button",
+        "text": "跳过教程",
+        "scope": "modal_layer"
+      },
+      "btn_know": {
+        "type": "button",
+        "text": "知道了",
+        "scope": "modal_layer"
+      }
+    },
+    "main": {
+      "day_label": {
+        "type": "label",
+        "property": "day_label"
+      },
+      "cash_label": {
+        "type": "label",
+        "property": "cash_label"
+      },
+      "customer_info": {
+        "type": "label",
+        "property": "customer_info_label"
+      },
+      "btn_machines": {
+        "type": "button",
+        "text": "机器"
+      },
+      "btn_archive": {
+        "type": "button",
+        "text": "档案"
+      },
+      "btn_factions": {
+        "type": "button",
+        "text": "派系"
+      },
+      "btn_end_day": {
+        "type": "button",
+        "text": "结束营业"
+      },
+      "btn_inspect": {
+        "type": "button",
+        "name": "action_inspect"
+      },
+      "btn_bargain": {
+        "type": "button",
+        "name": "action_bargain"
+      },
+      "btn_deal": {
+        "type": "button",
+        "name": "action_deal"
+      },
+      "btn_dismiss": {
+        "type": "button",
+        "name": "action_dismiss"
+      },
+      "detail_display_btn": {
+        "type": "button",
+        "property": "detail_display_btn"
+      },
+      "detail_counter_btn": {
+        "type": "button",
+        "property": "detail_counter_btn"
+      },
+      "detail_open_btn": {
+        "type": "button",
+        "property": "detail_open_btn"
+      }
+    },
+    "modal": {
+      "title": {
+        "type": "label",
+        "property": "modal_title"
+      },
+      "text": {
+        "type": "label",
+        "property": "modal_text"
+      },
+      "btn_close": {
+        "type": "button",
+        "text": "关闭",
+        "scope": "modal_layer"
+      },
+      "btn_continue": {
+        "type": "button",
+        "text": "继续",
+        "scope": "modal_layer"
+      },
+      "btn_quote": {
+        "type": "button",
+        "text": "报价",
+        "scope": "modal_layer"
+      },
+      "btn_next_day": {
+        "type": "button",
+        "text": "下一天",
+        "scope": "modal_layer"
+      }
+    },
+    "inspection": {
+      "title": {
+        "type": "label",
+        "property": "inspection_title"
+      },
+      "info": {
+        "type": "label",
+        "property": "inspection_info"
+      },
+      "status": {
+        "type": "label",
+        "property": "inspection_status"
+      },
+      "input": {
+        "type": "line_edit",
+        "property": "inspection_appraisal_input"
+      },
+      "btn_close": {
+        "type": "button",
+        "text": "关闭",
+        "scope": "inspection_layer"
+      },
+      "btn_magnifier": {
+        "type": "button",
+        "text_contains": "放大镜",
+        "scope": "inspection_layer"
+      },
+      "btn_submit": {
+        "type": "button",
+        "text": "提交估价",
+        "scope": "inspection_layer"
+      }
+    },
+    "minigame": {
+      "status": {
+        "type": "label",
+        "property": "minigame_status"
+      },
+      "btn_start_print": {
+        "type": "button",
+        "text": "启动打印",
+        "scope": "minigame_layer"
+      },
+      "btn_start_mix": {
+        "type": "button",
+        "text": "启动混合",
+        "scope": "mix_layer"
+      },
+      "btn_submit_dna": {
+        "type": "button",
+        "text": "提交序列",
+        "scope": "dna_layer"
+      },
+      "base_a": {
+        "type": "button",
+        "name": "dna_base_A"
+      },
+      "base_c": {
+        "type": "button",
+        "name": "dna_base_C"
+      },
+      "base_g": {
+        "type": "button",
+        "name": "dna_base_G"
+      },
+      "base_t": {
+        "type": "button",
+        "name": "dna_base_T"
+      }
+    },
+    "machines": {
+      "title": {
+        "type": "label",
+        "property": "machine_name_label"
+      },
+      "io": {
+        "type": "label",
+        "property": "machine_io_label"
+      },
+      "status": {
+        "type": "label",
+        "property": "machine_status_label"
+      },
+      "recipe_btn": {
+        "type": "button",
+        "property": "machine_recipe_btn"
+      },
+      "btn_close": {
+        "type": "button",
+        "text": "关闭",
+        "scope": "machine_layer"
+      },
+      "btn_aux": {
+        "type": "button",
+        "property": "machine_aux_btn"
+      },
+      "btn_special": {
+        "type": "button",
+        "property": "machine_special_btn"
+      },
+      "btn_stock": {
+        "type": "button",
+        "property": "machine_stock_btn"
+      },
+      "btn_stock_grid": {
+        "type": "button",
+        "property": "machine_stock_grid_btn"
+      },
+      "btn_io_in": {
+        "type": "button",
+        "property": "machine_io_in_btn"
+      },
+      "btn_io_out": {
+        "type": "button",
+        "property": "machine_io_out_btn"
+      },
+      "btn_scroll_down": {
+        "type": "button",
+        "text": "▼ 下翻",
+        "scope": "machine_layer"
+      },
+      "list_recharger": {
+        "type": "button",
+        "text_contains": "充能器",
+        "scope": "machine_layer"
+      },
+      "list_vending": {
+        "type": "button",
+        "text_contains": "自动售货机",
+        "scope": "machine_layer"
+      },
+      "list_reactor": {
+        "type": "button",
+        "text_contains": "反应堆",
+        "scope": "machine_layer"
+      },
+      "list_cage": {
+        "type": "button",
+        "text_contains": "动物笼",
+        "scope": "machine_layer"
+      },
+      "list_hydro": {
+        "type": "button",
+        "text_contains": "水培",
+        "scope": "machine_layer"
+      },
+      "list_fridge": {
+        "type": "button",
+        "text_contains": "冰箱",
+        "scope": "machine_layer"
+      },
+      "list_furnace": {
+        "type": "button",
+        "text_contains": "熔炉",
+        "scope": "machine_layer"
+      },
+      "list_printer": {
+        "type": "button",
+        "text_contains": "打印机",
+        "scope": "machine_layer"
+      }
+    },
+    "container": {
+      "title": {
+        "type": "label",
+        "property": "container_title"
+      },
+      "info": {
+        "type": "label",
+        "property": "container_info"
+      },
+      "btn_close": {
+        "type": "button",
+        "text": "关闭",
+        "scope": "container_layer"
+      }
+    },
+    "info": {
+      "title": {
+        "type": "label",
+        "property": "info_title"
+      },
+      "list": {
+        "type": "node",
+        "property": "info_list_box"
+      },
+      "tab_archive": {
+        "type": "button",
+        "text": "档案",
+        "scope": "info_layer"
+      },
+      "btn_close": {
+        "type": "button",
+        "text": "关闭",
+        "scope": "info_layer"
+      }
+    },
+    "story": {
+      "layer": {
+        "type": "node",
+        "property": "story_layer"
+      },
+      "btn_continue": {
+        "type": "button",
+        "text": "继续",
+        "scope": "story_layer"
+      }
+    }
+  },
+  "device": {
+    "container.btn_close": {
+      "h": 0.0364741641337386,
+      "w": 0.0555555555555556,
+      "x": 0.542735042735043,
+      "y": 0.0501519756838906
+    },
+    "container.cell_2_2": {
+      "h": 0.0319148936170213,
+      "w": 0.0179487179487179,
+      "x": 0.236752136752137,
+      "y": 0.224924012158055
+    },
+    "container.info": {
+      "h": 0.0410334346504559,
+      "w": 0.243589743589744,
+      "x": 0.194017094017094,
+      "y": 0.103343465045593
+    },
+    "container.title": {
+      "h": 0.0349544072948328,
+      "w": 0.299145299145299,
+      "x": 0.18974358974359,
+      "y": 0.0516717325227964
+    },
+    "info.btn_close": {
+      "h": 0.0364741641337386,
+      "w": 0.0512820512820513,
+      "x": 0.835897435897436,
+      "y": 0.0562310030395137
+    },
+    "info.list": {
+      "h": 0.382978723404255,
+      "w": 0.220512820512821,
+      "x": 0.109401709401709,
+      "y": 0.145896656534954
+    },
+    "info.tab_archive": {
+      "h": 0.033434650455927,
+      "w": 0.0615384615384615,
+      "x": 0.577777777777778,
+      "y": 0.0987841945288754
+    },
+    "info.title": {
+      "h": 0.0364741641337386,
+      "w": 0.256410256410256,
+      "x": 0.111111111111111,
+      "y": 0.0577507598784195
+    },
+    "inspection.btn_close": {
+      "h": 0.0364741641337386,
+      "w": 0.0555555555555556,
+      "x": 0.82051282051282,
+      "y": 0.033434650455927
+    },
+    "inspection.btn_magnifier": {
+      "h": 0.0379939209726444,
+      "w": 0.255555555555556,
+      "x": 0.611538461538462,
+      "y": 0.125379939209726
+    },
+    "inspection.info": {
+      "h": 0.60790273556231,
+      "w": 0.44017094017094,
+      "x": 0.132905982905983,
+      "y": 0.0995440729483283
+    },
+    "inspection.status": {
+      "h": 0.0531914893617021,
+      "w": 0.256410256410256,
+      "x": 0.611111111111111,
+      "y": 0.604863221884498
+    },
+    "inspection.title": {
+      "h": 0.0364741641337386,
+      "w": 0.384615384615385,
+      "x": 0.123931623931624,
+      "y": 0.0349544072948328
+    },
+    "machines.btn_aux": {
+      "h": 0.0410334346504559,
+      "w": 0.123931623931624,
+      "x": 0.752136752136752,
+      "y": 0.38145896656535
+    },
+    "machines.btn_close": {
+      "h": 0.0364741641337386,
+      "w": 0.0512820512820513,
+      "x": 0.835897435897436,
+      "y": 0.0562310030395137
+    },
+    "machines.btn_io_in": {
+      "h": 0.0410334346504559,
+      "w": 0.128205128205128,
+      "x": 0.352136752136752,
+      "y": 0.559270516717325
+    },
+    "machines.btn_io_out": {
+      "h": 0.0410334346504559,
+      "w": 0.128205128205128,
+      "x": 0.487179487179487,
+      "y": 0.559270516717325
+    },
+    "machines.btn_scroll_down": {
+      "h": 0.0425531914893617,
+      "w": 0.102564102564103,
+      "x": 0.217948717948718,
+      "y": 0.752279635258359
+    },
+    "machines.btn_special": {
+      "h": 0.0547112462006079,
+      "w": 0.0982905982905983,
+      "x": 0.653846153846154,
+      "y": 0.440729483282675
+    },
+    "machines.io": {
+      "h": 0.167173252279635,
+      "w": 0.525641025641026,
+      "x": 0.352136752136752,
+      "y": 0.182370820668693
+    },
+    "machines.list_cage": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 2.0258358662614
+    },
+    "machines.list_fridge": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.621580547112462
+    },
+    "machines.list_furnace": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.174772036474164
+    },
+    "machines.list_hydro": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.430091185410334
+    },
+    "machines.list_printer": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.238601823708207
+    },
+    "machines.list_reactor": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 1.32370820668693
+    },
+    "machines.list_recharger": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 1.19604863221885
+    },
+    "machines.list_vending": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 1.70668693009119
+    },
+    "machines.recipe_btn": {
+      "h": 0.0410334346504559,
+      "w": 0.123931623931624,
+      "x": 0.623931623931624,
+      "y": 0.38145896656535
+    },
+    "machines.status": {
+      "h": 0.0486322188449848,
+      "w": 0.525641025641026,
+      "x": 0.352136752136752,
+      "y": 0.501519756838906
+    },
+    "machines.title": {
+      "h": 0.0364741641337386,
+      "w": 0.384615384615385,
+      "x": 0.352136752136752,
+      "y": 0.11854103343465
+    },
+    "machines_detail.btn_close": {
+      "h": 0.0364741641337386,
+      "w": 0.0512820512820513,
+      "x": 0.835897435897436,
+      "y": 0.0562310030395137
+    },
+    "machines_detail.btn_io_in": {
+      "h": 0.0410334346504559,
+      "w": 0.128205128205128,
+      "x": 0.352136752136752,
+      "y": 0.559270516717325
+    },
+    "machines_detail.btn_io_out": {
+      "h": 0.0410334346504559,
+      "w": 0.128205128205128,
+      "x": 0.487179487179487,
+      "y": 0.559270516717325
+    },
+    "machines_detail.btn_scroll_down": {
+      "h": 0.0425531914893617,
+      "w": 0.102564102564103,
+      "x": 0.217948717948718,
+      "y": 0.752279635258359
+    },
+    "machines_detail.io": {
+      "h": 0.167173252279635,
+      "w": 0.525641025641026,
+      "x": 0.352136752136752,
+      "y": 0.182370820668693
+    },
+    "machines_detail.list_cage": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 2.0258358662614
+    },
+    "machines_detail.list_fridge": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.621580547112462
+    },
+    "machines_detail.list_furnace": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.174772036474164
+    },
+    "machines_detail.list_hydro": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.430091185410334
+    },
+    "machines_detail.list_printer": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 0.238601823708207
+    },
+    "machines_detail.list_reactor": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 1.32370820668693
+    },
+    "machines_detail.list_recharger": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 1.19604863221885
+    },
+    "machines_detail.list_vending": {
+      "h": 0.0577507598784195,
+      "w": 0.217094017094017,
+      "x": 0.109401709401709,
+      "y": 1.70668693009119
+    },
+    "machines_detail.recipe_btn": {
+      "h": 0.0410334346504559,
+      "w": 0.123931623931624,
+      "x": 0.623931623931624,
+      "y": 0.38145896656535
+    },
+    "machines_detail.status": {
+      "h": 0.0486322188449848,
+      "w": 0.525641025641026,
+      "x": 0.352136752136752,
+      "y": 0.501519756838906
+    },
+    "machines_detail.title": {
+      "h": 0.0364741641337386,
+      "w": 0.384615384615385,
+      "x": 0.352136752136752,
+      "y": 0.11854103343465
+    },
+    "main.btn_archive": {
+      "h": 0.0425531914893617,
+      "w": 0.0726495726495727,
+      "x": 0.00854700854700855,
+      "y": 0.390577507598784
+    },
+    "main.btn_bargain": {
+      "h": 0.060790273556231,
+      "w": 0.0726495726495727,
+      "x": 0.918803418803419,
+      "y": 0.170212765957447
+    },
+    "main.btn_deal": {
+      "h": 0.060790273556231,
+      "w": 0.0726495726495727,
+      "x": 0.918803418803419,
+      "y": 0.306990881458967
+    },
+    "main.btn_dismiss": {
+      "h": 0.060790273556231,
+      "w": 0.0726495726495727,
+      "x": 0.918803418803419,
+      "y": 0.375379939209726
+    },
+    "main.btn_end_day": {
+      "h": 0.0425531914893617,
+      "w": 0.0726495726495727,
+      "x": 0.00854700854700855,
+      "y": 0.439209726443769
+    },
+    "main.btn_factions": {
+      "h": 0.0425531914893617,
+      "w": 0.0726495726495727,
+      "x": 0.00854700854700855,
+      "y": 0.341945288753799
+    },
+    "main.btn_inspect": {
+      "h": 0.060790273556231,
+      "w": 0.0726495726495727,
+      "x": 0.918803418803419,
+      "y": 0.101823708206687
+    },
+    "main.btn_machines": {
+      "h": 0.0425531914893617,
+      "w": 0.0726495726495727,
+      "x": 0.00854700854700855,
+      "y": 0.293313069908815
+    },
+    "main.cash_label": {
+      "h": 0.0486322188449848,
+      "w": 0.14957264957265,
+      "x": 0.666666666666667,
+      "y": 0.0182370820668693
+    },
+    "main.customer_info": {
+      "h": 0.0668693009118541,
+      "w": 0.133333333333333,
+      "x": 0.112820512820513,
+      "y": 0.344984802431611
+    },
+    "main.day_label": {
+      "h": 0.0319148936170213,
+      "w": 0.136752136752137,
+      "x": 0.153846153846154,
+      "y": 0.013677811550152
+    },
+    "main.detail_counter_btn": {
+      "h": 0.0364741641337386,
+      "w": 0.0683760683760684,
+      "x": 0.817948717948718,
+      "y": 0.762917933130699
+    },
+    "main.detail_display_btn": {
+      "h": 0.0364741641337386,
+      "w": 0.0641025641025641,
+      "x": 0.74957264957265,
+      "y": 0.762917933130699
+    },
+    "main.detail_open_btn": {
+      "h": 0.0364741641337386,
+      "w": 0.0427350427350427,
+      "x": 0.941880341880342,
+      "y": 0.762917933130699
+    },
+    "main.item.backpack_small": {
+      "h": 0.0410334346504559,
+      "w": 0.0230769230769231,
+      "x": 0.31025641025641,
+      "y": 0.706686930091185
+    },
+    "main.item.nutrifruit": {
+      "h": 0.0410334346504559,
+      "w": 0.0230769230769231,
+      "x": 0.260683760683761,
+      "y": 0.618541033434651
+    },
+    "modal.btn_close": {
+      "h": 0.033434650455927,
+      "w": 0.0384615384615385,
+      "x": 0.705128205128205,
+      "y": 0.156534954407295
+    },
+    "modal.btn_next_day": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.503418803418803,
+      "y": 0.524316109422492
+    },
+    "modal.btn_quote": {
+      "h": 0.0759878419452888,
+      "w": 0.0598290598290598,
+      "x": 0.564957264957265,
+      "y": 0.524316109422492
+    },
+    "modal.text": {
+      "h": 0.282674772036474,
+      "w": 0.487179487179487,
+      "x": 0.256410256410256,
+      "y": 0.206686930091185
+    },
+    "modal.title": {
+      "h": 0.0395136778115502,
+      "w": 0.427350427350427,
+      "x": 0.256410256410256,
+      "y": 0.159574468085106
+    },
+    "welcome.btn_easy": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.318803418803419,
+      "y": 0.524316109422492
+    },
+    "welcome.btn_hard": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.503418803418803,
+      "y": 0.524316109422492
+    },
+    "welcome.btn_normal": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.411111111111111,
+      "y": 0.524316109422492
+    },
+    "welcome.btn_original": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.595726495726496,
+      "y": 0.524316109422492
+    },
+    "tutorial.btn_know": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.411111111111111,
+      "y": 0.524316109422492
+    },
+    "tutorial.btn_skip": {
+      "h": 0.0759878419452888,
+      "w": 0.0854700854700855,
+      "x": 0.503418803418803,
+      "y": 0.524316109422492
+    }
+  },
+  "device_profiles": {}
+}

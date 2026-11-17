@@ -1,0 +1,17 @@
+{
+  "id": "device/day_end_smoke",
+  "seed": 20261117,
+  "steps": [
+    {"action": "wait_screen", "shot": "welcome", "timeout_ms": 20000},
+    {"action": "tap", "target": "welcome.btn_original"},
+    {"action": "wait_screen", "shot": "tutorial", "timeout_ms": 10000},
+    {"action": "tap", "target": "tutorial.btn_skip"},
+    {"action": "wait_screen", "shot": "main_day1", "timeout_ms": 20000},
+    {"action": "tap", "target": "main.btn_end_day"},
+    {"action": "wait_screen", "shot": "day_summary", "timeout_ms": 8000},
+    {"action": "shot", "shot": "day_summary"},
+    {"action": "tap", "target": "modal.btn_next_day"},
+    {"action": "wait_screen", "shot": "main_day2", "timeout_ms": 8000},
+    {"action": "shot", "shot": "main_day2"}
+  ]
+}

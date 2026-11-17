@@ -1,0 +1,50 @@
+# [L2 执行层] machine_flow.gd — 机器面板逐项检查
+extends "res://tests/execution/case.gd"
+
+var fixtures
+
+func setup() -> void:
+	fixtures = load("res://tests/execution/fixtures.gd").new(driver, state)
+	await fixtures.boot_to_main("normal", "mobile", seed_value)
+
+func run() -> void:
+	check(await fixtures.open_machines(), "machines open")
+	check(await fixtures.select_machine("list_printer"), "printer selected")
+	check(driver.read_text("machines", "recipe_btn").contains("配方"), "printer recipe button")
+	check(driver.read_text("machines", "io").length() > 0, "printer io text")
+	await shot("machine_printer")
+	check(await fixtures.select_machine("list_recharger"), "recharger selected")
+	check(driver.is_visible("machines", "btn_aux"), "recharger aux button")
+	check(driver.read_text("machines", "io").length() > 0, "recharger rule text")
+	await shot("machine_recharger")
+	check(await fixtures.select_machine("list_vending"), "vending selected")
+	check(driver.is_visible("machines", "btn_stock"), "vending stock button")
+	check(await driver.tap("machines", "btn_aux"), "toggle vending active")
+	await driver.root.get_tree().create_timer(0.2).timeout
+	check(driver.read_text("machines", "btn_special").contains("收取"), "vending special label")
+	await shot("machine_vending")
+	check(await fixtures.select_machine("list_reactor"), "reactor selected")
+	check(driver.read_text("machines", "btn_special").contains("维修"), "reactor special label")
+	check(await fixtures.select_machine("list_cage"), "cage selected")
+	check(driver.is_visible("machines", "btn_special"), "cage special button")
+	check(driver.is_visible("machines", "btn_stock"), "cage stock button")
+	check(await fixtures.select_machine("list_hydro"), "hydro selected")
+	check(driver.read_text("machines", "recipe_btn").contains("配方"), "hydro recipe button")
+	check(await fixtures.select_machine("list_fridge"), "fridge selected")
+	check(driver.is_visible("machines", "btn_stock_grid"), "fridge stock grid button")
+	await fixtures.reset_machine_scroll()
+	check(await driver.tap("machines", "btn_stock_grid"), "open fridge grid")
+	check(await driver.wait_visible("container", "title", 3000), "fridge container open")
+	await shot("fridge_grid")
+	check(await driver.tap("container", "btn_close"), "close fridge grid")
+	check(driver.is_visible("machines", "title"), "machine panel still open")
+	check(driver.find_text_contains("machines", "熔炉") != null, "furnace button exists")
+	check(await fixtures.select_machine("list_furnace"), "furnace selected", driver.read_text("machines", "title"))
+	check(driver.is_visible("machines", "btn_io_in"), "furnace input button")
+	check(driver.is_visible("machines", "btn_io_out"), "furnace output button")
+	await fixtures.reset_machine_scroll()
+	check(await driver.tap("machines", "btn_io_in"), "open furnace input")
+	check(await driver.wait_visible("container", "title", 3000), "furnace input open")
+	await shot("furnace_input")
+	check(await driver.tap("container", "btn_close"), "close furnace input")
+	check(await driver.tap("machines", "btn_close"), "close machines")

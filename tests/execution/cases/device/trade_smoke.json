@@ -1,0 +1,22 @@
+{
+  "id": "device/trade_smoke",
+  "seed": 20261117,
+  "steps": [
+    {"action": "wait_screen", "shot": "welcome", "timeout_ms": 20000},
+    {"action": "tap", "target": "welcome.btn_original"},
+    {"action": "wait_screen", "shot": "tutorial", "timeout_ms": 10000},
+    {"action": "tap", "target": "tutorial.btn_skip"},
+    {"action": "wait_screen", "shot": "main_day1", "timeout_ms": 20000},
+    {"action": "tap", "target": "main.btn_inspect"},
+    {"action": "wait_screen", "shot": "inspect_open", "timeout_ms": 8000},
+    {"action": "shot", "shot": "inspect_open"},
+    {"action": "tap", "target": "inspection.btn_close"},
+    {"action": "tap", "target": "main.btn_bargain"},
+    {"action": "wait_screen", "shot": "bargain_modal", "timeout_ms": 8000},
+    {"action": "shot", "shot": "bargain_modal"},
+    {"action": "tap", "target": "modal.btn_quote"},
+    {"action": "tap", "target": "modal.btn_close"},
+    {"action": "tap", "target": "main.btn_deal"},
+    {"action": "wait_screen", "shot": "after_trade", "timeout_ms": 10000}
+  ]
+}
