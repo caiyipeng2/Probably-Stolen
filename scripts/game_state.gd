@@ -91,6 +91,7 @@ var combat_pending_victory := false
 var combat_armor_defs: Dictionary = {}
 var equipped_armor_uid := -1
 var security_defs: Dictionary = {}
+var locale_text: Dictionary = {}
 var sec_crimes: Dictionary = {}
 var sec_evidence := 0
 var sec_state := 0
@@ -407,6 +408,11 @@ func _load_defs() -> void:
 		var sdata = JSON.parse_string(f.get_as_text())
 		if sdata is Dictionary:
 			security_defs = sdata
+	f = FileAccess.open("res://data_private/locale_zh.json", FileAccess.READ)
+	if f:
+		var ldata = JSON.parse_string(f.get_as_text())
+		if ldata is Dictionary:
+			locale_text = ldata
 	f = FileAccess.open("res://data_private/security_text_zh.json", FileAccess.READ)
 	if f:
 		var stext = JSON.parse_string(f.get_as_text())
@@ -1340,6 +1346,12 @@ func decline_promotion(for_good: bool = false) -> void:
 		appraisal_promotion_day = day + 7
 	pending_promotion = false
 	emit_signal("state_changed")
+
+func loc(group: String, key: String, fallback: String = "", args: Array = []) -> String:
+	var text := String(locale_text.get("%s:%s" % [group, key], fallback))
+	for i in range(args.size()):
+		text = text.replace("{%d}" % i, str(args[i]))
+	return text
 
 func container_def(def_id: String) -> Dictionary:
 	return containers_def.get(def_id, {})
@@ -2937,6 +2949,12 @@ func commissary_buy(id: String) -> Dictionary:
 
 func _init_phone_clients() -> void:
 	phone_clients = {}
+	var name_keys := {"red_imp": "name_red_imp_rep", "chem": "name_ashish", "mining": "name_caulson", "pharma": "name_dale", "rev": "name_odin", "wild": "name_joe_assistant"}
+	for sid in name_keys.keys():
+		if phone_contacts.has(sid):
+			var localized_name := loc("ClientName", String(name_keys[sid]), "")
+			if localized_name != "":
+				phone_contacts[sid]["name"] = localized_name
 	for sid in phone_contacts.keys():
 		var cfg: Dictionary = phone_contacts[sid]
 		var kind := String(cfg.get("kind", ""))
@@ -4739,7 +4757,11 @@ func item_description(item: Dictionary) -> String:
 	var custom := String(item.get("custom_desc", ""))
 	if custom != "":
 		return custom
-	return String(get_item_def(String(item.get("def_id", ""))).get("description", ""))
+	var def := get_item_def(String(item.get("def_id", "")))
+	var text := String(def.get("description", ""))
+	if text == "":
+		text = String(def.get("flavor", ""))
+	return text
 
 func mark_story_seen(id: String) -> void:
 	if not story_seen.has(id):

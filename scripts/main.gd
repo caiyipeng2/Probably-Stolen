@@ -951,7 +951,7 @@ func _build_left_rail() -> void:
 	_label(rail, "店铺", Vector2(20, 14), Vector2(170, 32), 24, C_AMBER)
 	var items := [
 		["顾客", "customers"], ["库存", "inventory"], ["网络", "network"],
-		["手机", "phone"], ["机器", "machines"], ["派系", "factions"], ["档案", "ledger"], ["结束营业", "end_day"],
+		["手机", "phone"], ["机器", "machines"], ["派系", "factions"], ["档案", "ledger"], [GameState.loc("UI", "ui_end_day", "结束营业"), "end_day"],
 	]
 	for i in range(items.size()):
 		var key: String = items[i][1]
@@ -1891,10 +1891,10 @@ func _phone_dial() -> void:
 		return
 	var sid := GameState.phone_contact_by_number(num)
 	if sid == "":
-		phone_status_label.text = "无人接听"
+		phone_status_label.text = GameState.loc("UI", "ui_phone_no_answer", "无人接听")
 		_play_sfx("fail")
 		return
-	phone_status_label.text = "已拨通"
+	phone_status_label.text = GameState.loc("UI", "ui_phone_in_call", "通话中")
 	_phone_call_contact(sid)
 
 func _phone_quick(sid: String) -> void:
@@ -1904,7 +1904,7 @@ func _phone_quick(sid: String) -> void:
 func _phone_call_contact(sid: String) -> void:
 	var res := GameState.phone_dial(sid)
 	if not bool(res.get("ok", false)):
-		phone_status_label.text = String(res.get("text", "无人接听"))
+		phone_status_label.text = String(res.get("text", GameState.loc("UI", "ui_phone_no_answer", "无人接听")))
 		_play_sfx("fail")
 		return
 	phone_dialog_sid = sid
@@ -4317,7 +4317,7 @@ func _refresh_inspection_modal() -> void:
 	var fam: Dictionary = GameState.inspection_families.get(family, {})
 	var intent := "owned" if inspection_owned else String(GameState.current_customer.get("intent", ""))
 	var cname := "自检" if inspection_owned else String(GameState.current_customer.get("arche", {}).get("name", "顾客"))
-	inspection_title.text = "验货 · %s" % GameState.item_display_name(it)
+	inspection_title.text = "%s · %s" % [GameState.loc("UI", "ui_inspection_panel_title", "物品鉴定"), GameState.item_display_name(it)]
 	var text := "物品：%s\n家族：%s\n品相：%d%%\n顾客：%s（%s）\n" % [
 		GameState.item_display_name(it),
 		String(fam.get("name", family if family != "generic" else "普通物品")),
@@ -4367,7 +4367,7 @@ func _refresh_inspection_modal() -> void:
 		if bool(f.get("discovered", false)) and not bool(f.get("exposed", false)):
 			_inspection_action_button("揭露：" + String(f.get("label", "")), _expose_counter_feature.bind(i), C_AMBER)
 	if not inspection_owned and String(it.get("family", "")) in ["cigarette", "stamp", "injector"] and not bool(it.get("confronted", false)):
-		_inspection_action_button("对质", _open_confront_select, C_RUST)
+		_inspection_action_button(GameState.loc("UI", "ui_inspection_panel_confront_button", "对质"), _open_confront_select, C_RUST)
 	if intent == "appraise":
 		inspection_appraisal_input.visible = true
 		inspection_appraisal_input.get_parent().get_node_or_null("AppraisalSubmit").visible = true
