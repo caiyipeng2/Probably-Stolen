@@ -355,13 +355,30 @@ adb shell monkey -p com.caiyipeng.probablystolen.mobile -c android.intent.catego
 开发调试参数：
 
 ```bash
-# 桌面截图
-godot --path . --capture
-# UI 自动化冒烟
-godot --path . --autotest
-# 检查鉴定按钮
-godot --path . --dumpinspect
+# 公开版素材预览
+godot --path . -- --publicassets
 ```
+
+## 自动化回归
+
+```bash
+# 逻辑回归（22 个用例，headless）
+python tests/run.py --suite logic
+
+# 桌面 UI + 截图基线（11 条流程）
+python tests/run.py --suite ui
+
+# 真机冒烟（必须显式清空应用数据；先确认已备份）
+python tests/run.py --suite device --serial R5CX211TXNT --fresh-device
+
+# 全套（逻辑 + UI + 真机）
+python tests/run.py --suite full --fresh-device
+
+# 更新截图基线（审阅 diff 后再提交）
+python tests/run.py --suite ui --update-baselines
+```
+
+测试分层、截图基线与真机注意事项见 `tests/README.md`。旧 `--autotest` / `--capture*` / `--test*` / `--dump*` 参数已全部移除。
 
 ## 目录
 
@@ -371,6 +388,7 @@ godot --path . --dumpinspect
 - `data/`：物品、顾客、事件 JSON。
 - `assets/`：像素场景、顾客立绘、物品图标、像素字体。
 - `assets_public/`：公开版原创替换素材（背景/头像/分类图标）。
+- `tests/`：分层自动化回归框架（控件层/执行层/截图验证层/回归结论层），不进入 APK。
 - `docs/立项方案.md`：全量 1:1 目标与 M1–M6 路线。
 - `docs/内容对齐清单.md`：原版/当前内容量对照与缺口。
 - `docs/剧情场景清单.md`：已导入剧情场景、触发日期与效果。
