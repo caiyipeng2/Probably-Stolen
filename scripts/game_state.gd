@@ -85,6 +85,14 @@ var containers_def: Dictionary = {}
 var machine_container_items: Dictionary = {}
 var machine_io: Dictionary = {}
 var loot_tables: Dictionary = {}
+var barter_offer_defs: Dictionary = {}
+var dialogue_lines: Dictionary = {}
+var phone_contacts: Dictionary = {}
+var phone_clients: Dictionary = {}
+var future_customers: Array = []
+var commissary_defs: Array = []
+var commissary_stock: Dictionary = {}
+var commissary_credit := 0
 var machine_active: Dictionary = {}
 var machine_stock: Dictionary = {}
 var machine_cash: Dictionary = {}
@@ -328,6 +336,31 @@ func _load_defs() -> void:
 		var adata = JSON.parse_string(archive.get_as_text())
 		if adata is Dictionary:
 			dialogue_archive = adata.get("groups", [])
+			dialogue_lines = {}
+			for g in dialogue_archive:
+				for e in g.get("entries", []):
+					dialogue_lines[String(e.get("key", ""))] = String(e.get("text", ""))
+	f = FileAccess.open("res://data/barter_offers.json", FileAccess.READ)
+	if f:
+		var bdata = JSON.parse_string(f.get_as_text())
+		if bdata is Dictionary:
+			barter_offer_defs = bdata.get("clients", {})
+	f = FileAccess.open("res://data/phone_contacts.json", FileAccess.READ)
+	if f:
+		var pdata = JSON.parse_string(f.get_as_text())
+		if pdata is Dictionary:
+			phone_contacts = pdata.get("contacts", {})
+	f = FileAccess.open("res://data_private/phone_dialogue_zh.json", FileAccess.READ)
+	if f:
+		var pd = JSON.parse_string(f.get_as_text())
+		if pd is Dictionary:
+			for k in pd.keys():
+				dialogue_lines[String(k)] = String(pd[k])
+	f = FileAccess.open("res://data/commissary.json", FileAccess.READ)
+	if f:
+		var cdata = JSON.parse_string(f.get_as_text())
+		if cdata is Dictionary:
+			commissary_defs = cdata.get("items", [])
 	f = FileAccess.open("res://data/combat.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -1534,6 +1567,13 @@ func _item_tags(it: Dictionary) -> Array:
 		tags.append("AMMUNITION")
 	if did.ends_with("_seed") or cat == "plant":
 		tags.append("SEED")
+	if did in ["dream_dust", "nightmare_dust", "fanta_pill", "pink_alt_injector", "black_injector"]:
+		tags.append("NARCOTIC")
+	if did == "moonshine":
+		tags.append("ALCOHOL")
+	var upper := cat.to_upper()
+	if upper != "" and not tags.has(upper):
+		tags.append(upper)
 	return tags
 
 func _tag_match(tags: Array, wanted: Array) -> bool:
@@ -2040,6 +2080,9 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	machine_stock = {}
 	machine_container_items = {}
 	machine_io = {}
+	future_customers = []
+	_init_phone_clients()
+	_init_commissary()
 	machine_cash = {}
 	machine_upgrades = {}
 	machine_state = {}
@@ -2071,6 +2114,26 @@ func start_day() -> void:
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	customers_today = []
 	_gen_commissions()
+	var due: Array = []
+	var remain_future: Array = []
+	for f in future_customers:
+		if int(f.get("day", 0)) <= day:
+			due.append(f)
+		else:
+			remain_future.append(f)
+	future_customers = remain_future
+	for f in due:
+		customers_today.append(_gen_courier_customer(f))
+	if day > 1:
+		commissary_restock()
+	_grant_dividends()
+	for sid in phone_clients.keys():
+		var pc: Dictionary = phone_clients[sid]
+		if String(pc.get("state", "")) == "Cooldown":
+			pc["cooldown"] = maxi(0, int(pc.get("cooldown", 0)) - 1)
+			if int(pc["cooldown"]) <= 0:
+				pc["state"] = "Regular"
+				_add_night_log("联系人可再次联系：%s。" % String(phone_contacts.get(sid, {}).get("name", sid)))
 	var count := rng.randi_range(3, 5)
 	if attraction_bonus >= 110:
 		count += 1
@@ -2091,8 +2154,10 @@ func start_day() -> void:
 	next_customer()
 
 func _gen_customer() -> Dictionary:
-	var arche: Dictionary = customer_defs[rng.randi_range(0, customer_defs.size() - 1)].duplicate(true)
 	var forced_tutorial := day == 1 and not tutorial_done and customers_today.is_empty()
+	if not forced_tutorial and rng.randf() < 0.20:
+		return _gen_barter_customer()
+	var arche: Dictionary = customer_defs[rng.randi_range(0, customer_defs.size() - 1)].duplicate(true)
 	if forced_tutorial:
 		arche = customer_defs[1].duplicate(true)
 	var intent: String = arche.get("intent", "both")
@@ -2140,6 +2205,542 @@ func _gen_customer() -> Dictionary:
 		c["line"] = arche.get("greet", "")
 	return c
 
+func _barter_intro_key(client_id: String) -> String:
+	match client_id:
+		"addict": return "dialog_barter_addict_1"
+		"blood": return "dialog_barter_addict_blood_1"
+		"scav": return "dialog_barter_scav_1"
+		"chemist": return "dialog_barter_chemist_1"
+		"food": return "dialog_barter_food_normal_1"
+	return "dialog_barter_addict_gen_1"
+
+func _gen_barter_customer() -> Dictionary:
+	var ids: Array = []
+	var total := 0
+	for cid in barter_offer_defs.keys():
+		var w := int(barter_offer_defs[cid].get("weight", 10))
+		ids.append(cid)
+		total += w
+	var pick := rng.randi_range(1, maxi(1, total))
+	var client_id := String(ids[0])
+	for cid in ids:
+		pick -= int(barter_offer_defs[cid].get("weight", 10))
+		if pick <= 0:
+			client_id = String(cid)
+			break
+	var def: Dictionary = barter_offer_defs[client_id]
+	var arche: Dictionary = customer_defs[rng.randi_range(0, customer_defs.size() - 1)].duplicate(true)
+	arche["faction"] = String(def.get("faction", arche.get("faction", "lower")))
+	var offers_def: Array = def.get("offers", [])
+	var chosen: Array = []
+	if String(def.get("offer_mode", "")) == "one_of" and not offers_def.is_empty():
+		chosen.append(offers_def[rng.randi_range(0, offers_def.size() - 1)])
+	else:
+		for o in offers_def:
+			var chance := float(o.get("chance", 100))
+			if chance >= 100.0 or rng.randf() * 100.0 < chance:
+				chosen.append(o)
+	if chosen.is_empty() and not offers_def.is_empty():
+		chosen.append(offers_def[0])
+	var sets: Array = []
+	for o in chosen:
+		var items: Array = []
+		for pair in o.get("items", []):
+			items.append({"id": String(pair[0]), "count": int(pair[1])})
+		sets.append({"items": items})
+	var intro := String(dialogue_lines.get(_barter_intro_key(client_id), ""))
+	if intro == "":
+		intro = "我想用这些东西和你换点东西。"
+	var c := {
+		"arche": arche,
+		"intent": "barter",
+		"patience": 3,
+		"done": false,
+		"line": intro,
+		"barter_client": client_id,
+		"barter_name": String(def.get("name", "顾客")),
+		"barter_want": String(def.get("want_text", "拿取：物品")),
+		"barter_conditions": def.get("conditions", []).duplicate(true),
+		"barter_offers": sets,
+		"barter_index": 0,
+	}
+	var key_map := {"addict_general": "addict_gen", "food": "food_normal", "blood": "addict_blood"}
+	var base := String(key_map.get(client_id, client_id))
+	c["barter_accept_key"] = "dialog_barter_%s_accept" % base
+	c["barter_done_key"] = "dialog_barter_%s_done" % base
+	return c
+
+func _barter_item_matches(it: Dictionary, cond: Dictionary) -> bool:
+	var did := String(it.get("def_id", ""))
+	if cond.has("item") and String(cond.get("item", "")) != "" and did != String(cond.get("item", "")):
+		return false
+	if cond.has("tag") and String(cond.get("tag", "")) != "" and not _item_tags(it).has(String(cond.get("tag", ""))):
+		return false
+	for fid in cond.get("blacklist", []):
+		for f in it.get("features", []):
+			if String(f.get("id", "")) == String(fid):
+				return false
+	return true
+
+func _iter_inventory_items(list: Array = []) -> Array:
+	if list.is_empty():
+		list = inventory
+	var out: Array = []
+	for it in list:
+		out.append(it)
+		if not it.get("children", []).is_empty():
+			out.append_array(_iter_inventory_items(it.get("children", [])))
+	return out
+
+func barter_condition_label(cond: Dictionary) -> String:
+	if cond.has("item") and String(cond.get("item", "")) != "":
+		return String(get_item_def(String(cond.get("item", ""))).get("name", cond.get("item", "")))
+	if cond.has("tag"):
+		match String(cond.get("tag", "")):
+			"FOOD": return "食物"
+			"NARCOTIC": return "毒品"
+		return String(cond.get("tag", ""))
+	return "物品"
+
+func barter_condition_count(cond: Dictionary) -> int:
+	var total := 0
+	for it in _iter_inventory_items():
+		if _barter_item_matches(it, cond):
+			total += int(it.get("unit_count", 1))
+	return total
+
+func barter_condition_satisfied(c: Dictionary) -> bool:
+	var conds: Array = c.get("barter_conditions", [])
+	if conds.is_empty():
+		return false
+	for cond in conds:
+		if barter_condition_count(cond) < int(cond.get("count", 1)):
+			return false
+	return true
+
+func barter_offer_items(c: Dictionary) -> Array:
+	var offers: Array = c.get("barter_offers", [])
+	if offers.is_empty():
+		return []
+	var idx := clampi(int(c.get("barter_index", 0)), 0, offers.size() - 1)
+	return offers[idx].get("items", [])
+
+func barter_offer_count(c: Dictionary) -> int:
+	return int(c.get("barter_offers", []).size())
+
+func cycle_barter_offer(offset: int) -> void:
+	if current_customer.is_empty() or current_customer.get("intent") != "barter":
+		return
+	var count := barter_offer_count(current_customer)
+	if count <= 1:
+		return
+	current_customer["barter_index"] = posmod(int(current_customer.get("barter_index", 0)) + offset, count)
+	emit_signal("state_changed")
+
+func _consume_barter_unit(cond: Dictionary) -> bool:
+	for it in _iter_inventory_items():
+		if not _barter_item_matches(it, cond):
+			continue
+		if int(it.get("unit_count", 1)) > 1:
+			it["unit_count"] = int(it.get("unit_count", 1)) - 1
+			return true
+		if not detach_item(int(it.get("uid", -1))).is_empty():
+			return true
+	return false
+
+func accept_barter() -> Dictionary:
+	if current_customer.is_empty() or current_customer.get("intent") != "barter":
+		return {"ok": false, "text": "当前顾客不是来以物易物的。"}
+	if bool(current_customer.get("done", false)):
+		return {"ok": false, "text": "这笔交换已经完成。"}
+	if not barter_condition_satisfied(current_customer):
+		return {"ok": false, "text": "背包里没有满足条件的物品。"}
+	for cond in current_customer.get("barter_conditions", []):
+		for n in range(int(cond.get("count", 1))):
+			if not _consume_barter_unit(cond):
+				return {"ok": false, "text": "所需物品不足。"}
+	var got: Array = []
+	for entry in barter_offer_items(current_customer):
+		var did := String(entry.get("id", ""))
+		if did == "" or not items_def.has(did):
+			continue
+		for n in range(int(entry.get("count", 1))):
+			var it := make_item(did, 100, true, false)
+			add_item(it)
+			got.append(String(get_item_def(did).get("name", did)))
+	current_customer["done"] = true
+	current_customer["done_got"] = got
+	current_customer["line"] = String(dialogue_lines.get("dialog_barter_accept", "成交。"))
+	add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), 1)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "交换完成：+%s" % "、".join(got), "got": got}
+
+func phone_card_contact(def_id: String) -> String:
+	match def_id:
+		"card_brewer": return "red_imp"
+		"card_chem": return "chem"
+		"card_pharma": return "pharma"
+		"card_mining": return "mining"
+		"card_rev": return "rev"
+	return ""
+
+func _grant_dividends() -> void:
+	var wd := day % 7
+	if bool(owned_upgrades.get("BREWER_SHAREHOLDER", false)) and wd == 4:
+		add_item(_bundle_stock({"container": "beerCase", "fill": [["red_beer", 8]]}))
+		_add_night_log("股东分红：1 箱整啤。")
+	if bool(owned_upgrades.get("MINER_SHAREHOLDER", false)) and wd == 5:
+		for i in range(6):
+			add_item(make_item("common_ore", 100, true, false))
+		_add_night_log("股东分红：6 份矿石。")
+	if bool(owned_upgrades.get("CHEMIST_SHAREHOLDER", false)) and wd == 6:
+		for i in range(8):
+			add_item(make_item("dream_dust", 100, true, false))
+		_add_night_log("股东分红：8 份街头级梦尘。")
+	if bool(owned_upgrades.get("PHARMA_SHAREHOLDER", false)) and wd == 0:
+		for i in range(5):
+			add_item(make_item("pink_alt_injector", 100, true, false))
+		_add_night_log("股东分红：5 支奥克西莫注射器。")
+
+func _init_commissary() -> void:
+	commissary_credit = 0
+	commissary_stock = {}
+	for it in commissary_defs:
+		var did := String(it.get("id", ""))
+		commissary_stock[did] = mini(int(it.get("max", 10)), int(it.get("restock", 1)) * 2)
+
+func commissary_restock() -> void:
+	for it in commissary_defs:
+		var did := String(it.get("id", ""))
+		commissary_stock[did] = mini(int(it.get("max", 10)), int(commissary_stock.get(did, 0)) + int(it.get("restock", 1)))
+
+func commissary_redeem_stamps() -> Dictionary:
+	var credit := 0
+	var count := 0
+	for it in _iter_inventory_items().duplicate():
+		if String(it.get("def_id", "")) != "food_stamp":
+			continue
+		credit += int(it.get("custom_base_value", get_item_def("food_stamp").get("base_value", 30)))
+		detach_item(int(it.get("uid", -1)))
+		count += 1
+	commissary_credit += credit
+	emit_signal("state_changed")
+	return {"ok": count > 0, "text": "兑换 %d 张食品券，获得 %d 兑换券。" % [count, credit]}
+
+func commissary_buy(id: String) -> Dictionary:
+	var def := {}
+	for it in commissary_defs:
+		if String(it.get("id", "")) == id:
+			def = it
+			break
+	if def.is_empty():
+		return {"ok": false, "text": "补给站没有这件商品。"}
+	var price := int(def.get("price", 0))
+	if int(commissary_stock.get(id, 0)) <= 0:
+		return {"ok": false, "text": "这件商品缺货。"}
+	if commissary_credit < price:
+		return {"ok": false, "text": "兑换券不足：需要 %d。" % price}
+	commissary_credit -= price
+	commissary_stock[id] = int(commissary_stock.get(id, 0)) - 1
+	add_item(make_item(id, 100, true, false))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "兑换：%s。" % String(get_item_def(id).get("name", id))}
+
+func _init_phone_clients() -> void:
+	phone_clients = {}
+	for sid in phone_contacts.keys():
+		var cfg: Dictionary = phone_contacts[sid]
+		var kind := String(cfg.get("kind", ""))
+		var state := "NotResponding"
+		if kind in ["wild", "sec", "commissary"]:
+			state = "Regular"
+		phone_clients[sid] = {"state": state, "cooldown": 0, "amount_spent": 0, "dialed": false, "stock_type": 0}
+
+func phone_client(sid: String) -> Dictionary:
+	if not phone_clients.has(sid):
+		return {}
+	return phone_clients[sid]
+
+func queue_future_customer(cid: String, supplier: String = "", stock_type: int = 0, days: int = 1, free: bool = false) -> void:
+	future_customers.append({"customer": cid, "supplier": supplier, "stock_type": stock_type, "day": day + maxi(1, days), "free": free})
+
+func _bundle_stock(entry: Dictionary) -> Dictionary:
+	if entry.has("container"):
+		var box := make_item(String(entry.get("container", "")), 100, true, false)
+		for fill in entry.get("fill", []):
+			var fid := String(fill[0])
+			for n in range(int(fill[1])):
+				container_auto_add(box, make_item(fid, 100, true, false))
+		return box
+	return make_item(String(entry.get("id", "")), 100, true, false)
+
+func _gen_courier_customer(f: Dictionary) -> Dictionary:
+	if String(f.get("customer", "")) == "wanted":
+		return {
+			"arche": {"faction": "security", "name": "奥丁的手下"},
+			"intent": "wanted", "wanted_id": "w_odin", "done": false,
+			"line": "奥丁的人找上门了。",
+		}
+	var sid := String(f.get("supplier", ""))
+	var cfg: Dictionary = phone_contacts.get(sid, {})
+	var free := bool(f.get("free", false))
+	var st := int(f.get("stock_type", 0))
+	var key := "free" if free else ("stock%d" % st)
+	var stock_def: Array = cfg.get(key, [])
+	var stock: Array = []
+	for entry in stock_def:
+		for n in range(int(entry.get("count", 1))):
+			stock.append(_bundle_stock(entry))
+	var discount := int(cfg.get("discount", -20))
+	var sh_id := String(cfg.get("shareholder", ""))
+	if sh_id != "" and bool(owned_upgrades.get(sh_id, false)):
+		discount -= 15
+	var prefix := String(cfg.get("dialogue", "red_imp"))
+	var line1 := String(dialogue_lines.get("dialog_courrier_%s_1" % prefix, ""))
+	if line1 == "":
+		line1 = String(dialogue_lines.get("dialog_courrier_beer_1", ""))
+	var line2 := String(dialogue_lines.get("dialog_courrier_%s_2" % prefix, ""))
+	var name := String(cfg.get("name", "快递员"))
+	if sid == "red_imp":
+		name = "红魔酿酒厂快递员"
+	elif sid == "mining":
+		name = "GP采矿合作社快递员"
+	var c := {
+		"arche": {"faction": "lower", "name": name},
+		"intent": "wholesale",
+		"patience": 3,
+		"done": false,
+		"line": line1 + ("\n" + line2 if line2 != "" else ""),
+		"wholesale_name": name,
+		"wholesale_supplier": sid,
+		"wholesale_discount": discount,
+		"wholesale_stock": stock,
+		"wholesale_free": free,
+		"wholesale_done_key": "dialog_courrier_%s_done" % prefix,
+	}
+	return c
+
+func wholesale_total(c: Dictionary) -> int:
+	if bool(c.get("wholesale_free", false)):
+		return 0
+	var base := 0
+	for it in c.get("wholesale_stock", []):
+		base += effective_value(it)
+	return maxi(0, int(round(float(base) * (1.0 + float(c.get("wholesale_discount", -20)) / 100.0))))
+
+func buy_wholesale() -> Dictionary:
+	if current_customer.is_empty() or current_customer.get("intent") != "wholesale":
+		return {"ok": false, "text": "当前不是批发顾客。"}
+	if bool(current_customer.get("done", false)):
+		return {"ok": false, "text": "这批货已经处理过了。"}
+	var total := wholesale_total(current_customer)
+	if not bool(current_customer.get("wholesale_free", false)) and cash < total:
+		return {"ok": false, "text": "现金不足：需要 %d₵。" % total}
+	var got: Array = []
+	for it in current_customer.get("wholesale_stock", []):
+		it["location"] = "backpack"
+		add_item(it)
+		got.append(item_display_name(it))
+	if not bool(current_customer.get("wholesale_free", false)):
+		cash -= total
+	var sid := String(current_customer.get("wholesale_supplier", ""))
+	if sid != "" and phone_clients.has(sid):
+		phone_clients[sid]["amount_spent"] = int(phone_clients[sid].get("amount_spent", 0)) + total
+	current_customer["done"] = true
+	current_customer["done_total"] = total
+	current_customer["line"] = String(dialogue_lines.get(String(current_customer.get("wholesale_done_key", "")), "验货完毕，合作愉快。"))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "买下 %d 件，支付 %d₵。" % [got.size(), total], "got": got}
+
+func phone_contact_by_number(num: String) -> String:
+	for sid in phone_contacts.keys():
+		if String(phone_contacts[sid].get("number", "")) == num:
+			return String(sid)
+	return ""
+
+func phone_number_of(sid: String) -> String:
+	return String(phone_contacts.get(sid, {}).get("number", ""))
+
+func phone_status_text(sid: String) -> String:
+	var pc := phone_client(sid)
+	match String(pc.get("state", "")):
+		"Regular": return "可联系"
+		"Cooldown": return "冷却 %d 天" % int(pc.get("cooldown", 0))
+		"Introduction": return "新联系人"
+		"NotResponding": return "无人接听"
+	return "未知"
+
+func phone_book_contacts() -> Array:
+	var out: Array = []
+	for sid in phone_contacts.keys():
+		var pc := phone_client(sid)
+		if not bool(pc.get("dialed", false)):
+			continue
+		if String(pc.get("state", "")) not in ["Regular", "Cooldown", "Introduction"]:
+			continue
+		out.append({"id": sid, "name": String(phone_contacts[sid].get("name", sid)), "status": phone_status_text(sid)})
+	return out
+
+func _phone_lines(keys: Array, args: Array = []) -> Array:
+	var out: Array = []
+	for k in keys:
+		var t := String(dialogue_lines.get(String(k), ""))
+		if t == "":
+			continue
+		for i in range(args.size()):
+			t = t.replace("{%d}" % i, str(args[i]))
+		out.append(t)
+	return out
+
+func phone_use_service(sid: String) -> void:
+	var cfg: Dictionary = phone_contacts.get(sid, {})
+	var pc := phone_client(sid)
+	pc["state"] = "Cooldown"
+	pc["cooldown"] = int(cfg.get("cooldown", 0))
+	pc["dialed"] = true
+
+func phone_order(sid: String, stock_type: int) -> Dictionary:
+	var cfg: Dictionary = phone_contacts.get(sid, {})
+	var pc := phone_client(sid)
+	if String(pc.get("state", "")) != "Regular":
+		return {"ok": false, "text": "这个联系人现在无法接单。"}
+	if stock_type == 1 and int(pc.get("amount_spent", 0)) < int(cfg.get("unlock_spent", 400)):
+		return {"ok": false, "text": "消费额不足：%d/%d。" % [int(pc.get("amount_spent", 0)), int(cfg.get("unlock_spent", 400))]}
+	pc["stock_type"] = stock_type
+	var days: Array = cfg.get("delivery_days", [1, 2])
+	var d := int(days[clampi(stock_type, 0, days.size() - 1)])
+	queue_future_customer("courrier", sid, stock_type, d, false)
+	phone_use_service(sid)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "订单已下：%d 天后送达。" % d}
+
+func phone_finish_intro(sid: String) -> void:
+	phone_use_service(sid)
+	queue_future_customer("courrierFree", sid, 0, 1, true)
+	emit_signal("state_changed")
+
+func phone_dial(sid: String) -> Dictionary:
+	var cfg: Dictionary = phone_contacts.get(sid, {})
+	if cfg.is_empty():
+		return {"ok": false, "text": "号码不存在。"}
+	var pc := phone_client(sid)
+	pc["dialed"] = true
+	var kind := String(cfg.get("kind", ""))
+	var name := String(cfg.get("name", sid))
+	match kind:
+		"supplier":
+			var state := String(pc.get("state", ""))
+			if state == "Introduction":
+				var intro_keys: Array = []
+				for i in range(1, 10):
+					var k := "%s_intro%d" % [String(cfg.get("dialogue", "")), i]
+					match String(cfg.get("dialogue", "")):
+						"red_imp": k = "red_imp_rep_intro%d" % i
+						"chem": k = "ashish_intro%d" % i
+						"mining": k = "caulson_intro%d" % i
+						"pharma": k = "dale_intro%d" % i
+					intro_keys.append(k)
+				var pages := _phone_lines(intro_keys)
+				return {"ok": true, "speaker": name, "pages": pages, "choices": [{"id": "intro_end", "label": "结束通话"}]}
+			elif state == "Regular":
+				var prefix := String(cfg.get("dialogue", ""))
+				var regular_keys: Array = []
+				match prefix:
+					"red_imp": regular_keys = ["red_imp_rep2"]
+					"chem": regular_keys = ["ashish_regular1", "ashish_regular2"]
+					"mining": regular_keys = ["caulson_regular1", "caulson_regular2"]
+					"pharma": regular_keys = ["dale_regular1", "dale_regular2", "dale_regular3"]
+				var pages2 := _phone_lines(regular_keys)
+				var choices: Array = []
+				var qty := [8, 16]
+				if prefix == "mining":
+					qty = [6, 12]
+				elif prefix == "pharma":
+					qty = [5, 10]
+				var order_keys := ["%s_order1" % prefix, "%s_order2" % prefix]
+				var days: Array = cfg.get("delivery_days", [1, 2])
+				choices.append({"id": "order0", "label": _phone_lines([order_keys[0]], [qty[0], days[0]])[0] if not _phone_lines([order_keys[0]]).is_empty() else "下首单"})
+				if int(pc.get("amount_spent", 0)) >= int(cfg.get("unlock_spent", 400)):
+					if not _phone_lines([order_keys[1]]).is_empty():
+						choices.append({"id": "order1", "label": _phone_lines([order_keys[1]], [qty[1], days[1]])[0]})
+				choices.append({"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))})
+				return {"ok": true, "speaker": name, "pages": pages2, "choices": choices}
+			else:
+				var cd_keys: Array = []
+				match String(cfg.get("dialogue", "")):
+					"red_imp": cd_keys = ["red_imp_out1", "red_imp_out2", "red_imp_out3"]
+					"chem": cd_keys = ["ashish_cooldown1", "ashish_cooldown2", "ashish_cooldown3"]
+					"mining": cd_keys = ["caulson_cooldown2", "caulson_cooldown5"]
+					"pharma": cd_keys = ["dale_cooldown1", "dale_cooldown3"]
+				var pages3 := _phone_lines(cd_keys, [int(pc.get("cooldown", 0))])
+				if pages3.is_empty():
+					pages3 = [String(dialogue_lines.get("generic_cooldown", "现在不太方便，过几天再打吧。"))]
+				return {"ok": true, "speaker": name, "pages": pages3, "choices": [{"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))}]}
+		"wild":
+			return {"ok": true, "speaker": name, "pages": _phone_lines(["wild1", "wild2"]), "choices": [
+				{"id": "wild_network", "label": String(dialogue_lines.get("browse_wild_service", "浏览怀尔德网络"))},
+				{"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))}]}
+		"sec":
+			return {"ok": true, "speaker": name, "pages": ["这里是治安部。有什么可以帮您？"], "choices": [
+				{"id": "report", "label": "举报通缉犯"},
+				{"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))}]}
+		"commissary":
+			return {"ok": true, "speaker": name, "pages": ["这里是补给站自动电话系统。"], "choices": [
+				{"id": "open_commissary", "label": "前往补给站"},
+				{"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))}]}
+		"rev":
+			if String(pc.get("state", "")) == "Cooldown":
+				return {"ok": true, "speaker": name, "pages": [String(dialogue_lines.get("generic_cooldown", "现在不太方便，过几天再打吧。"))], "choices": [{"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))}]}
+			return {"ok": true, "speaker": name, "pages": _phone_lines(["odin_regular1"]), "choices": [
+				{"id": "rev_book", "label": String(dialogue_lines.get("odin_yes", "是我"))},
+				{"id": "end_call", "label": String(dialogue_lines.get("end_call", "结束通话"))}]}
+	return {"ok": false, "text": "无人接听。"}
+
+func phone_choose(sid: String, choice: String) -> Dictionary:
+	var cfg: Dictionary = phone_contacts.get(sid, {})
+	var name := String(cfg.get("name", sid))
+	match choice:
+		"intro_end":
+			phone_finish_intro(sid)
+			return {"close": true, "toast": "联系人已加入电话簿，明早会有免费快递。"}
+		"order0", "order1":
+			var st := 0 if choice == "order0" else 1
+			var res := phone_order(sid, st)
+			if not bool(res.get("ok", false)):
+				return {"close": true, "toast": String(res.get("text", ""))}
+			var ready_keys: Array = []
+			match String(cfg.get("dialogue", "")):
+				"red_imp": ready_keys = ["red_imp_rep4"]
+				"chem": ready_keys = ["ashish_ready"]
+				"mining": ready_keys = ["caulson_ready"]
+				"pharma": ready_keys = ["dale_ready"]
+			return {"close": true, "toast": String(res.get("text", "")), "after_text": "、".join(_phone_lines(ready_keys))}
+		"rev_book":
+			phone_use_service("rev")
+			queue_future_customer("wanted", "rev", 0, 2, false)
+			return {"close": true, "toast": "奥丁会在 2 天后派人上门。"}
+		"report":
+			return {"close": true, "toast": "治安部记录在案，今晚会留意。"}
+		"wild_network":
+			return {"close": true, "open": "network"}
+		"open_commissary":
+			return {"close": true, "open": "commissary"}
+	return {"close": true}
+
+func phone_unlock_supplier(upgrade_id: String) -> void:
+	var sid := ""
+	match upgrade_id:
+		"BREWER": sid = "red_imp"
+		"CHEMIST": sid = "chem"
+		"PHARMA": sid = "pharma"
+		"MINER": sid = "mining"
+	if sid == "" or not phone_clients.has(sid):
+		return
+	var pc: Dictionary = phone_clients[sid]
+	if String(pc.get("state", "")) == "NotResponding":
+		pc["state"] = "Introduction"
+		_add_night_log("新联系人：%s（%s）。" % [String(phone_contacts[sid].get("name", sid)), phone_number_of(sid)])
+
 func next_customer() -> void:
 	if phase == "gameover":
 		return
@@ -2155,6 +2756,14 @@ func next_customer() -> void:
 	current_customer = customers_today[current_index]
 	phase = "customer"
 	counter_item = current_customer.get("item", {}) if current_customer.get("intent") in ["sell", "appraise"] else {}
+	if String(current_customer.get("intent", "")) == "wanted":
+		var wid := String(current_customer.get("wanted_id", ""))
+		var w := wanted_def(wid)
+		current_customer = {}
+		counter_item = {}
+		if not w.is_empty():
+			start_combat(String(w.get("enemy", "enforcer")), "security", wid)
+		return
 	emit_signal("customer_changed")
 	emit_signal("state_changed")
 
@@ -3107,6 +3716,14 @@ func buy_upgrade(id: String) -> Dictionary:
 	owned_upgrades[id] = true
 	if String(u.get("effect", "")) == "power":
 		power += int(u.get("value", 0))
+	var card_map := {"BREWER": "card_brewer", "CHEMIST": "card_chem", "PHARMA": "card_pharma", "MINER": "card_mining"}
+	var sid_map := {"BREWER": "red_imp", "CHEMIST": "chem", "PHARMA": "pharma", "MINER": "mining"}
+	if card_map.has(id):
+		phone_unlock_supplier(id)
+		var card := make_item(String(card_map[id]), 100, true, false)
+		card["known"] = true
+		add_item(card)
+		_add_night_log("获得供应商名片：%s，电话 %s。" % [String(get_item_def(String(card_map[id])).get("name", "")), phone_number_of(String(sid_map.get(id, "")))])
 	_refresh_upgrades()
 	emit_signal("state_changed")
 	return {"ok": true, "text": "已购买：%s。" % u.get("name", id)}
@@ -4548,6 +5165,7 @@ func save_game(slot: int = 1) -> bool:
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults, "machine_recipes": machine_recipes,
 		"machine_active": machine_active, "machine_stock": machine_stock, "machine_cash": machine_cash, "machine_upgrades": machine_upgrades, "machine_state": machine_state, "machine_io": machine_io,
+		"phone_clients": phone_clients, "future_customers": future_customers, "commissary_stock": commissary_stock, "commissary_credit": commissary_credit,
 		"night_log": night_log, "next_day_power_bonus": next_day_power_bonus, "attraction_bonus": attraction_bonus, "security_alarm_active": security_alarm_active, "security_stop_rate": security_stop_rate,
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
@@ -4628,6 +5246,14 @@ func load_game(slot: int = 1) -> bool:
 	machine_upgrades = data.get("machine_upgrades", {}).duplicate(true)
 	machine_state = data.get("machine_state", {}).duplicate(true)
 	machine_io = data.get("machine_io", {}).duplicate(true)
+	phone_clients = data.get("phone_clients", {}).duplicate(true)
+	future_customers = data.get("future_customers", []).duplicate(true)
+	commissary_stock = data.get("commissary_stock", {}).duplicate(true)
+	commissary_credit = int(data.get("commissary_credit", 0))
+	if phone_clients.is_empty():
+		_init_phone_clients()
+	if commissary_stock.is_empty():
+		_init_commissary()
 	machine_container_items = {}
 	night_log = data.get("night_log", []).duplicate(true)
 	next_day_power_bonus = int(data.get("next_day_power_bonus", 0))

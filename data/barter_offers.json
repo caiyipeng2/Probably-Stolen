@@ -1,0 +1,438 @@
+{
+  "clients": {
+    "addict_general": {
+      "name": "瘾君子",
+      "faction": "lower",
+      "weight": 35,
+      "want_display": "毒品",
+      "want_text": "拿取：毒品",
+      "conditions": [
+        {
+          "tag": "NARCOTIC",
+          "blacklist": [
+            "starch_grade",
+            "junk_grade",
+            "impurity"
+          ]
+        }
+      ],
+      "offers": [
+        {
+          "chance": 100,
+          "items": [
+            [
+              "wire",
+              3
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "blood_bag",
+              2
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "glass_shard_shiv",
+              1
+            ],
+            [
+              "pipe_weapon",
+              1
+            ],
+            [
+              "box_cutter",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 8,
+          "items": [
+            [
+              "birth_control_pill",
+              3
+            ]
+          ]
+        },
+        {
+          "chance": 8,
+          "items": [
+            [
+              "nutrifruit",
+              3
+            ]
+          ]
+        },
+        {
+          "chance": 7,
+          "items": [
+            [
+              "energy_credit",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 5,
+          "items": [
+            [
+              "wire_cutter",
+              1
+            ],
+            [
+              "screwdriver",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 5,
+          "items": [
+            [
+              "box_tampon",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 5,
+          "items": [
+            [
+              "c4",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 8,
+          "items": [
+            [
+              "kotton_fabric",
+              2
+            ]
+          ]
+        },
+        {
+          "chance": 6,
+          "items": [
+            [
+              "system_module_efficiancy",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 6,
+          "items": [
+            [
+              "system_module_performance",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 6,
+          "items": [
+            [
+              "system_module_quality",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 3,
+          "items": [
+            [
+              "system_module_overclock",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 3,
+          "items": [
+            [
+              "system_module_eco",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 3,
+          "items": [
+            [
+              "system_module_fineness",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 8,
+          "items": [
+            [
+              "common_medical",
+              2
+            ]
+          ]
+        },
+        {
+          "chance": 8,
+          "items": [
+            [
+              "common_chemical",
+              2
+            ]
+          ]
+        },
+        {
+          "chance": 8,
+          "items": [
+            [
+              "combat_knife",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    "food": {
+      "name": "穷拾荒者",
+      "faction": "lower",
+      "weight": 35,
+      "want_display": "食物",
+      "want_text": "拿取：食物",
+      "conditions": [
+        {
+          "tag": "FOOD"
+        }
+      ],
+      "offers": [
+        {
+          "chance": 100,
+          "items": [
+            [
+              "blood_bag",
+              2
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "scrap_metal",
+              3
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "scratcher",
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    "addict": {
+      "name": "瘾君子",
+      "faction": "lower",
+      "weight": 10,
+      "want_display": "奥克西莫注射器",
+      "want_text": "拿取：奥克西莫注射器",
+      "conditions": [
+        {
+          "item": "pink_alt_injector"
+        }
+      ],
+      "offers": [
+        {
+          "chance": 100,
+          "items": [
+            [
+              "wire",
+              4
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "blood_bag",
+              3
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "processed_meat",
+              2
+            ],
+            [
+              "soda_red",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 5,
+          "items": [
+            [
+              "c4",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 15,
+          "items": [
+            [
+              "box_tampon",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 15,
+          "items": [
+            [
+              "combat_knife",
+              1
+            ]
+          ]
+        }
+      ]
+    },
+    "blood": {
+      "name": "病人",
+      "faction": "lower",
+      "weight": 5,
+      "want_display": "奥克西莫注射器",
+      "want_text": "拿取：奥克西莫注射器",
+      "conditions": [
+        {
+          "item": "pink_alt_injector"
+        }
+      ],
+      "offers": [
+        {
+          "chance": 100,
+          "items": [
+            [
+              "blood_bag",
+              2
+            ]
+          ]
+        }
+      ]
+    },
+    "scav": {
+      "name": "拾荒者",
+      "faction": "lower",
+      "weight": 8,
+      "want_display": "私酿酒",
+      "want_text": "拿取：私酿酒",
+      "conditions": [
+        {
+          "item": "moonshine"
+        }
+      ],
+      "offers": [
+        {
+          "chance": 100,
+          "items": [
+            [
+              "wire",
+              2
+            ],
+            [
+              "nuts_metal",
+              1
+            ],
+            [
+              "scrap_metal",
+              2
+            ],
+            [
+              "common_electronic",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "paper_towel",
+              2
+            ],
+            [
+              "shampoo",
+              2
+            ],
+            [
+              "toilet_paper",
+              2
+            ]
+          ]
+        }
+      ],
+      "offer_mode": "one_of"
+    },
+    "chemist": {
+      "name": "下层区化学家",
+      "faction": "lower",
+      "weight": 7,
+      "want_display": "食物 ×2",
+      "want_text": "拿取：食物 ×2",
+      "conditions": [
+        {
+          "tag": "FOOD",
+          "count": 2
+        }
+      ],
+      "offers": [
+        {
+          "chance": 100,
+          "items": [
+            [
+              "salve",
+              1
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "caffeine_pill",
+              4
+            ]
+          ]
+        },
+        {
+          "chance": 100,
+          "items": [
+            [
+              "dream_dust",
+              2
+            ]
+          ]
+        }
+      ],
+      "offer_mode": "one_of"
+    }
+  }
+}

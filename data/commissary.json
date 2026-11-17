@@ -1,0 +1,53 @@
+{
+  "items": [
+    {
+      "id": "processed_meat",
+      "price": 25,
+      "restock": 2,
+      "max": 12,
+      "type": "FOOD"
+    },
+    {
+      "id": "nutrifruit",
+      "price": 12,
+      "restock": 4,
+      "max": 20,
+      "type": "FOOD"
+    },
+    {
+      "id": "galaxy_blend",
+      "price": 25,
+      "restock": 2,
+      "max": 10,
+      "type": "FOOD"
+    },
+    {
+      "id": "processed_juice",
+      "price": 14,
+      "restock": 2,
+      "max": 12,
+      "type": "FOOD"
+    },
+    {
+      "id": "processed_milk",
+      "price": 16,
+      "restock": 2,
+      "max": 12,
+      "type": "FOOD"
+    },
+    {
+      "id": "water_ration",
+      "price": 30,
+      "restock": 2,
+      "max": 8,
+      "type": "WATER"
+    },
+    {
+      "id": "bandage_item",
+      "price": 8,
+      "restock": 2,
+      "max": 8,
+      "type": "MEDICAL"
+    }
+  ]
+}

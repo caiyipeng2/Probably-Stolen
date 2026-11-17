@@ -183,6 +183,40 @@ var container_panel: Panel
 var container_positions: Dictionary = {}
 var window_dragging := false
 var window_drag_offset := Vector2.ZERO
+var barter_layer: Control
+var barter_title: Label
+var barter_line: Label
+var barter_want: Label
+var barter_offer_box: Control
+var barter_page: Label
+var barter_accept_btn: Button
+var barter_prev_btn: Button
+var barter_next_btn: Button
+var barter_status: Label
+var wholesale_layer: Control
+var wholesale_title: Label
+var wholesale_line: Label
+var wholesale_box: Control
+var wholesale_total_label: Label
+var wholesale_buy_btn: Button
+var wholesale_status: Label
+var phone_layer: Control
+var phone_number_label: Label
+var phone_status_label: Label
+var phone_book_box: Control
+var phone_dlg_panel: Panel
+var phone_dlg_speaker: Label
+var phone_dlg_text: Label
+var phone_dlg_choices: VBoxContainer
+var phone_dlg_cont_btn: Button
+var phone_pages: Array = []
+var phone_page_index := 0
+var phone_dialog_sid := ""
+var phone_dialog_choices: Array = []
+var commissary_layer: Control
+var commissary_credit_label: Label
+var commissary_list: VBoxContainer
+var commissary_status: Label
 var bargain_price := 0
 var welcome_shown := false
 var last_summary: Dictionary = {}
@@ -214,6 +248,8 @@ func _ready() -> void:
 	_testmachineui_if_requested()
 	_testinspect_if_requested()
 	_testcontainerui_if_requested()
+	_testbarterui_if_requested()
+	_testphoneui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -464,6 +500,74 @@ func _testcontainerui_if_requested() -> void:
 	print("CUI after take children=", bag.children.size(), " info=", container_info.text)
 	_refresh()
 	print("CUI grid page_dim=", GameState.page_size(current_page), " cap=", capacity_label.text)
+	get_tree().quit()
+
+func _testbarterui_if_requested() -> void:
+	if not "--testbarterui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	GameState.inventory.clear()
+	GameState.add_item(GameState.make_item("nutrifruit", 100, true, false))
+	GameState.add_item(GameState.make_item("processed_meat", 100, true, false))
+	GameState.current_customer = {
+		"arche": {"faction": "lower"}, "intent": "barter", "done": false,
+		"line": "我想用这些东西和你换点吃的。", "barter_name": "穷拾荒者",
+		"barter_conditions": [{"tag": "FOOD", "count": 2}],
+		"barter_offers": [{"items": [{"id": "blood_bag", "count": 2}]}, {"items": [{"id": "scrap_metal", "count": 3}]}],
+		"barter_index": 0, "barter_accept_key": "dialog_barter_food_normal_accept", "barter_done_key": "dialog_barter_food_normal_done",
+	}
+	_open_barter()
+	await get_tree().process_frame
+	print("BUI title=", barter_title.text)
+	print("BUI want=", barter_want.text)
+	print("BUI page=", barter_page.text, " accept_disabled=", barter_accept_btn.disabled)
+	print("BUI offer_cards=", barter_offer_box.get_child_count())
+	_barter_accept()
+	await get_tree().process_frame
+	print("BUI after accept done=", bool(GameState.current_customer.get("done", false)), " wire=", GameState.inventory_count("blood_bag"), " line=", barter_line.text.substr(0, 20))
+	print("BUI accept_visible=", barter_accept_btn.visible, " status=", barter_status.text)
+	get_tree().quit()
+
+func _testphoneui_if_requested() -> void:
+	if not "--testphoneui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	GameState.cash = 10000
+	GameState.buy_upgrade("BREWER")
+	_open_phone()
+	await get_tree().process_frame
+	print("PUI layer=", phone_layer.visible, " book_buttons=", phone_book_box.get_child_count())
+	_phone_key("8")
+	_phone_key("8")
+	_phone_key("1")
+	_phone_key("5")
+	print("PUI number=", phone_number_label.text)
+	_phone_dial()
+	await get_tree().process_frame
+	print("PUI dialog=", phone_dlg_panel.visible, " speaker=", phone_dlg_speaker.text, " pages=", phone_pages.size(), " text=", phone_dlg_text.text.substr(0, 24))
+	for i in range(phone_pages.size() - 1):
+		_phone_next_page()
+	print("PUI choices=", phone_dlg_choices.get_child_count(), " cont_visible=", phone_dlg_cont_btn.visible)
+	_phone_choose("intro_end")
+	await get_tree().process_frame
+	print("PUI after intro book=", phone_book_box.get_child_count(), " state=", GameState.phone_client("red_imp").get("state", ""), " future=", GameState.future_customers.size())
+	_close_phone()
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -746,6 +850,10 @@ func _build_ui() -> void:
 	_build_inspection_layer()
 	_build_container_layer()
 	_build_showcase_layer()
+	_build_barter_layer()
+	_build_wholesale_layer()
+	_build_phone_layer()
+	_build_commissary_layer()
 	_build_machine_bay()
 	_build_info_bay()
 	_build_story_layer()
@@ -1428,6 +1536,437 @@ func _showcase_arrange() -> void:
 	_rebuild_showcase()
 	_refresh()
 
+func _build_barter_layer() -> void:
+	barter_layer = Control.new()
+	barter_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	barter_layer.visible = false
+	barter_layer.z_index = 145
+	barter_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(barter_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.82)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	barter_layer.add_child(dim)
+	var panel := _panel(barter_layer, Vector2(470, 120), Vector2(1400, 780), C_PANEL, C_AMBER, 3)
+	barter_title = _label(panel, "以物易物", Vector2(28, 14), Vector2(1000, 48), 34, C_AMBER)
+	_button(panel, "离开", Vector2(1230, 12), Vector2(140, 48), C_MUTED, _close_barter)
+	barter_line = _label(panel, "", Vector2(28, 66), Vector2(1340, 64), 24, C_TEXT)
+	barter_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	barter_want = _label(panel, "", Vector2(28, 136), Vector2(1340, 40), 22, C_CYAN)
+	_label(panel, "对方拿出", Vector2(28, 186), Vector2(300, 30), 22, C_AMBER)
+	barter_offer_box = Control.new()
+	barter_offer_box.position = Vector2(28, 222)
+	barter_offer_box.size = Vector2(1340, 260)
+	panel.add_child(barter_offer_box)
+	barter_prev_btn = _button(panel, "◀ 上一组", Vector2(28, 500), Vector2(200, 56), C_MUTED, _barter_cycle.bind(-1))
+	barter_page = _label(panel, "", Vector2(250, 508), Vector2(300, 40), 24, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	barter_next_btn = _button(panel, "下一组 ▶", Vector2(570, 500), Vector2(200, 56), C_MUTED, _barter_cycle.bind(1))
+	barter_accept_btn = _button(panel, "接受交换", Vector2(920, 494), Vector2(280, 68), C_GREEN, _barter_accept)
+	barter_status = _label(panel, "", Vector2(28, 590), Vector2(1340, 160), 22, C_MUTED)
+	barter_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func _open_barter() -> void:
+	if barter_layer == null:
+		return
+	barter_layer.visible = true
+	move_child(barter_layer, get_child_count() - 1)
+	_rebuild_barter()
+
+func _close_barter() -> void:
+	if barter_layer:
+		barter_layer.visible = false
+	GameState.next_customer()
+
+func _barter_cycle(offset: int) -> void:
+	GameState.cycle_barter_offer(offset)
+	_rebuild_barter()
+
+func _rebuild_barter() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or c.get("intent") != "barter":
+		if barter_layer:
+			barter_layer.visible = false
+		return
+	barter_title.text = "以物易物 · %s" % String(c.get("barter_name", "顾客"))
+	var done := bool(c.get("done", false))
+	var line_key := String(c.get("barter_done_key", "")) if done else ""
+	var line_text := String(c.get("line", ""))
+	if done and line_key != "":
+		var extra := String(GameState.dialogue_lines.get(line_key, ""))
+		if extra != "":
+			line_text = line_text + "\n" + extra
+	barter_line.text = line_text
+	var cond_parts: Array = []
+	var satisfied := true
+	for cond in c.get("barter_conditions", []):
+		var need := int(cond.get("count", 1))
+		var have := GameState.barter_condition_count(cond)
+		if have < need:
+			satisfied = false
+		cond_parts.append("%s ×%d（持有 %d）" % [GameState.barter_condition_label(cond), need, have])
+	barter_want.text = "对方想要：" + ("、".join(cond_parts) if not cond_parts.is_empty() else "任意物品")
+	_clear_children(barter_offer_box)
+	var items: Array = GameState.barter_offer_items(c)
+	for i in range(items.size()):
+		var entry: Dictionary = items[i]
+		var did := String(entry.get("id", ""))
+		var def := GameState.get_item_def(did)
+		var pos := Vector2((i % 5) * 266, int(i / 5) * 128)
+		var card := _panel(barter_offer_box, pos, Vector2(250, 116), C_PANEL2, C_LINE, 1)
+		var ip := GameState.item_icon_path(def)
+		var icon := _texture_rect(card, Vector2(8, 8), Vector2(96, 96), ip)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_label(card, GameState.item_display_name({"def_id": did}), Vector2(112, 14), Vector2(130, 50), 20, C_TEXT)
+		_label(card, "×%d" % int(entry.get("count", 1)), Vector2(112, 66), Vector2(130, 30), 20, C_AMBER)
+	barter_page.text = "报价 %d/%d" % [int(c.get("barter_index", 0)) + 1, maxi(1, GameState.barter_offer_count(c))]
+	var multi := GameState.barter_offer_count(c) > 1 and not done
+	barter_prev_btn.visible = multi
+	barter_next_btn.visible = multi
+	barter_accept_btn.visible = not done
+	barter_accept_btn.disabled = done or not satisfied
+	barter_status.text = "交换完成后对方会带走所需物品。" if not done else "交易完成，点「离开」送走顾客。"
+	if not done and not satisfied:
+		barter_status.text += "\n背包里缺少对方想要的东西。"
+
+func _barter_accept() -> void:
+	var res := GameState.accept_barter()
+	_play_sfx("cash" if bool(res.get("ok", false)) else "fail")
+	if not bool(res.get("ok", false)):
+		barter_status.text = String(res.get("text", ""))
+		return
+	_refresh()
+	_rebuild_barter()
+
+func _build_wholesale_layer() -> void:
+	wholesale_layer = Control.new()
+	wholesale_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wholesale_layer.visible = false
+	wholesale_layer.z_index = 146
+	wholesale_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(wholesale_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.82)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	wholesale_layer.add_child(dim)
+	var panel := _panel(wholesale_layer, Vector2(470, 120), Vector2(1400, 780), C_PANEL, C_CYAN, 3)
+	wholesale_title = _label(panel, "批发", Vector2(28, 14), Vector2(1000, 48), 34, C_AMBER)
+	_button(panel, "离开", Vector2(1230, 12), Vector2(140, 48), C_MUTED, _close_wholesale)
+	wholesale_line = _label(panel, "", Vector2(28, 66), Vector2(1340, 70), 24, C_TEXT)
+	wholesale_line.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	_label(panel, "整车货物", Vector2(28, 150), Vector2(300, 30), 22, C_CYAN)
+	wholesale_box = Control.new()
+	wholesale_box.position = Vector2(28, 186)
+	wholesale_box.size = Vector2(1340, 340)
+	panel.add_child(wholesale_box)
+	wholesale_total_label = _label(panel, "", Vector2(28, 540), Vector2(900, 44), 28, C_AMBER)
+	wholesale_buy_btn = _button(panel, "买下全部", Vector2(920, 530), Vector2(280, 68), C_GREEN, _wholesale_buy)
+	wholesale_status = _label(panel, "", Vector2(28, 620), Vector2(1340, 120), 22, C_MUTED)
+	wholesale_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func _open_wholesale() -> void:
+	if wholesale_layer == null:
+		return
+	wholesale_layer.visible = true
+	move_child(wholesale_layer, get_child_count() - 1)
+	_rebuild_wholesale()
+
+func _close_wholesale() -> void:
+	if wholesale_layer:
+		wholesale_layer.visible = false
+	GameState.next_customer()
+
+func _rebuild_wholesale() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or c.get("intent") != "wholesale":
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		return
+	wholesale_title.text = "批发 · %s" % String(c.get("wholesale_name", "快递员"))
+	var done := bool(c.get("done", false))
+	var line := String(c.get("line", ""))
+	if done:
+		var dk := String(GameState.dialogue_lines.get(String(c.get("wholesale_done_key", "")), ""))
+		if dk != "":
+			line += "\n" + dk
+	wholesale_line.text = line
+	_clear_children(wholesale_box)
+	var stock: Array = c.get("wholesale_stock", [])
+	for i in range(stock.size()):
+		var it: Dictionary = stock[i]
+		var def := GameState.get_item_def(String(it.get("def_id", "")))
+		var pos := Vector2((i % 5) * 266, int(i / 5) * 150)
+		var card := _panel(wholesale_box, pos, Vector2(250, 138), C_PANEL2, C_LINE, 1)
+		var ip := GameState.item_icon_path(def)
+		var icon := _texture_rect(card, Vector2(8, 8), Vector2(110, 110), ip)
+		icon.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		_label(card, GameState.item_display_name(it), Vector2(122, 12), Vector2(120, 62), 18, C_TEXT)
+		_label(card, "%d₵" % GameState.effective_value(it), Vector2(122, 80), Vector2(120, 28), 18, C_MUTED)
+	var total := GameState.wholesale_total(c)
+	var free := bool(c.get("wholesale_free", false))
+	var disc := int(c.get("wholesale_discount", -20))
+	wholesale_total_label.text = "整批 %d 件 · %s" % [stock.size(), "免费" if free else "总价 %d₵（%d%%）" % [total, disc]]
+	wholesale_buy_btn.text = "收下" if free else "买下全部"
+	wholesale_buy_btn.disabled = done or (not free and GameState.cash < total)
+	wholesale_buy_btn.visible = not done
+	wholesale_status.text = "按整批价一次买下全部货物。" if not done else "货物已处理，点「离开」送走快递员。"
+	if not done and not free and GameState.cash < total:
+		wholesale_status.text += "\n现金不足。"
+
+func _wholesale_buy() -> void:
+	var res := GameState.buy_wholesale()
+	_play_sfx("cash" if bool(res.get("ok", false)) else "fail")
+	if not bool(res.get("ok", false)):
+		wholesale_status.text = String(res.get("text", ""))
+		return
+	_refresh()
+	_rebuild_wholesale()
+
+func _build_phone_layer() -> void:
+	phone_layer = Control.new()
+	phone_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	phone_layer.visible = false
+	phone_layer.z_index = 148
+	phone_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(phone_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.85)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	phone_layer.add_child(dim)
+	var panel := _panel(phone_layer, Vector2(220, 50), Vector2(1900, 980), C_PANEL, C_CYAN, 3)
+	_label(panel, "手机 · PHONE", Vector2(28, 14), Vector2(700, 48), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(1710, 12), Vector2(160, 48), C_MUTED, _close_phone)
+	var left := _panel(panel, Vector2(28, 76), Vector2(540, 860), C_PANEL2, C_LINE, 2)
+	phone_number_label = _label(left, "", Vector2(20, 20), Vector2(500, 60), 40, C_TEXT, HORIZONTAL_ALIGNMENT_CENTER)
+	phone_status_label = _label(left, "输入电话号码", Vector2(20, 84), Vector2(500, 32), 20, C_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
+	var keys := ["1", "2", "3", "4", "5", "6", "7", "8", "9", "清空", "0", "退格"]
+	for i in range(keys.size()):
+		var k := String(keys[i])
+		var btn := _button(left, k, Vector2(30 + (i % 3) * 165, 140 + int(i / 3) * 96), Vector2(150, 80), C_TEXT, _phone_key.bind(k))
+		btn.add_theme_font_size_override("font_size", 30)
+	_button(left, "拨号", Vector2(30, 540), Vector2(480, 88), C_GREEN, _phone_dial)
+	_button(left, "挂断", Vector2(30, 650), Vector2(480, 70), C_RUST, _close_phone)
+	var right := _panel(panel, Vector2(600, 76), Vector2(1240, 860), C_PANEL2, C_LINE, 2)
+	_label(right, "电话簿", Vector2(24, 16), Vector2(400, 36), 28, C_AMBER)
+	var quick := [["治安部", "sec"], ["补给站", "commissary"], ["怀尔德助手", "wild"], ["奥丁", "rev"]]
+	for i in range(quick.size()):
+		var qb := _button(right, quick[i][0], Vector2(24 + i * 250, 60), Vector2(230, 56), C_CYAN, _phone_quick.bind(String(quick[i][1])))
+		qb.add_theme_font_size_override("font_size", 20)
+	phone_book_box = VBoxContainer.new()
+	phone_book_box.position = Vector2(24, 136)
+	phone_book_box.size = Vector2(500, 680)
+	phone_book_box.add_theme_constant_override("separation", 8)
+	right.add_child(phone_book_box)
+	phone_dlg_panel = _panel(phone_layer, Vector2(500, 110), Vector2(1340, 800), C_PANEL, C_AMBER, 3)
+	phone_dlg_panel.visible = false
+	phone_dlg_speaker = _label(phone_dlg_panel, "", Vector2(28, 16), Vector2(900, 44), 30, C_AMBER)
+	phone_dlg_text = _label(phone_dlg_panel, "", Vector2(28, 72), Vector2(1280, 420), 26, C_TEXT)
+	phone_dlg_text.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	phone_dlg_choices = VBoxContainer.new()
+	phone_dlg_choices.position = Vector2(28, 510)
+	phone_dlg_choices.size = Vector2(1280, 250)
+	phone_dlg_choices.add_theme_constant_override("separation", 10)
+	phone_dlg_panel.add_child(phone_dlg_choices)
+	phone_dlg_cont_btn = _button(phone_dlg_panel, "继续", Vector2(560, 700), Vector2(220, 64), C_CYAN, _phone_next_page)
+	_button(phone_dlg_panel, "挂断", Vector2(1080, 700), Vector2(220, 64), C_RUST, _phone_hangup)
+
+func _open_phone() -> void:
+	phone_layer.visible = true
+	move_child(phone_layer, get_child_count() - 1)
+	phone_number_label.text = ""
+	phone_status_label.text = "输入电话号码"
+	phone_dlg_panel.visible = false
+	_rebuild_phone_book()
+
+func _close_phone() -> void:
+	phone_layer.visible = false
+	phone_dlg_panel.visible = false
+
+func _rebuild_phone_book() -> void:
+	_clear_children(phone_book_box)
+	var contacts := GameState.phone_book_contacts()
+	if contacts.is_empty():
+		var l := Label.new()
+		l.text = "还没有已拨通的联系人。购买信息网络里的供应商名片后，按名片号码拨号。"
+		l.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+		l.custom_minimum_size = Vector2(1200, 60)
+		l.add_theme_font_size_override("font_size", 20)
+		l.add_theme_color_override("font_color", C_MUTED)
+		phone_book_box.add_child(l)
+		return
+	for c in contacts:
+		var b := Button.new()
+		b.text = "%s · %s" % [String(c.get("name", "")), String(c.get("status", ""))]
+		b.custom_minimum_size = Vector2(1200, 62)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 22)
+		b.pressed.connect(_phone_call_contact.bind(String(c.get("id", ""))))
+		phone_book_box.add_child(b)
+
+func _phone_key(k: String) -> void:
+	if k == "清空":
+		phone_number_label.text = ""
+	elif k == "退格":
+		phone_number_label.text = phone_number_label.text.substr(0, maxi(0, phone_number_label.text.length() - 1))
+	elif phone_number_label.text.length() < 6:
+		phone_number_label.text += k
+
+func _phone_dial() -> void:
+	var num := phone_number_label.text
+	if num == "":
+		phone_status_label.text = "请输入号码"
+		return
+	var sid := GameState.phone_contact_by_number(num)
+	if sid == "":
+		phone_status_label.text = "无人接听"
+		_play_sfx("fail")
+		return
+	phone_status_label.text = "已拨通"
+	_phone_call_contact(sid)
+
+func _phone_quick(sid: String) -> void:
+	phone_number_label.text = GameState.phone_number_of(sid)
+	_phone_call_contact(sid)
+
+func _phone_call_contact(sid: String) -> void:
+	var res := GameState.phone_dial(sid)
+	if not bool(res.get("ok", false)):
+		phone_status_label.text = String(res.get("text", "无人接听"))
+		_play_sfx("fail")
+		return
+	phone_dialog_sid = sid
+	phone_pages = res.get("pages", [])
+	if phone_pages.is_empty():
+		phone_pages = ["……"]
+	phone_dialog_choices = res.get("choices", [])
+	phone_page_index = 0
+	phone_dlg_speaker.text = String(res.get("speaker", GameState.phone_contacts.get(sid, {}).get("name", sid)))
+	phone_dlg_panel.visible = true
+	_phone_render_page()
+
+func _phone_render_page() -> void:
+	_clear_children(phone_dlg_choices)
+	phone_dlg_text.text = String(phone_pages[clampi(phone_page_index, 0, phone_pages.size() - 1)])
+	var last := phone_page_index >= phone_pages.size() - 1
+	phone_dlg_cont_btn.visible = not last
+	phone_dlg_cont_btn.disabled = last
+	if not last:
+		return
+	for ch in phone_dialog_choices:
+		var b := Button.new()
+		b.text = String(ch.get("label", ch.get("id", "")))
+		b.custom_minimum_size = Vector2(1260, 62)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.focus_mode = Control.FOCUS_NONE
+		b.add_theme_font_size_override("font_size", 22)
+		b.pressed.connect(_phone_choose.bind(String(ch.get("id", ""))))
+		phone_dlg_choices.add_child(b)
+
+func _phone_next_page() -> void:
+	phone_page_index = mini(phone_page_index + 1, phone_pages.size() - 1)
+	_phone_render_page()
+
+func _phone_choose(choice: String) -> void:
+	var res := GameState.phone_choose(phone_dialog_sid, choice)
+	phone_dlg_panel.visible = false
+	phone_status_label.text = String(res.get("toast", "通话结束"))
+	if res.has("after_text") and String(res.get("after_text", "")) != "":
+		phone_status_label.text = String(res.get("toast", "")) + " " + String(res.get("after_text", ""))
+	var opened := String(res.get("open", ""))
+	if opened == "network":
+		_close_phone()
+		_open_network()
+	elif opened == "commissary":
+		_close_phone()
+		_open_commissary()
+	phone_number_label.text = ""
+	_rebuild_phone_book()
+
+func _phone_hangup() -> void:
+	phone_dlg_panel.visible = false
+	phone_status_label.text = "已挂断"
+	phone_number_label.text = ""
+
+func _build_commissary_layer() -> void:
+	commissary_layer = Control.new()
+	commissary_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	commissary_layer.visible = false
+	commissary_layer.z_index = 149
+	commissary_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(commissary_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.85)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	commissary_layer.add_child(dim)
+	var panel := _panel(commissary_layer, Vector2(360, 60), Vector2(1620, 940), C_PANEL, C_CYAN, 3)
+	_label(panel, "补给站 · COMMISSARY", Vector2(30, 14), Vector2(800, 48), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(1430, 12), Vector2(160, 48), C_MUTED, _close_commissary)
+	commissary_credit_label = _label(panel, "", Vector2(30, 74), Vector2(900, 40), 24, C_TEXT)
+	_button(panel, "兑换食品券", Vector2(950, 70), Vector2(260, 54), C_GREEN, _commissary_redeem)
+	commissary_list = VBoxContainer.new()
+	commissary_list.position = Vector2(30, 140)
+	commissary_list.size = Vector2(1560, 620)
+	commissary_list.add_theme_constant_override("separation", 8)
+	panel.add_child(commissary_list)
+	commissary_status = _label(panel, "", Vector2(30, 780), Vector2(1560, 100), 22, C_MUTED)
+	commissary_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+
+func _open_commissary() -> void:
+	commissary_layer.visible = true
+	move_child(commissary_layer, get_child_count() - 1)
+	_rebuild_commissary()
+
+func _close_commissary() -> void:
+	commissary_layer.visible = false
+
+func _rebuild_commissary() -> void:
+	_clear_children(commissary_list)
+	commissary_credit_label.text = "兑换券：%d · 食品券可在「兑换食品券」一键兑换" % GameState.commissary_credit
+	for it in GameState.commissary_defs:
+		var did := String(it.get("id", ""))
+		var row := HBoxContainer.new()
+		row.custom_minimum_size = Vector2(1560, 70)
+		row.add_theme_constant_override("separation", 12)
+		commissary_list.add_child(row)
+		var name_l := Label.new()
+		name_l.text = String(GameState.get_item_def(did).get("name", did))
+		name_l.custom_minimum_size = Vector2(620, 60)
+		name_l.add_theme_font_size_override("font_size", 24)
+		name_l.add_theme_color_override("font_color", C_TEXT)
+		row.add_child(name_l)
+		var price_l := Label.new()
+		price_l.text = "%d 兑换券" % int(it.get("price", 0))
+		price_l.custom_minimum_size = Vector2(300, 60)
+		price_l.add_theme_font_size_override("font_size", 22)
+		price_l.add_theme_color_override("font_color", C_AMBER)
+		row.add_child(price_l)
+		var stock_l := Label.new()
+		stock_l.text = "库存 %d/%d" % [int(GameState.commissary_stock.get(did, 0)), int(it.get("max", 0))]
+		stock_l.custom_minimum_size = Vector2(260, 60)
+		stock_l.add_theme_font_size_override("font_size", 20)
+		stock_l.add_theme_color_override("font_color", C_MUTED)
+		row.add_child(stock_l)
+		var buy := Button.new()
+		buy.text = "兑换"
+		buy.custom_minimum_size = Vector2(220, 60)
+		buy.focus_mode = Control.FOCUS_NONE
+		buy.add_theme_font_size_override("font_size", 22)
+		buy.disabled = int(GameState.commissary_stock.get(did, 0)) <= 0 or GameState.commissary_credit < int(it.get("price", 0))
+		buy.pressed.connect(_commissary_buy.bind(did))
+		row.add_child(buy)
+
+func _commissary_redeem() -> void:
+	var res := GameState.commissary_redeem_stamps()
+	commissary_status.text = String(res.get("text", ""))
+	_rebuild_commissary()
+	_refresh()
+
+func _commissary_buy(id: String) -> void:
+	var res := GameState.commissary_buy(id)
+	commissary_status.text = String(res.get("text", ""))
+	_rebuild_commissary()
+	_refresh()
+
 func _build_machine_bay() -> void:
 	machine_layer = Control.new()
 	machine_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
@@ -2056,6 +2595,9 @@ func _update_detail() -> void:
 	var wt := GameState.item_weight(it)
 	if wt > 0:
 		weight_text = "\n重量：%d g" % wt
+	var card_sid := GameState.phone_card_contact(String(it.get("def_id", "")))
+	if card_sid != "":
+		weight_text += "\n名片电话：%s" % GameState.phone_number_of(card_sid)
 	detail_meta.text = "品相 %d%% · %s%s\n%s\n特征：%s · %s%s%s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, tags_text, feat_text, loc_text, container_text, weight_text]
 	if known or loc == "backpack":
 		detail_price.text = "%d¥" % GameState.market_value(it, false)
@@ -2300,6 +2842,20 @@ func _on_put_counter() -> void:
 
 func _on_customer_changed() -> void:
 	selected_uid = int(GameState.counter_item["uid"]) if not GameState.counter_item.is_empty() else -1
+	var intent := String(GameState.current_customer.get("intent", "")) if not GameState.current_customer.is_empty() else ""
+	if intent == "barter":
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_barter()
+	elif intent == "wholesale":
+		if barter_layer:
+			barter_layer.visible = false
+		_open_wholesale()
+	else:
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
 	_refresh()
 
 func _on_rail(key: String) -> void:
@@ -2313,7 +2869,7 @@ func _on_rail(key: String) -> void:
 		"factions":
 			_open_factions()
 		"phone":
-			_open_info_tab("phone")
+			_open_phone()
 		"machines":
 			_open_machines()
 		"ledger":
@@ -3023,8 +3579,9 @@ func _refresh_info_detail() -> void:
 				return
 			info_name.text = String(u.get("name", ""))
 			var owned := GameState.owned_upgrades.has(info_selected_id)
-			info_meta.text = "%d₵ · 效果：%s" % [int(u.get("cost", 0)), u.get("desc", "")]
-			info_body.text = String(u.get("desc", "")) + "
+			var udesc := String(u.get("desc", "")).replace("{0}", "15").replace("{1}", "1")
+			info_meta.text = "%d₵ · 效果：%s" % [int(u.get("cost", 0)), udesc]
+			info_body.text = udesc + "
 
 " + ("已拥有" if owned else "购买后立即生效，状态随存档保存。")
 			info_action.visible = true

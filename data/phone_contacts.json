@@ -1,0 +1,189 @@
+{
+  "contacts": {
+    "wild": {
+      "number": "8376",
+      "name": "乔·怀尔德的助手",
+      "kind": "wild",
+      "cooldown": 0,
+      "intro": [],
+      "regular": [
+        "wild1",
+        "wild2"
+      ]
+    },
+    "sec": {
+      "number": "0000",
+      "name": "治安部电话接线员",
+      "kind": "sec",
+      "cooldown": 0
+    },
+    "commissary": {
+      "number": "0000",
+      "name": "补给站自动电话系统",
+      "kind": "commissary",
+      "cooldown": 0
+    },
+    "red_imp": {
+      "number": "8815",
+      "name": "红魔代表",
+      "kind": "supplier",
+      "cooldown": 4,
+      "unlock_spent": 400,
+      "delivery_days": [
+        1,
+        2
+      ],
+      "discount": -20,
+      "shareholder": "BREWER_SHAREHOLDER",
+      "dialogue": "red_imp",
+      "stock0": [
+        {
+          "container": "beerCase",
+          "fill": [
+            [
+              "red_beer",
+              8
+            ]
+          ]
+        }
+      ],
+      "stock1": [
+        {
+          "container": "beerCase",
+          "fill": [
+            [
+              "red_beer",
+              8
+            ]
+          ]
+        },
+        {
+          "container": "beerCase",
+          "fill": [
+            [
+              "red_beer",
+              8
+            ]
+          ]
+        }
+      ],
+      "free": [
+        {
+          "container": "beerCase",
+          "fill": [
+            [
+              "red_beer",
+              8
+            ]
+          ]
+        }
+      ]
+    },
+    "mining": {
+      "number": "56371",
+      "name": "考尔森",
+      "kind": "supplier",
+      "cooldown": 5,
+      "unlock_spent": 350,
+      "delivery_days": [
+        1,
+        2
+      ],
+      "discount": -20,
+      "shareholder": "MINER_SHAREHOLDER",
+      "dialogue": "mining",
+      "stock0": [
+        {
+          "id": "common_ore",
+          "count": 6
+        }
+      ],
+      "stock1": [
+        {
+          "id": "common_ore",
+          "count": 12
+        }
+      ],
+      "free": [
+        {
+          "id": "common_ore",
+          "count": 8
+        }
+      ]
+    },
+    "chem": {
+      "number": "3319",
+      "name": "阿希什",
+      "kind": "supplier",
+      "cooldown": 4,
+      "unlock_spent": 400,
+      "delivery_days": [
+        1,
+        2
+      ],
+      "discount": -20,
+      "shareholder": "CHEMIST_SHAREHOLDER",
+      "dialogue": "chem",
+      "stock0": [
+        {
+          "id": "dream_dust",
+          "count": 8
+        }
+      ],
+      "stock1": [
+        {
+          "id": "dream_dust",
+          "count": 16
+        }
+      ],
+      "free": [
+        {
+          "id": "dream_dust",
+          "count": 8
+        }
+      ]
+    },
+    "pharma": {
+      "number": "4615",
+      "name": "戴尔",
+      "kind": "supplier",
+      "cooldown": 7,
+      "unlock_spent": 500,
+      "delivery_days": [
+        1,
+        2
+      ],
+      "discount": -20,
+      "shareholder": "PHARMA_SHAREHOLDER",
+      "dialogue": "pharma",
+      "stock0": [
+        {
+          "id": "pink_alt_injector",
+          "count": 5
+        }
+      ],
+      "stock1": [
+        {
+          "id": "pink_alt_injector",
+          "count": 10
+        }
+      ],
+      "free": [
+        {
+          "id": "pink_alt_injector",
+          "count": 6
+        }
+      ]
+    },
+    "rev": {
+      "number": "51189",
+      "name": "奥丁·哈拉尔松",
+      "kind": "rev",
+      "cooldown": 5,
+      "delivery_days": [
+        2
+      ],
+      "dialogue": "rev"
+    }
+  }
+}
