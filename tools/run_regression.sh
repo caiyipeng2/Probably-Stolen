@@ -10,7 +10,7 @@ TESTS=(
   test_containers test_inspection test_inv test_aux_machines test_balance
   test_growth test_machines_durability test_machine_faults test_recipes_modules
   test_meta test_endings test_archive test_story_graphs
-  test_barter test_wholesale test_phone test_phone_services test_combat
+  test_barter test_wholesale test_phone test_phone_services test_combat test_security
 )
 OVERALL=0
 echo "Regression $STAMP" > "$OUT/summary.txt"
@@ -34,8 +34,8 @@ for t in "${TESTS[@]}"; do
   printf '%-28s %s  %s\n' "$t" "$STATUS" "${FAILS_LINE:-$ERR}" | tee -a "$OUT/summary.txt"
 done
 # Godot UI automation hooks: headless, no window, no phone.
-UI_HOOKS=(testmachineui testcontainerui testbarterui testphoneui testcombatui)
-UI_MARKERS=(MUI CUI BUI PUI CUI)
+UI_HOOKS=(testmachineui testcontainerui testbarterui testphoneui testcombatui testsecurityui)
+UI_MARKERS=(MUI CUI BUI PUI CUI SUI)
 for i in "${!UI_HOOKS[@]}"; do
   h="${UI_HOOKS[$i]}"
   marker="${UI_MARKERS[$i]}"

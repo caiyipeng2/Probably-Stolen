@@ -237,6 +237,8 @@ func _ready() -> void:
 	GameState.machine_finished.connect(_on_machine_finished)
 	GameState.music_toggled.connect(_on_music_toggled)
 	GameState.story_available.connect(_on_story_available)
+	GameState.inspection_arrived.connect(_on_inspection_arrived)
+	GameState.security_officer_arrived.connect(_on_security_officer_arrived)
 	GameState.combat_started.connect(_on_combat_started)
 	GameState.combat_updated.connect(_on_combat_updated)
 	GameState.combat_finished.connect(_on_combat_finished)
@@ -253,6 +255,7 @@ func _ready() -> void:
 	_testbarterui_if_requested()
 	_testphoneui_if_requested()
 	_testcombatui_if_requested()
+	_testsecurityui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -601,6 +604,41 @@ func _testcombatui_if_requested() -> void:
 			_update_combat_ui()
 	await get_tree().process_frame
 	print("CUI end active=", GameState.combat_active, " log=", " / ".join(GameState.combat_log.slice(maxi(0, GameState.combat_log.size() - 4))))
+	get_tree().quit()
+
+func _testsecurityui_if_requested() -> void:
+	if not "--testsecurityui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	GameState.sec_crimes = {"WEAPON_TRAFFICKING": 500}
+	GameState.sec_evidence = 100
+	GameState.sec_officer_pending = true
+	_on_security_officer_arrived()
+	await get_tree().process_frame
+	print("SUI officer title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	GameState.sec_officer_pending = false
+	GameState.sec_inspection_pending = true
+	GameState.sec_inspection_personality = 1
+	GameState.cash = 500
+	_on_inspection_arrived()
+	await get_tree().process_frame
+	print("SUI inspection title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	GameState.sec_inspection_pending = false
+	_open_info_tab("security")
+	await get_tree().process_frame
+	print("SUI tab name=", info_name.text, " meta=", info_meta.text)
+	print("SUI body=", info_body.text.replace("
+", " | ").substr(0, 80))
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -1020,7 +1058,7 @@ func _build_modal() -> void:
 	modal_layer = Control.new()
 	modal_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	modal_layer.visible = false
-	modal_layer.z_index = 100
+	modal_layer.z_index = 200
 	modal_layer.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(modal_layer)
 	var dim := ColorRect.new()
@@ -2072,7 +2110,7 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["通缉", "wanted"], ["档案", "archive"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["档案", "archive"]]
 	for i in range(tabs.size()):
 		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 156, 70), Vector2(144, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
@@ -2975,7 +3013,12 @@ func _load_slot(slot: int) -> void:
 		current_page = 0
 		_close_modal()
 		_refresh()
-		_toast("已读取槽位 %d。" % slot)
+		if GameState.sec_officer_pending:
+			_on_security_officer_arrived()
+		elif GameState.sec_inspection_pending:
+			_on_inspection_arrived()
+		else:
+			_toast("已读取槽位 %d。" % slot)
 	else:
 		_toast("槽位 %d 为空。" % slot)
 
@@ -3588,6 +3631,8 @@ func _rebuild_info_list() -> void:
 			for c in GameState.commissions:
 				var d := GameState.get_item_def(String(c.get("item_id", "")))
 				_add_info_button("%s x%d · %d₵" % [d.get("name", c.get("item_id", "")), int(c.get("count", 1)), int(c.get("reward", 0))], String(c.get("id", "")))
+		"security":
+			_add_info_button("案件档案 · 证据 %d/100" % GameState.sec_evidence, "case")
 		"wanted":
 			for w in GameState.wanted:
 				var wid := String(w.get("id", ""))
@@ -3736,6 +3781,22 @@ func _refresh_info_detail() -> void:
 			info_action.text = "交付委托"
 			info_action.disabled = GameState.inventory_count(String(c.get("item_id", ""))) < int(c.get("count", 1))
 			info_status.text = "背包数量不足" if info_action.disabled else "可交付"
+		"security":
+			info_name.text = "治安部档案"
+			info_meta.text = "证据 %d/100 · 预计判决：%s · 案件探员：%s" % [GameState.sec_evidence, GameState.sec_projected_sentence(), GameState.sec_case_officer()]
+			var crime_lines: Array = []
+			for cid in GameState.sec_crimes.keys():
+				if int(GameState.sec_crimes[cid]) > 0:
+					crime_lines.append("%s：%d₵" % [GameState.sec_crime_name(String(cid)), int(GameState.sec_crimes[cid])])
+			var body := "总犯罪值：%d₵
+最大案件：%s
+贿赂参考：%d₵" % [GameState.sec_total_crime(), GameState.sec_biggest_crime(), GameState.sec_bribe_amount()]
+			body += "
+
+" + ("
+".join(crime_lines) if not crime_lines.is_empty() else "目前没有犯罪记录。")
+			info_body.text = body
+			info_status.text = "治安声望 %+d" % int(GameState.rep.get("security", 0))
 		"wanted":
 			var w := GameState.wanted_def(info_selected_id)
 			if w.is_empty():
@@ -3794,6 +3855,22 @@ func _info_action() -> void:
 			_rebuild_info_list()
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
+		"security":
+			info_name.text = "治安部档案"
+			info_meta.text = "证据 %d/100 · 预计判决：%s · 案件探员：%s" % [GameState.sec_evidence, GameState.sec_projected_sentence(), GameState.sec_case_officer()]
+			var crime_lines: Array = []
+			for cid in GameState.sec_crimes.keys():
+				if int(GameState.sec_crimes[cid]) > 0:
+					crime_lines.append("%s：%d₵" % [GameState.sec_crime_name(String(cid)), int(GameState.sec_crimes[cid])])
+			var body := "总犯罪值：%d₵
+最大案件：%s
+贿赂参考：%d₵" % [GameState.sec_total_crime(), GameState.sec_biggest_crime(), GameState.sec_bribe_amount()]
+			body += "
+
+" + ("
+".join(crime_lines) if not crime_lines.is_empty() else "目前没有犯罪记录。")
+			info_body.text = body
+			info_status.text = "治安声望 %+d" % int(GameState.rep.get("security", 0))
 		"wanted":
 			var w := GameState.wanted_def(info_selected_id)
 			if w.is_empty() or GameState.wanted_defeated.has(info_selected_id):
@@ -3893,6 +3970,68 @@ func _close_story() -> void:
 	else:
 		_maybe_show_tutorial()
 		_refresh()
+
+func _security_result_modal(res: Dictionary) -> void:
+	_refresh()
+	if GameState.phase == "gameover" and GameState.ending_id != "":
+		var e := GameState.ending_def(GameState.ending_id)
+		var body := String(res.get("text", ""))
+		if not e.is_empty():
+			body += "\n\n【%s】\n%s" % [e.get("title", "结局"), e.get("text", "")]
+		_show_modal("结局", body, [{"label": "重新开始", "cb": _restart_game, "color": C_RUST}, {"label": "关闭", "cb": _close_modal}])
+		return
+	var lines: Array = [String(res.get("text", ""))]
+	if int(res.get("fine", 0)) > 0:
+		lines.append("罚款：%d₵" % int(res.get("fine", 0)))
+	var seized: Array = res.get("seized", [])
+	if not seized.is_empty():
+		var names: Array = []
+		for it in seized:
+			names.append(String(it.get("name", "")))
+		lines.append("没收：%s" % "、".join(names))
+	_show_modal("治安部", "\n".join(lines), [{"label": "关闭", "cb": _close_modal}])
+
+func _security_accept_interview() -> void:
+	_security_result_modal(GameState.sec_resolve_officer(false))
+
+func _security_pay_fine() -> void:
+	_security_result_modal(GameState.sec_resolve_officer(true))
+
+func _security_refuse() -> void:
+	_security_result_modal(GameState.sec_resolve_officer(false))
+
+func _on_security_officer_arrived() -> void:
+	if not GameState.sec_officer_pending:
+		return
+	var total := GameState.sec_total_crime()
+	var body := "治安部探员上门。\n\n证据：%d/100\n最大案件：%s\n总犯罪值：%d₵\n预计判决：%s" % [GameState.sec_evidence, GameState.sec_biggest_crime(), total, GameState.sec_projected_sentence()]
+	var fine := total
+	if GameState.sec_evidence < 95 or total <= 0:
+		_show_modal("治安部探员", body, [{"label": "接受问询", "cb": _security_accept_interview}])
+	elif total < 300:
+		_show_modal("治安部探员", body + "\n\n探员开出 %d₵ 罚款。" % fine, [
+			{"label": "支付 %d₵" % fine, "cb": _security_pay_fine},
+			{"label": "拒绝付款", "cb": _security_refuse, "color": C_RUST},
+		])
+	else:
+		_show_modal("治安部探员", body, [{"label": "接受判决", "cb": _security_refuse}])
+
+func _inspection_accept() -> void:
+	_security_result_modal(GameState.sec_resolve_inspection(true, false))
+
+func _inspection_bribe() -> void:
+	_security_result_modal(GameState.sec_resolve_inspection(false, true))
+
+func _on_inspection_arrived() -> void:
+	if not GameState.sec_inspection_pending:
+		return
+	var body := String(GameState.dialogue_lines.get("dialog_sec_inspect_last_open", "检查官要求检查你的柜台与库存。"))
+	body += "\n\n最近案件：%s\n证据：%d/100" % [GameState.sec_biggest_crime(), GameState.sec_evidence]
+	var actions: Array = [{"label": "接受检查", "cb": _inspection_accept}]
+	if GameState.sec_inspection_personality == 1 and GameState.cash >= GameState.sec_bribe_amount():
+		var amt := GameState.sec_bribe_amount()
+		actions.append({"label": "贿赂 %d₵" % amt, "color": C_RUST, "cb": _inspection_bribe})
+	_show_modal("治安检查", body, actions)
 
 func _on_combat_started() -> void:
 	combat_layer.visible = true
@@ -3998,6 +4137,7 @@ func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
 
 func _show_modal(title: String, text: String, actions: Array) -> void:
+	move_child(modal_layer, get_child_count() - 1)
 	modal_title.text = title
 	modal_text.add_theme_font_size_override("font_size", 26)
 	modal_text.add_theme_constant_override("line_spacing", 6)

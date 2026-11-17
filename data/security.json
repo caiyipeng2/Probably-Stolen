@@ -1,0 +1,96 @@
+{
+  "crimes": {
+    "WEAPON_TRAFFICKING": "武器走私",
+    "DRUG_TRAFFICKING": "毒品交易",
+    "CARD_TRAFFICKING": "门禁卡交易",
+    "CONTRABAND_TRAFFICKING": "违禁品交易",
+    "BRIBERY": "贿赂",
+    "FRAUD": "欺诈",
+    "ENDANGERMENT": "危害公共安全",
+    "FENCING": "销赃",
+    "OPERATING_WITHOUT_LICENSE": "无证经营",
+    "MANSLAUGHTER": "过失杀人"
+  },
+  "thresholds": {
+    "evidence_start": 100,
+    "fine_max": 300,
+    "arrest_max": 1500,
+    "suspicion_cap": 25,
+    "decay_per_day": 20,
+    "decay_evidence_cutoff": 80
+  },
+  "evidence_gain": [
+    {
+      "min": 100,
+      "gain": 2
+    },
+    {
+      "min": 300,
+      "gain": 6
+    },
+    {
+      "min": 850,
+      "gain": 9
+    },
+    {
+      "min": 1200,
+      "gain": 12
+    },
+    {
+      "min": 1500,
+      "gain": 20
+    },
+    {
+      "min": 2500,
+      "gain": 33
+    }
+  ],
+  "stolen_heat": [
+    {
+      "min_value": 17,
+      "heat": 25
+    },
+    {
+      "min_value": 50,
+      "heat": 50
+    },
+    {
+      "min_value": 85,
+      "heat": 75
+    },
+    {
+      "min_value": 140,
+      "heat": 100
+    }
+  ],
+  "bribe": {
+    "base": 100,
+    "per_day": 2,
+    "per_sec_rep": -2,
+    "min": 40,
+    "max": 400
+  },
+  "inspection": {
+    "chance_base": 8,
+    "chance_per_crime": 1,
+    "chance_cap": 45,
+    "luck_save": 5
+  },
+  "fixer": [
+    {
+      "id": "WILD_FIXER",
+      "percent": 15,
+      "flat": 50
+    },
+    {
+      "id": "WILD_FIXER2",
+      "percent": 20,
+      "flat": 150
+    },
+    {
+      "id": "WILD_FIXER3",
+      "percent": 25,
+      "flat": 400
+    }
+  ]
+}
