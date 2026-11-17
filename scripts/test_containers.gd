@@ -54,6 +54,29 @@ func _init() -> void:
 	gs.load_game(9)
 	var bag2 = gs.find_item(int(bag.uid))
 	check(not bag2.is_empty() and bag2.children.size() == 1, "nested save/load", str(bag2.get("children", []).size()))
+	# machine stock grids
+	gs.machine_stock["fridge"] = []
+	var mc = gs.machine_container("fridge")
+	check(not mc.is_empty() and int(gs.container_spec(mc).get("width", 0)) == 8, "fridge stock grid")
+	var food = gs.make_item("nutrifruit", 100, true, false)
+	gs.add_item(food)
+	var sres = gs.machine_stock_add("fridge", int(food.uid))
+	check(sres.get("ok", false) and gs.machine_container("fridge").children.size() == 1, "machine stock add", sres.get("text", ""))
+	var tres = gs.machine_stock_take_all("fridge")
+	check(tres.get("ok", false) and gs.machine_container("fridge").children.is_empty(), "machine stock take")
+	# liquid transfer
+	var jug2 = gs.make_item("water_jug", 100, true, false)
+	var bottle2 = gs.make_item("bottled_water", 100, true, false)
+	bottle2["liquid_ml"] = 0
+	var tr = gs.transfer_liquid(jug2, bottle2)
+	check(tr.get("ok", false) and int(bottle2.get("liquid_ml", 0)) == 750, "liquid transfer", tr.get("text", ""))
+	# lock/unlock
+	var box = gs.make_item("sec_box", 100, true, false)
+	check(bool(box.get("container_locked", false)), "sec box locked")
+	var key = gs.make_item("sec_keycard", 100, true, false)
+	gs.add_item(key)
+	var lr = gs.unlock_container(box, key)
+	check(lr.get("ok", false) and not bool(box.get("container_locked", true)), "sec box unlocked", lr.get("text", ""))
 	# showcase 7x5
 	gs.display = []
 	var added := 0

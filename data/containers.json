@@ -492,5 +492,41 @@
         ]
       }
     ]
+  },
+  "fridge": {
+    "kind": "grid",
+    "width": 8,
+    "height": 2,
+    "storage": true
+  },
+  "vending_machine": {
+    "kind": "grid",
+    "width": 8,
+    "height": 2,
+    "storage": true
+  },
+  "wine_rack": {
+    "kind": "grid",
+    "width": 6,
+    "height": 4,
+    "storage": true
+  },
+  "animal_cage": {
+    "kind": "grid",
+    "width": 10,
+    "height": 3,
+    "storage": true
+  },
+  "livestock_feed_dispenser": {
+    "kind": "grid",
+    "width": 6,
+    "height": 4,
+    "storage": true
+  },
+  "ras_water_tank": {
+    "kind": "grid",
+    "width": 8,
+    "height": 4,
+    "storage": true
   }
 }

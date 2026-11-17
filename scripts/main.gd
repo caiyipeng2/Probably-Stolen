@@ -50,6 +50,7 @@ var detail_display_btn: Button
 var detail_counter_btn: Button
 var detail_inspect_btn: Button
 var detail_open_btn: Button
+var detail_liquid_btn: Button
 var modal_layer: Control
 var modal_panel: Panel
 var modal_title: Label
@@ -73,6 +74,7 @@ var machine_aux_btn: Button
 var machine_special_btn: Button
 var machine_stock_btn: Button
 var machine_take_btn: Button
+var machine_stock_grid_btn: Button
 var inspection_layer: Control
 var inspection_title: Label
 var inspection_info: Label
@@ -358,6 +360,12 @@ func _testmachineui_if_requested() -> void:
 	selected_machine_id = "hydroponic"
 	_refresh_machine_panel()
 	print("MUI hydro recipe=", machine_recipe_btn.text, " io=", machine_io_label.text.replace("\n", " | "))
+	selected_machine_id = "fridge"
+	_refresh_machine_panel()
+	print("MUI fridge gridbtn=", machine_stock_grid_btn.visible, " text=", machine_stock_grid_btn.text)
+	_open_machine_stock_grid()
+	await get_tree().process_frame
+	print("MUI fridge container=", container_title.text, " ", container_info.text)
 	get_tree().quit()
 
 func _testinspect_if_requested() -> void:
@@ -843,6 +851,7 @@ func _build_drawer() -> void:
 	detail_counter_btn = _button(detail_panel, "放柜台", Vector2(460, 190), Vector2(160, 48), C_TEXT, _on_put_counter)
 	detail_inspect_btn = _button(detail_panel, "验货", Vector2(630, 190), Vector2(110, 48), C_CYAN, _on_inspect_owned)
 	detail_open_btn = _button(detail_panel, "打开", Vector2(750, 190), Vector2(100, 48), C_GREEN, _on_open_selected_container)
+	detail_liquid_btn = _button(detail_panel, "倒液", Vector2(750, 190), Vector2(100, 48), C_CYAN, _on_liquid_transfer)
 
 func _build_modal() -> void:
 	modal_layer = Control.new()
@@ -1019,7 +1028,8 @@ func _rebuild_container_grid() -> void:
 		cap_text = "液体 %d/%d ml" % [int(it.get("liquid_ml", 0)), int(spec.get("capacity_ml", 0))]
 	else:
 		cap_text = "格数 %d / %d" % [children.size(), int(spec.get("width", 0)) * int(spec.get("height", 0))]
-	container_info.text = "%s  ·  %s  ·  内容估值 %d₵" % [GameState.item_display_name(it), cap_text, GameState.effective_value(it)]
+	var lock_text := "  ·  已锁定" if bool(it.get("container_locked", false)) else ""
+	container_info.text = "%s  ·  %s  ·  内容估值 %d₵%s" % [GameState.item_display_name(it), cap_text, GameState.effective_value(it), lock_text]
 	_clear_children(container_grid)
 	_clear_children(container_actions)
 	if kind == "slots":
@@ -1067,6 +1077,8 @@ func _rebuild_container_grid() -> void:
 		_container_action("取出到背包", _container_take_selected, C_AMBER)
 		if GameState.is_container_item(selected):
 			_container_action("打开选中容器", _container_open_selected, C_CYAN)
+	if bool(it.get("container_locked", false)):
+		_container_action("使用门禁卡", _container_unlock_select, C_RUST)
 	if not container_stack.is_empty():
 		_container_action("返回上层", _container_back, C_MUTED)
 	_refresh_container_actions()
@@ -1081,6 +1093,9 @@ func _refresh_container_actions() -> void:
 func _container_take_selected() -> void:
 	var parent := GameState.find_item(open_container_uid)
 	if parent.is_empty() or container_selected_uid < 0:
+		return
+	if bool(parent.get("container_locked", false)):
+		_toast("容器已锁定，需要对应钥匙。")
 		return
 	var child := GameState.container_remove_child(parent, container_selected_uid)
 	if child.is_empty():
@@ -1101,6 +1116,27 @@ func _container_open_selected() -> void:
 		_toast("选中的物品不是容器。")
 		return
 	_open_container(container_selected_uid)
+
+func _container_unlock_select() -> void:
+	var items: Array = []
+	for it in GameState.inventory:
+		var did := String(it.get("def_id", ""))
+		if did.ends_with("_keycard"):
+			items.append({"id": str(it.get("uid", 0)), "label": GameState.item_display_name(it)})
+	if items.is_empty():
+		_toast("背包里没有门禁卡。")
+		return
+	_open_select("使用门禁卡", items, _container_unlock_choice)
+
+func _container_unlock_choice(uid_text: String) -> void:
+	var key := GameState.find_item(int(uid_text))
+	var parent := GameState.find_item(open_container_uid)
+	if key.is_empty() or parent.is_empty():
+		return
+	var res := GameState.unlock_container(parent, key)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_rebuild_container_grid()
+	_refresh()
 
 func _container_store_select() -> void:
 	var parent := GameState.find_item(open_container_uid)
@@ -1240,6 +1276,7 @@ func _build_machine_bay() -> void:
 	machine_module_label = _label(detail, "", Vector2(24, 322), Vector2(1230, 30), 22, C_CYAN)
 	var install := _button(detail, "安装模块", Vector2(24, 362), Vector2(220, 54), C_CYAN, _open_module_select)
 	machine_recipe_btn = _button(detail, "配方", Vector2(660, 362), Vector2(290, 54), C_AMBER, _open_recipe_select)
+	machine_stock_grid_btn = _button(detail, "库存网格", Vector2(660, 362), Vector2(290, 54), C_CYAN, _open_machine_stock_grid)
 	install.name = "InstallModule"
 	var temps := [["低温", 1], ["标准", 2], ["高温", 3]]
 	for t in temps:
@@ -1777,6 +1814,7 @@ func _update_detail() -> void:
 		detail_counter_btn.disabled = true
 		detail_inspect_btn.disabled = true
 		detail_open_btn.disabled = true
+		detail_liquid_btn.disabled = true
 		return
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var tip := GameState.item_icon_path(def)
@@ -1822,6 +1860,9 @@ func _update_detail() -> void:
 	detail_counter_btn.disabled = not (loc == "display" and GameState.current_customer.get("intent") == "buy")
 	detail_inspect_btn.disabled = loc not in ["backpack", "display"]
 	detail_open_btn.disabled = not GameState.is_container_item(it)
+	detail_liquid_btn.disabled = not GameState.is_liquid_container(it)
+	detail_open_btn.visible = not GameState.is_liquid_container(it)
+	detail_liquid_btn.visible = GameState.is_liquid_container(it)
 
 func _loc_name(loc: String) -> String:
 	match loc:
@@ -1929,6 +1970,32 @@ func _on_display_slot(uid: int) -> void:
 	if GameState.current_customer.get("intent") == "buy":
 		GameState.put_display_on_counter(uid)
 	_refresh()
+
+func _on_liquid_transfer() -> void:
+	var src := _selected_item()
+	if src.is_empty() or not GameState.is_liquid_container(src):
+		return
+	var items: Array = []
+	for it in GameState.inventory:
+		if int(it.get("uid", -1)) == int(src.get("uid", -2)):
+			continue
+		if GameState.is_liquid_container(it):
+			var spec := GameState.container_spec(it)
+			items.append({"id": str(it.get("uid", 0)), "label": "%s · %d/%d ml" % [GameState.item_display_name(it), int(it.get("liquid_ml", 0)), int(spec.get("capacity_ml", 0))]})
+	if items.is_empty():
+		_toast("背包里没有其它液体容器。")
+		return
+	_open_select("倒入 · %s" % GameState.item_display_name(src), items, _liquid_transfer_choice.bind(int(src.get("uid", -1))))
+
+func _liquid_transfer_choice(target_text: String, source_uid: int) -> void:
+	var src := GameState.find_item(source_uid)
+	var dst := GameState.find_item(int(target_text))
+	if src.is_empty() or dst.is_empty():
+		return
+	var res := GameState.transfer_liquid(src, dst)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh()
+	_toast(String(res.get("text", "")))
 
 func _on_open_selected_container() -> void:
 	var it := _selected_item()
@@ -2241,6 +2308,11 @@ func _refresh_machine_panel() -> void:
 	machine_module_label.text = "模块：无" if mods.is_empty() else "模块：%s（性能 %+d / 效率 %+d / 品质 %+d）" % [", ".join(mod_names), int(sums["performance"]), int(sums["efficiency"]), int(sums["quality"])]
 	machine_recipe_btn.text = "配方：%s" % (GameState.machine_recipe_name(recipe) if not recipe.is_empty() else "无")
 	machine_recipe_btn.disabled = m.get("recipes", []).size() <= 1
+	var has_grid_stock: bool = not GameState.container_def(selected_machine_id).is_empty() and String(GameState.container_def(selected_machine_id).get("kind", "")) == "grid"
+	machine_recipe_btn.visible = not has_grid_stock
+	machine_stock_grid_btn.visible = has_grid_stock
+	if has_grid_stock:
+		machine_stock_grid_btn.text = "库存网格 %d/%d" % [GameState._stock_items(selected_machine_id).size(), GameState.machine_stock_limit(selected_machine_id)]
 	for i in range(temp_buttons.size()):
 		temp_buttons[i].modulate = Color(1.25, 1.12, 0.72) if (i + 1) == lvl else Color.WHITE
 	machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
@@ -2402,6 +2474,13 @@ func _choose_select(id: String) -> void:
 func _close_select() -> void:
 	select_layer.visible = false
 	_play_sfx("soft")
+
+func _open_machine_stock_grid() -> void:
+	var parent := GameState.machine_container(selected_machine_id)
+	if parent.is_empty():
+		_toast("这台机器没有库存网格。")
+		return
+	_open_container(int(parent.get("uid", -1)))
 
 func _open_recipe_select() -> void:
 	var m := GameState.machine_def(selected_machine_id)

@@ -82,6 +82,7 @@ var machine_faults: Dictionary = {}
 var machine_recipes: Dictionary = {}
 var modules_def: Array = []
 var containers_def: Dictionary = {}
+var machine_container_items: Dictionary = {}
 var machine_active: Dictionary = {}
 var machine_stock: Dictionary = {}
 var machine_cash: Dictionary = {}
@@ -1377,6 +1378,12 @@ func find_item(uid: int) -> Dictionary:
 		var nested3 := _find_child_item(counter_item, uid)
 		if not nested3.is_empty():
 			return nested3
+	for mc in machine_container_items.values():
+		if int(mc.get("uid", -2)) == uid:
+			return mc
+		var nested4 := _find_child_item(mc, uid)
+		if not nested4.is_empty():
+			return nested4
 	return {}
 
 func _item_tags(it: Dictionary) -> Array:
@@ -1502,6 +1509,49 @@ func container_auto_add(parent: Dictionary, child: Dictionary) -> bool:
 					parent["children"].append(child)
 					return true
 	return false
+
+func lock_key_matches(container: Dictionary, key: Dictionary) -> bool:
+	var spec := container_spec(container)
+	var lock_id := String(spec.get("locked", ""))
+	var did := String(key.get("def_id", ""))
+	if did == "cmd_keycard":
+		return true
+	match lock_id:
+		"LOCK_ID_SEC": return did == "sec_keycard"
+		"LOCK_ID_ENG": return did == "eng_keycard"
+		"LOCK_ID_MED": return did == "med_keycard"
+		"LOCK_ID_SER": return did == "ser_keycard"
+		"LOCK_ID_SUP": return did == "sup_keycard"
+	return false
+
+func transfer_liquid(from_item: Dictionary, to_item: Dictionary) -> Dictionary:
+	if not is_liquid_container(from_item) or not is_liquid_container(to_item):
+		return {"ok": false, "text": "两边都必须是液体容器。"}
+	var from_ml := int(from_item.get("liquid_ml", 0))
+	var to_ml := int(to_item.get("liquid_ml", 0))
+	var cap := int(container_spec(to_item).get("capacity_ml", 0))
+	var space := maxi(0, cap - to_ml)
+	var move := mini(from_ml, space)
+	if move <= 0:
+		return {"ok": false, "text": "目标容器已满或源容器为空。"}
+	var p1 := int(from_item.get("liquid_purity", 0))
+	var p2 := int(to_item.get("liquid_purity", 0))
+	var new_p := int(round((float(p1) * move + float(p2) * to_ml) / float(move + to_ml)))
+	from_item["liquid_ml"] = from_ml - move
+	to_item["liquid_ml"] = to_ml + move
+	to_item["liquid_purity"] = new_p
+	emit_signal("state_changed")
+	return {"ok": true, "text": "倒入 %d ml，纯度约 %d%%。" % [move, new_p / 100]}
+
+func unlock_container(container: Dictionary, key: Dictionary) -> Dictionary:
+	if not bool(container.get("container_locked", false)):
+		return {"ok": false, "text": "容器没有上锁。"}
+	if not lock_key_matches(container, key):
+		return {"ok": false, "text": "这张卡打不开这个容器。"}
+	container["container_locked"] = false
+	remove_inventory(String(key.get("def_id", "")), 1)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "容器已解锁。"}
 
 func container_remove_child(parent: Dictionary, child_uid: int) -> Dictionary:
 	var children: Array = parent.get("children", [])
@@ -1681,6 +1731,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	machine_recipes = {}
 	machine_active = {}
 	machine_stock = {}
+	machine_container_items = {}
 	machine_cash = {}
 	machine_upgrades = {}
 	machine_state = {}
@@ -3282,6 +3333,28 @@ func _run_reactor(mid: String, sp: Dictionary) -> void:
 		next_day_power_bonus += charge
 	_add_night_log("反应堆完整度 %d/%d，充能 %d。" % [integrity, max_int, mini(int(sp.get("max_charge", 4)), int(sp.get("base_charge", 1)) + upgrades / maxi(1, int(sp.get("upgrades_per_charge", 5))))])
 
+func machine_container(mid: String) -> Dictionary:
+	if machine_container_items.has(mid):
+		return machine_container_items[mid]
+	var spec := container_def(mid)
+	if spec.is_empty():
+		return {}
+	var m := machine_def(mid)
+	var item := {
+		"uid": -1000 - machine_container_items.size(),
+		"def_id": mid,
+		"custom_name": "%s · 库存" % String(m.get("name", mid)),
+		"custom_base_value": 0,
+		"condition": 100,
+		"authentic": true,
+		"children": _stock_items(mid),
+		"container_spec": spec.duplicate(true),
+		"container_locked": false,
+		"location": "machine",
+	}
+	machine_container_items[mid] = item
+	return item
+
 func _stock_items(mid: String) -> Array:
 	if not machine_stock.has(mid) or not (machine_stock[mid] is Array):
 		machine_stock[mid] = []
@@ -3327,6 +3400,9 @@ func _eligible_for_stock(mid: String, it: Dictionary) -> bool:
 	return false
 
 func machine_stock_limit(machine_id: String) -> int:
+	var cspec := container_def(machine_id)
+	if not cspec.is_empty() and String(cspec.get("kind", "")) == "grid":
+		return int(cspec.get("width", 1)) * int(cspec.get("height", 1))
 	var sp: Dictionary = machine_def(machine_id).get("special", {})
 	var kind := String(sp.get("kind", ""))
 	match kind:
@@ -3350,11 +3426,20 @@ func machine_stock_add(machine_id: String, uid: int) -> Dictionary:
 	var it: Dictionary = inventory[idx]
 	if not _eligible_for_stock(machine_id, it):
 		return {"ok": false, "text": "这件物品不能存入该机器。"}
-	if _stock_items(machine_id).size() >= machine_stock_limit(machine_id):
-		return {"ok": false, "text": "机器库存已满。"}
-	inventory.remove_at(idx)
-	it["location"] = "machine"
-	_stock_items(machine_id).append(it)
+	var parent := machine_container(machine_id)
+	if parent.is_empty():
+		if _stock_items(machine_id).size() >= machine_stock_limit(machine_id):
+			return {"ok": false, "text": "机器库存已满。"}
+		inventory.remove_at(idx)
+		it["location"] = "machine"
+		_stock_items(machine_id).append(it)
+	else:
+		if not container_can_accept(parent, it):
+			return {"ok": false, "text": "这件物品不能放入该库存网格。"}
+		if not container_auto_add(parent, it):
+			return {"ok": false, "text": "机器库存已满。"}
+		inventory.remove_at(idx)
+		it["location"] = "machine"
 	emit_signal("state_changed")
 	return {"ok": true, "text": "已存入：%s。" % String(get_item_def(String(it.get("def_id", ""))).get("name", ""))}
 
