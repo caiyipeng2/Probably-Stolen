@@ -1,0 +1,16 @@
+# [L2 执行层] <feature>_flow.gd — <界面流程>
+extends "res://tests/execution/case.gd"
+
+var fixtures
+
+func setup() -> void:
+	fixtures = load("res://tests/execution/fixtures.gd").new(driver, state)
+	await fixtures.boot_to_main("normal", "mobile", seed_value)
+	# await fixtures.ensure_customer_intent("sell")  # 按需
+
+func run() -> void:
+	check(await driver.tap("<screen>", "<control_key>"), "open <screen>")
+	check(await driver.wait_visible("<screen>", "<label_key>", 3000), "<screen> visible")
+	check(driver.read_text("<screen>", "<label_key>").contains("<期望文本>"), "<screen> text")
+	await shot("01_<checkpoint>")
+	check(await driver.tap("<screen>", "btn_close"), "close <screen>")

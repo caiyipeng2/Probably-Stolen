@@ -1,0 +1,16 @@
+# [L2 执行层] <feature>.gd — <一句话职责>
+extends "res://tests/execution/case.gd"
+
+func setup() -> void:
+	state.rng.seed = seed_value
+	state.new_game()
+
+func run() -> void:
+	step("<检查点>")
+	check_eq(<actual>, <expected>, "<稳定标签>")
+	# check(bool_expr, "<标签>", "<detail>")
+
+func teardown() -> void:
+	var d := DirAccess.open("user://")
+	if d:
+		d.remove("save_9.json")

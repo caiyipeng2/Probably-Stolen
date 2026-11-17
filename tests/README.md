@@ -44,6 +44,7 @@ python -m unittest discover -s tests -p "test_*.py" -v
 | 场景 | 操作 |
 |---|---|
 | 新增逻辑用例 | 在 `cases/logic/` 新建 `QaCase` 文件 → 在 `suites.json` 注册 → 跑 `--suite logic` |
+| 新增移植功能 | 按 `tests/templates/README.md` 依次补逻辑/UI/真机/基线，最后跑 `--check-coverage` |
 | 新增桌面 UI 用例 | 复用 `fixtures.gd` → 只用控件层 API → 注册到 `suites.json` |
 | 控件改版 | 更新 `ui_map.json` → 跑 `--build-control-map` → 跑 `--suite ui` → 必要时 `--update-baselines` |
 | 新增真机流程 | 在 `cases/device/` 写 JSON（tap/drag/wait_screen/shot）→ 先 `--update-baselines` 生成基线并审图 |

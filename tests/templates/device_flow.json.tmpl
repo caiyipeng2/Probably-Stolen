@@ -1,0 +1,15 @@
+{
+  "id": "device/<feature>_smoke",
+  "seed": 20261117,
+  "steps": [
+    {"action": "wait_screen", "shot": "welcome", "timeout_ms": 20000},
+    {"action": "tap", "target": "welcome.btn_original"},
+    {"action": "wait_screen", "shot": "tutorial", "timeout_ms": 10000},
+    {"action": "tap", "target": "tutorial.btn_skip"},
+    {"action": "wait_screen", "shot": "main_day1", "timeout_ms": 20000},
+    {"action": "shot", "shot": "01_<start>"},
+    {"action": "tap", "target": "<control_key>"},
+    {"action": "wait_screen", "shot": "<checkpoint>", "timeout_ms": 8000},
+    {"action": "shot", "shot": "<checkpoint>"}
+  ]
+}
