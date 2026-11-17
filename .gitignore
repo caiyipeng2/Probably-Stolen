@@ -4,6 +4,8 @@ _research/
 *.apk
 *.aab
 *.log
+__pycache__/
+*.pyc
 
 # Ripped game assets: private build only, never publish
 assets/art/
