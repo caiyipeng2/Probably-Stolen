@@ -362,7 +362,7 @@ godot --path . -- --publicassets
 ## 自动化回归
 
 ```bash
-# 逻辑回归（22 个用例，headless）
+# 逻辑回归（23 个用例，headless）
 python tests/run.py --suite logic
 
 # 桌面 UI + 截图基线（11 条流程）

@@ -12,7 +12,7 @@
 ## 命令
 
 ```bash
-python tests/run.py --suite logic                 # 22 个逻辑用例（headless）
+python tests/run.py --suite logic                 # 23 个逻辑用例（headless）
 python tests/run.py --suite ui                    # 11 条桌面 UI/诊断流程
 python tests/run.py --suite device --serial R5CX211TXNT --fresh-device
 python tests/run.py --suite full --fresh-device   # 逻辑 + UI + 真机
