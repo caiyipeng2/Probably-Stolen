@@ -30,7 +30,8 @@ def _wait_screen(driver, case, index, shot_name, profile, baselines_root, run_di
     dest = run_dir / "device" / case["id"].replace("/", "_") / (name + ".png")
     baseline = baselines_root / profile / case["id"] / (name + ".png")
     if update or not baseline.exists():
-        _stable_shot(driver, dest, timeout=3)
+        if not _stable_shot(driver, dest, timeout=3):
+            raise DeviceError("unstable screenshot: " + name)
         if update:
             return {"name": name, "file": str(dest), "status": "PENDING"}
         raise DeviceError("missing wait_screen baseline: " + name)
@@ -38,7 +39,8 @@ def _wait_screen(driver, case, index, shot_name, profile, baselines_root, run_di
     cfg.update(config.get("profiles", {}).get(profile, {}))
     deadline = time.time() + timeout_ms / 1000.0
     while time.time() < deadline:
-        _stable_shot(driver, dest, timeout=3)
+        if not _stable_shot(driver, dest, timeout=3):
+            continue
         res = compare_image(dest, baseline, None, cfg)
         if res["status"] == "PASS":
             return {"name": name, "file": str(dest), "status": "PENDING"}
@@ -100,7 +102,8 @@ def run_cases(cases, run_dir, serial, fresh, update_baselines, apk=None):
                 elif action == "shot":
                     name = "%02d_%s" % (i, step["shot"])
                     dest = run_dir / "device" / case["id"].replace("/", "_") / (name + ".png")
-                    _stable_shot(driver, dest)
+                    if not _stable_shot(driver, dest):
+                        raise DeviceError("unstable screenshot: " + name)
                     shots.append({"name": name, "file": str(dest), "status": "PENDING"})
                     steps.append({"title": "shot:" + step["shot"]})
                 else:

@@ -11,6 +11,10 @@ func _ready() -> void:
 	var report_path := _arg(args, "--qa-report", "user://qa_result.json")
 	var artifacts := _arg(args, "--qa-artifacts", "user://qa_artifacts")
 	var seed_value := int(_arg(args, "--qa-seed", "20261117"))
+	if not "--qa-visible" in args:
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_POPUP, true)
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+		DisplayServer.window_set_position(Vector2i(-8000, -8000))
 	var main = load("res://scenes/Main.tscn").instantiate()
 	add_child(main)
 	get_tree().create_timer(60.0).timeout.connect(func(): get_tree().quit(2))
@@ -34,6 +38,9 @@ func _ready() -> void:
 	await case.teardown()
 	var result: Dictionary = case.to_result()
 	result["duration_ms"] = Time.get_ticks_msec() - t0
+	var pos := DisplayServer.window_get_position()
+	result["window_position"] = [pos.x, pos.y]
+	result["window_focused"] = DisplayServer.window_is_focused()
 	_write_json(report_path, result)
 	get_tree().quit(0 if String(result.get("status", "FAIL")) == "PASS" else 1)
 

@@ -17,6 +17,7 @@ python tests/run.py --suite ui                    # 11 条桌面 UI/诊断流程
 python tests/run.py --suite device --serial R5CX211TXNT --fresh-device
 python tests/run.py --suite full --fresh-device   # 逻辑 + UI + 真机
 python tests/run.py --suite ui --update-baselines # 更新截图基线
+python tests/run.py --suite ui --show-window      # 仅调试：显示窗口（默认离屏静默）
 python tests/run.py --build-control-map           # 重新导出真机控件坐标
 python tests/run.py --check-coverage              # 检查机器目录是否有用例/豁免
 python -m unittest discover -s tests -p "test_*.py" -v
@@ -52,6 +53,7 @@ python -m unittest discover -s tests -p "test_*.py" -v
 
 ## 截图与基线
 
+- 桌面 UI/截图默认后台静默：Godot 窗口移到屏幕外、popup + 不抢焦点，并隐藏控制台；`--show-window` 只用于调试。
 - 桌面 profile：`desktop-1280x720-win`（Godot 窗口实际截图尺寸）。
 - 基线：`tests/baselines/<profile>/<case>/<NN_shot>.png`，提交进 git。
 - 基线更新只允许显式 `--update-baselines`；更新后查看 `build/qa/<run_id>/baseline_changes.md` 和 diff 图。

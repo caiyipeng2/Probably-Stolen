@@ -448,6 +448,7 @@ func _build_left_rail() -> void:
 		if key == "end_day":
 			color = C_RUST
 		var b := _button(rail, items[i][0], Vector2(20, 50 + i * 64), Vector2(170, 56), color, _on_rail.bind(key))
+		b.name = "rail_" + key
 		rail_buttons[key] = b
 	status_label = _label(rail, "营业中", Vector2(20, 606), Vector2(170, 44), 20, C_GREEN)
 

@@ -35,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--reference-run", default="")
     p.add_argument("--build-control-map", action="store_true")
     p.add_argument("--check-coverage", action="store_true")
+    p.add_argument("--show-window", action="store_true")
     p.add_argument("--godot", default="")
     p.add_argument("--apk", default="")
     return p
@@ -58,7 +59,8 @@ def select_cases(manifest: dict, suite: str, flt: str) -> list[dict]:
     return out
 
 
-def run_ui_cases(cases: list[dict], run_id: str, godot: str, seed_default: int) -> list[dict]:
+def run_ui_cases(cases: list[dict], run_id: str, godot: str, seed_default: int,
+                 visible: bool = False) -> list[dict]:
     run_dir = ROOT / "build/qa" / run_id
     results = []
     for case in cases:
@@ -72,8 +74,11 @@ def run_ui_cases(cases: list[dict], run_id: str, godot: str, seed_default: int) 
                "--qa-report=" + str(result_path),
                "--qa-artifacts=" + str(run_dir / "desktop"),
                "--qa-seed=" + str(case.get("seed", seed_default))]
+        if visible:
+            cmd.append("--qa-visible")
         proc = subprocess.run(cmd, cwd=ROOT, timeout=120, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace")
+                              encoding="utf-8", errors="replace",
+                              creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
         log_path.write_text((proc.stdout or "") + "\n" + (proc.stderr or ""), encoding="utf-8")
         if result_path.exists():
             data = json.loads(result_path.read_text(encoding="utf-8"))
@@ -108,7 +113,8 @@ def run_logic_cases(cases: list[dict], run_id: str, godot: str) -> list[dict]:
            "--qa-report-dir=" + str(report_dir),
            "--qa-cases=" + ids]
     proc = subprocess.run(cmd, cwd=ROOT, timeout=600, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace",
+                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     (run_dir / "logs").mkdir(parents=True, exist_ok=True)
     (run_dir / "logs" / "logic.log").write_text((proc.stdout or "") + "\n" + (proc.stderr or ""), encoding="utf-8")
     results = []
@@ -123,7 +129,7 @@ def run_logic_cases(cases: list[dict], run_id: str, godot: str) -> list[dict]:
     return results
 
 
-def retry_failed_ui_cases(results, run_id, godot, config):
+def retry_failed_ui_cases(results, run_id, godot, config, visible=False):
     out = []
     for case in results:
         if case.get("status") not in ("FAIL", "ERROR") or "file" not in case:
@@ -131,7 +137,7 @@ def retry_failed_ui_cases(results, run_id, godot, config):
             continue
         retry_case = {"id": case["id"], "file": case["file"], "seed": case.get("seed", 20261117)}
         retry_id = run_id + "-retry-" + case["id"].replace("/", "__")
-        retry = run_ui_cases([retry_case], retry_id, godot, 20261117)
+        retry = run_ui_cases([retry_case], retry_id, godot, 20261117, visible)
         retry_dir = ROOT / "build/qa" / retry_id
         retry = process_results(retry, DESKTOP_PROFILE, ROOT / "tests/baselines", retry_dir,
                                 update=False, config=config)
@@ -172,13 +178,16 @@ def hash_tree(paths):
     return h.hexdigest()[:16]
 
 
-def run_map_builder(run_dir: pathlib.Path, godot: str) -> int:
+def run_map_builder(run_dir: pathlib.Path, godot: str, visible=False) -> int:
     out_path = run_dir / "control_map.json"
     run_dir.mkdir(parents=True, exist_ok=True)
     cmd = [godot, "--path", str(ROOT), "tests/execution/map_builder.tscn", "--",
            "--qa-out=" + str(out_path)]
+    if visible:
+        cmd.append("--qa-visible")
     proc = subprocess.run(cmd, cwd=ROOT, timeout=180, capture_output=True, text=True,
-                          encoding="utf-8", errors="replace")
+                          encoding="utf-8", errors="replace",
+                          creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0))
     (run_dir / "map_builder.log").write_text((proc.stdout or "") + "\n" + (proc.stderr or ""),
                                              encoding="utf-8")
     if not out_path.exists():
@@ -206,7 +215,7 @@ def main(argv=None) -> int:
     run_id = time.strftime("%Y%m%d-%H%M%S")
     run_dir = ROOT / "build/qa" / run_id
     if args.build_control_map:
-        return run_map_builder(run_dir, godot)
+        return run_map_builder(run_dir, godot, args.show_window)
     if args.check_coverage:
         from tests.tools.check_coverage import main as coverage_main
         return coverage_main()
@@ -219,12 +228,13 @@ def main(argv=None) -> int:
     if args.suite in ("ui", "full", "smoke"):
         ui_cases = [c for c in cases if c.get("runner") == "ui"]
         if ui_cases:
-            ui_results = run_ui_cases(ui_cases, run_id, godot, 20261117)
+            ui_results = run_ui_cases(ui_cases, run_id, godot, 20261117, args.show_window)
             config = load_config(ROOT / "tests/screenshot/config.json")
             process_results(ui_results, DESKTOP_PROFILE, ROOT / "tests/baselines", run_dir,
                             update=args.update_baselines, config=config)
             if not args.update_baselines:
-                ui_results = retry_failed_ui_cases(ui_results, run_id, godot, config)
+                ui_results = retry_failed_ui_cases(ui_results, run_id, godot, config,
+                                                   args.show_window)
             write_case_results(ui_results, run_id)
             results += ui_results
             for r in ui_results:

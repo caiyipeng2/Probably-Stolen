@@ -48,7 +48,7 @@ func shot(name: String) -> void:
 		return
 	var res: Dictionary = await capturer.capture(name)
 	shots.append(res)
-	if String(res.get("status", "PENDING")) == "ERROR":
+	if String(res.get("status", "PENDING")) in ["ERROR", "UNSTABLE"]:
 		fails += 1
 
 func to_result() -> Dictionary:
@@ -62,4 +62,5 @@ func to_result() -> Dictionary:
 		"assertions": assertions,
 		"steps": steps,
 		"shots": shots,
+		"direct_actions": driver.direct_actions if driver != null else [],
 	}

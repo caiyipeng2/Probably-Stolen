@@ -5,6 +5,7 @@ var root: Node
 var out_dir: String
 var case_id: String
 var counter := 0
+var unstable := false
 
 func _init(main_node: Node, artifacts_dir: String, cid: String) -> void:
 	root = main_node
@@ -12,6 +13,7 @@ func _init(main_node: Node, artifacts_dir: String, cid: String) -> void:
 	case_id = cid
 
 func capture(shot_name: String) -> Dictionary:
+	unstable = false
 	var img := await _stable_image()
 	if img == null:
 		return {"name": shot_name, "status": "ERROR", "reason": "no viewport image"}
@@ -21,7 +23,12 @@ func capture(shot_name: String) -> Dictionary:
 	DirAccess.make_dir_recursive_absolute(dir)
 	var path := dir.path_join(name + ".png")
 	var err := img.save_png(path)
-	return {"name": name, "file": path, "status": "PENDING" if err == OK else "ERROR"}
+	var status := "PENDING"
+	if err != OK:
+		status = "ERROR"
+	elif unstable:
+		status = "UNSTABLE"
+	return {"name": name, "file": path, "status": status}
 
 func _stable_image() -> Image:
 	var park := InputEventMouseMotion.new()
@@ -37,4 +44,5 @@ func _stable_image() -> Image:
 			return img
 		last = img
 		await root.get_tree().create_timer(0.1).timeout
+	unstable = true
 	return last

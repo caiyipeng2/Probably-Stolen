@@ -4,6 +4,7 @@ extends RefCounted
 var root: Node
 var ui_map: Dictionary = {}
 var last_error := ""
+var direct_actions: Array = []
 
 func _init(main_node: Node, map_path := "res://tests/control/ui_map.json") -> void:
 	root = main_node
@@ -105,6 +106,7 @@ func type_text(screen: String, key: String, value: String) -> bool:
 		edit.grab_focus()
 		edit.text = value
 		edit.text_submitted.emit(value)
+		direct_actions.append("type_text:%s.%s" % [screen, key])
 		return true
 	return false
 
@@ -211,6 +213,7 @@ func set_slider_at(property: String, index: int, value: float) -> bool:
 		var slider := arr[index] as HSlider
 		slider.set_value_no_signal(value)
 		slider.value_changed.emit(value)
+		direct_actions.append("set_slider_at:%s[%d]" % [property, index])
 		return true
 	return false
 

@@ -108,11 +108,15 @@ def write_reports(run_dir: Path, results, summary):
         if case.get("status") == "FLAKY":
             continue
         for shot in case.get("shots", []):
-            if shot.get("status") == "FAIL":
+            status = shot.get("status")
+            if status in ("FAIL", "UNSTABLE"):
                 shot_failures += 1
-                lines.append("- %s / %s：差异率 %.4f%%，diff=%s" % (
-                    case.get("id"), shot.get("name"), float(shot.get("diff_ratio", 0)) * 100,
-                    shot.get("diff_image", "")))
+                if status == "UNSTABLE":
+                    lines.append("- %s / %s：稳定帧超时" % (case.get("id"), shot.get("name")))
+                else:
+                    lines.append("- %s / %s：差异率 %.4f%%，diff=%s" % (
+                        case.get("id"), shot.get("name"), float(shot.get("diff_ratio", 0)) * 100,
+                        shot.get("diff_image", "")))
     if shot_failures == 0:
         lines.append("无")
     lines += ["", "## 环境", "", "```json",

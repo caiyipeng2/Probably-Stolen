@@ -5,6 +5,11 @@ const DesktopDriver = preload("res://tests/control/desktop_driver.gd")
 const Fixtures = preload("res://tests/execution/fixtures.gd")
 
 func _ready() -> void:
+	var args := OS.get_cmdline_user_args()
+	if not "--qa-visible" in args:
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_POPUP, true)
+		DisplayServer.window_set_flag(DisplayServer.WINDOW_FLAG_NO_FOCUS, true)
+		DisplayServer.window_set_position(Vector2i(-8000, -8000))
 	var main = load("res://scenes/Main.tscn").instantiate()
 	add_child(main)
 	await get_tree().create_timer(0.5).timeout

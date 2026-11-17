@@ -3335,3 +3335,9 @@ git commit -m "test: finish layered regression framework migration"
   - `tap` 遇到 disabled 按钮返回 false，不再假成功；
   - 截图基线报告写入 `asset_hash`（data/data_private/assets_private）；
   - 新增 `python tests/run.py --check-coverage`：机器目录有用例或显式豁免才通过，初始豁免 3 台待补设备。
+- 收尾补齐（2026-11-17 第三稿）：
+  - Godot UI/截图默认后台静默：窗口 `POPUP + NO_FOCUS` 移到 `-8000,-8000`，子进程加 `CREATE_NO_WINDOW`；实测不抢焦点、截图正常，`--show-window` 仅供调试。
+  - 稳定帧超时返回 `UNSTABLE`，桌面/真机均按截图错误处理并触发重跑。
+  - 白盒注入（`type_text` / `set_slider_at`）写入 `direct_actions`，随用例结果落盘。
+  - 左侧 rail 按钮增加 `rail_*` name，ui_map 不再用文本选择器，避免弹层遮挡误点。
+  - 桌面基线在静默窗口下重新生成，截图 diff 归零；真机 5 条复验通过并恢复设备数据。
