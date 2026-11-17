@@ -239,6 +239,7 @@ func _ready() -> void:
 	GameState.story_available.connect(_on_story_available)
 	GameState.inspection_arrived.connect(_on_inspection_arrived)
 	GameState.security_officer_arrived.connect(_on_security_officer_arrived)
+	GameState.combat_hit.connect(_on_combat_hit)
 	GameState.combat_started.connect(_on_combat_started)
 	GameState.combat_updated.connect(_on_combat_updated)
 	GameState.combat_finished.connect(_on_combat_finished)
@@ -752,10 +753,13 @@ func _setup_audio() -> void:
 		sfx_players.append(p)
 
 func _audio_path(name: String) -> String:
+	var original_path := "res://assets_private/audio_original/" + name
 	var private_path := "res://assets_private/audio/" + name
 	var public_path := "res://assets_public/audio/" + name
 	if force_public_assets:
 		return public_path if ResourceLoader.exists(public_path) else ""
+	if ResourceLoader.exists(original_path):
+		return original_path
 	if ResourceLoader.exists(private_path):
 		return private_path
 	return public_path if ResourceLoader.exists(public_path) else ""
@@ -1260,6 +1264,7 @@ func _open_container(uid: int) -> void:
 	open_container_uid = uid
 	container_selected_uid = -1
 	container_layer.visible = true
+	_play_sfx("open_case")
 	move_child(container_layer, get_child_count() - 1)
 	_apply_container_window_pos()
 	_rebuild_container_grid()
@@ -1892,9 +1897,10 @@ func _phone_dial() -> void:
 	var sid := GameState.phone_contact_by_number(num)
 	if sid == "":
 		phone_status_label.text = GameState.loc("UI", "ui_phone_no_answer", "无人接听")
-		_play_sfx("fail")
+		_play_sfx("phone_wrong")
 		return
 	phone_status_label.text = GameState.loc("UI", "ui_phone_in_call", "通话中")
+	_play_sfx("phone_calling")
 	_phone_call_contact(sid)
 
 func _phone_quick(sid: String) -> void:
@@ -1956,6 +1962,7 @@ func _phone_choose(choice: String) -> void:
 	_rebuild_phone_book()
 
 func _phone_hangup() -> void:
+	_play_sfx("phone_drop")
 	phone_dlg_panel.visible = false
 	phone_status_label.text = "已挂断"
 	phone_number_label.text = ""
@@ -2776,6 +2783,7 @@ func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source
 			dragging_uid = uid
 			drag_icon = icon
 			drag_source = source
+			_play_sfx("pickup")
 			drag_offset = icon.get_global_mouse_position() - icon.global_position
 			icon.z_index = 10
 			icon.modulate.a = 0.75
@@ -3903,6 +3911,8 @@ func _show_story(node_id: String) -> void:
 	if ResourceLoader.exists(path):
 		story_portrait.texture = load(path)
 		story_portrait.visible = true
+		story_portrait.modulate.a = 0.0
+		create_tween().tween_property(story_portrait, "modulate:a", 1.0, 0.25)
 	else:
 		story_portrait.texture = null
 		story_portrait.visible = false
@@ -4033,6 +4043,31 @@ func _on_inspection_arrived() -> void:
 		actions.append({"label": "贿赂 %d₵" % amt, "color": C_RUST, "cb": _inspection_bribe})
 	_show_modal("治安检查", body, actions)
 
+func _on_combat_hit(uid: int, amount: int) -> void:
+	_play_sfx("hit")
+	if combat_enemy_sprite == null:
+		return
+	var is_player := uid == 0
+	var host := combat_enemy_sprite.get_parent()
+	var base_pos := combat_enemy_sprite.position
+	var lbl := Label.new()
+	lbl.text = "-%d" % amount
+	lbl.position = base_pos + Vector2(160 if not is_player else 120, 20)
+	lbl.add_theme_font_size_override("font_size", 34)
+	lbl.add_theme_color_override("font_color", Color("#ff7a6a") if is_player else Color("#ffd166"))
+	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	host.add_child(lbl)
+	var tw := create_tween()
+	tw.set_parallel(true)
+	tw.tween_property(lbl, "position:y", lbl.position.y - 60.0, 0.7)
+	tw.tween_property(lbl, "modulate:a", 0.0, 0.7)
+	tw.chain().tween_callback(lbl.queue_free)
+	if not is_player:
+		var shake := create_tween()
+		shake.tween_property(combat_enemy_sprite, "position:x", base_pos.x + 10.0, 0.05)
+		shake.tween_property(combat_enemy_sprite, "position:x", base_pos.x - 8.0, 0.05)
+		shake.tween_property(combat_enemy_sprite, "position:x", base_pos.x, 0.05)
+
 func _on_combat_started() -> void:
 	combat_layer.visible = true
 	_update_combat_ui()
@@ -4122,7 +4157,10 @@ func _combat_target(uid: int) -> void:
 func _combat_use_skill(id: String, item_uid: int) -> void:
 	if not GameState.combat_waiting_for_player():
 		return
-	_play_sfx("gun" if item_uid < 0 else "soft")
+	var sfx_key := "soft"
+	if item_uid < 0:
+		sfx_key = "shotgun" if id.contains("shotgun") else ("gun" if id.contains("attack") else "soft")
+	_play_sfx(sfx_key)
 	GameState.combat_player_action(id, GameState.combat_target_uid, item_uid)
 	_update_combat_ui()
 
@@ -4138,6 +4176,8 @@ func _toast(text: String) -> void:
 
 func _show_modal(title: String, text: String, actions: Array) -> void:
 	move_child(modal_layer, get_child_count() - 1)
+	modal_layer.modulate.a = 0.0
+	create_tween().tween_property(modal_layer, "modulate:a", 1.0, 0.15)
 	modal_title.text = title
 	modal_text.add_theme_font_size_override("font_size", 26)
 	modal_text.add_theme_constant_override("line_spacing", 6)

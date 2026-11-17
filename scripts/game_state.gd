@@ -6,6 +6,7 @@ signal day_finished(summary)
 signal event_started(event)
 signal machine_finished(message)
 signal story_available(node_id)
+signal combat_hit(target_uid, amount)
 signal inspection_arrived
 signal security_officer_arrived
 signal combat_started
@@ -4112,6 +4113,7 @@ func _combat_damage(u: Dictionary, amount: int, source_name: String) -> void:
 			return
 	u["hp"] = int(u.get("hp", 0)) - dealt
 	combat_log.append("%s 对 %s 造成 %d 伤害。" % [source_name, u.get("name", ""), dealt])
+	emit_signal("combat_hit", int(u.get("uid", -1)), dealt)
 	if int(u.get("hp", 0)) <= 0:
 		_combat_death_roll(u)
 
