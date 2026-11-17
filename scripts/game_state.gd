@@ -10,10 +10,14 @@ signal combat_started
 signal combat_updated
 signal combat_finished(victory, message)
 
-const GRID_W := 16
-const GRID_H := 3
+const GRID_W := 18
+const GRID_H := 4
 const GRID_PAGES := 3
 const DISPLAY_SLOTS := 6
+const HIDDEN_W := 2
+const HIDDEN_H := 2
+const SHOWCASE_W := 7
+const SHOWCASE_H := 5
 const RETAIL_MARKUP := 15.0
 const MACHINE_FAULTS := {
 	"jam": {"name": "卡料", "fee": 30},
@@ -77,6 +81,7 @@ var machine_durability: Dictionary = {}
 var machine_faults: Dictionary = {}
 var machine_recipes: Dictionary = {}
 var modules_def: Array = []
+var containers_def: Dictionary = {}
 var machine_active: Dictionary = {}
 var machine_stock: Dictionary = {}
 var machine_cash: Dictionary = {}
@@ -248,6 +253,11 @@ func _load_defs() -> void:
 		var mods = JSON.parse_string(f.get_as_text())
 		if mods is Array:
 			modules_def = mods
+	f = FileAccess.open("res://data/containers.json", FileAccess.READ)
+	if f:
+		var cdefs = JSON.parse_string(f.get_as_text())
+		if cdefs is Dictionary:
+			containers_def = cdefs
 	f = FileAccess.open("res://data/inspection_families.json", FileAccess.READ)
 	if f:
 		var fams = JSON.parse_string(f.get_as_text())
@@ -346,8 +356,11 @@ func make_item(def_id: String, condition: int = 100, authentic: bool = true, sto
 		"page": 0,
 		"rotated": false,
 		"location": "backpack",
+		"children": [],
+		"unit_count": 1,
 	}
 	_init_inspection_item(it)
+	_init_container_state(it)
 	return it
 
 func _roll_features(def_id: String) -> Array:
@@ -1234,6 +1247,40 @@ func decline_promotion(for_good: bool = false) -> void:
 	pending_promotion = false
 	emit_signal("state_changed")
 
+func container_def(def_id: String) -> Dictionary:
+	return containers_def.get(def_id, {})
+
+func container_spec(item: Dictionary) -> Dictionary:
+	if item.has("container_spec") and item["container_spec"] is Dictionary:
+		return item["container_spec"]
+	return container_def(String(item.get("def_id", "")))
+
+func is_container_item(item: Dictionary) -> bool:
+	var spec := container_spec(item)
+	return not spec.is_empty() and String(spec.get("kind", "")) in ["grid", "slots"]
+
+func is_liquid_container(item: Dictionary) -> bool:
+	var spec := container_spec(item)
+	return not spec.is_empty() and String(spec.get("kind", "")) == "liquid"
+
+func page_size(page: int) -> Array:
+	if page == 2:
+		return [HIDDEN_W, HIDDEN_H]
+	return [GRID_W, GRID_H]
+
+func _init_container_state(it: Dictionary) -> void:
+	var spec := container_def(String(it.get("def_id", "")))
+	if spec.is_empty():
+		return
+	it["container_spec"] = spec.duplicate(true)
+	it["children"] = []
+	it["container_locked"] = spec.has("locked") and String(spec.get("locked", "")) != ""
+	if String(spec.get("kind", "")) == "liquid":
+		var cap := int(spec.get("capacity_ml", 500))
+		it["liquid_ml"] = cap
+		it["liquid_purity"] = clampi(int(it.get("condition", 100)) * 100, 0, 10000)
+		it["liquid_contents"] = {"water": cap}
+
 func item_shape(item: Dictionary) -> Array:
 	var def := get_item_def(item["def_id"])
 	var s = def.get("shape", [1, 1])
@@ -1255,7 +1302,8 @@ func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int 
 	var s = get_item_def(item["def_id"]).get("shape", [1, 1])
 	var w: int = s[1] if rotated else s[0]
 	var h: int = s[0] if rotated else s[1]
-	if x < 0 or y < 0 or x + w > GRID_W or y + h > GRID_H:
+	var dims := page_size(page)
+	if x < 0 or y < 0 or x + w > int(dims[0]) or y + h > int(dims[1]):
 		return false
 	var test := {}
 	for dy in range(h):
@@ -1274,10 +1322,11 @@ func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int 
 	return true
 
 func auto_place(item: Dictionary, page: int = -1) -> bool:
-	var pages: Array = [page] if page >= 0 else range(pages_unlocked)
+	var pages: Array = [page] if page >= 0 else [0, 1]
 	for pg in pages:
-		for y in range(GRID_H):
-			for x in range(GRID_W):
+		var dims := page_size(int(pg))
+		for y in range(int(dims[1])):
+			for x in range(int(dims[0])):
 				for rot in [false, true]:
 					if can_place(item, x, y, rot, -1, pg):
 						item["x"] = x
@@ -1297,29 +1346,245 @@ func add_item(item: Dictionary) -> bool:
 	return ok
 
 func _refresh_pages() -> void:
-	var owned := 0
-	for it in inventory:
-		var sid := String(it.get("def_id", "")).to_lower()
-		if String(get_item_def(it.get("def_id", "")).get("category", "")) == "container" and (sid.contains("backpack") or (sid.contains("bag") and not sid.contains("save_bag"))):
-			owned += 1
-	for it in display:
-		var sid2 := String(it.get("def_id", "")).to_lower()
-		if String(get_item_def(it.get("def_id", "")).get("category", "")) == "container" and (sid2.contains("backpack") or (sid2.contains("bag") and not sid2.contains("save_bag"))):
-			owned += 1
-	var target := 2 + (1 if owned >= 1 else 0) + (1 if owned >= 2 else 0)
-	max_pages_unlocked = clampi(max(max_pages_unlocked, target), 1, GRID_PAGES)
-	pages_unlocked = max_pages_unlocked
+	max_pages_unlocked = GRID_PAGES
+	pages_unlocked = GRID_PAGES
+
+func _find_child_item(parent: Dictionary, uid: int) -> Dictionary:
+	for ch in parent.get("children", []):
+		if int(ch.get("uid", -1)) == uid:
+			return ch
+		var nested := _find_child_item(ch, uid)
+		if not nested.is_empty():
+			return nested
+	return {}
 
 func find_item(uid: int) -> Dictionary:
 	for it in inventory:
-		if it["uid"] == uid:
+		if int(it.get("uid", -1)) == uid:
 			return it
+		var nested := _find_child_item(it, uid)
+		if not nested.is_empty():
+			return nested
 	for it in display:
-		if it["uid"] == uid:
+		if int(it.get("uid", -1)) == uid:
 			return it
-	if not counter_item.is_empty() and int(counter_item.get("uid", -1)) == uid:
-		return counter_item
+		var nested2 := _find_child_item(it, uid)
+		if not nested2.is_empty():
+			return nested2
+	if not counter_item.is_empty():
+		if int(counter_item.get("uid", -1)) == uid:
+			return counter_item
+		var nested3 := _find_child_item(counter_item, uid)
+		if not nested3.is_empty():
+			return nested3
 	return {}
+
+func _item_tags(it: Dictionary) -> Array:
+	var def := get_item_def(String(it.get("def_id", "")))
+	var tags: Array = def.get("tags", []).duplicate()
+	var did := String(it.get("def_id", ""))
+	var cat := String(def.get("category", ""))
+	if cat == "weapon_mod":
+		if did in ["stock", "short_stock"]:
+			tags.append("MOD_STOCK_TAG")
+		elif did in ["rds", "rds_makeshift", "laser", "laser2", "laser_toy", "ammo_display"]:
+			tags.append("MOD_RAIL_TAG")
+		elif did in ["barrel", "match_barrel", "compensator", "silencer", "silencer2", "silencer_makeshift"]:
+			tags.append("MOD_BARREL_TAG")
+		elif did.begins_with("mag_"):
+			tags.append("MOD_MAGAZINE_TAG")
+		elif did in ["grip", "grip_gel", "bipod", "gl"]:
+			tags.append("MOD_UNDER_RAIL_TAG")
+		else:
+			tags.append("MOD_SPECIAL_TAG")
+	if cat == "weapon" and did.contains("ammo"):
+		tags.append("AMMUNITION")
+	if did.ends_with("_seed") or cat == "plant":
+		tags.append("SEED")
+	return tags
+
+func _tag_match(tags: Array, wanted: Array) -> bool:
+	for w in wanted:
+		if tags.has(String(w)):
+			return true
+	return false
+
+func container_can_accept(parent: Dictionary, child: Dictionary) -> bool:
+	var spec := container_spec(parent)
+	if spec.is_empty() or not is_container_item(parent):
+		return false
+	if int(child.get("uid", -1)) == int(parent.get("uid", -2)):
+		return false
+	var ctags := _item_tags(child)
+	var cspec := container_spec(child)
+	var is_container_child := (String(cspec.get("kind", "")) == "grid" and bool(cspec.get("storage", true))) or String(get_item_def(String(child.get("def_id", ""))).get("category", "")) == "container"
+	if is_container_child:
+		if bool(cspec.get("nestable_device", false)):
+			pass
+		elif bool(cspec.get("storable", false)) and bool(spec.get("storage", false)):
+			pass
+		else:
+			return false
+	if String(get_item_def(String(child.get("def_id", ""))).get("category", "")) == "furniture" and not bool(cspec.get("nestable_device", false)):
+		return false
+	var allowed: Array = spec.get("allowed_tags", [])
+	if not allowed.is_empty() and not _tag_match(ctags, allowed):
+		return false
+	if String(spec.get("kind", "")) == "slots":
+		var ok := false
+		for slot in spec.get("slots", []):
+			if _tag_match(ctags, slot.get("accept", [])):
+				ok = true
+				break
+		return ok
+	if spec.has("locked") and bool(parent.get("container_locked", true)):
+		return false
+	return true
+
+func _container_cells_used(parent: Dictionary, ignore_uid: int = -1) -> Dictionary:
+	var used := {}
+	for ch in parent.get("children", []):
+		if int(ch.get("uid", -1)) == ignore_uid:
+			continue
+		var shape := item_shape(ch)
+		for dy in range(int(shape[1])):
+			for dx in range(int(shape[0])):
+				used[Vector2i(int(ch.get("x", 0)) + dx, int(ch.get("y", 0)) + dy)] = true
+	return used
+
+func container_can_place(parent: Dictionary, child: Dictionary, x: int, y: int, rotated: bool = false, ignore_uid: int = -1) -> bool:
+	var spec := container_spec(parent)
+	if spec.is_empty():
+		return false
+	if String(spec.get("kind", "")) == "slots":
+		return container_can_accept(parent, child)
+	var s: Array = get_item_def(String(child.get("def_id", ""))).get("shape", [1, 1])
+	var w: int = int(s[1]) if rotated else int(s[0])
+	var h: int = int(s[0]) if rotated else int(s[1])
+	if x < 0 or y < 0 or x + w > int(spec.get("width", 1)) or y + h > int(spec.get("height", 1)):
+		return false
+	var used := _container_cells_used(parent, ignore_uid)
+	for dy in range(h):
+		for dx in range(w):
+			if used.has(Vector2i(x + dx, y + dy)):
+				return false
+	return container_can_accept(parent, child)
+
+func container_auto_add(parent: Dictionary, child: Dictionary) -> bool:
+	if not container_can_accept(parent, child):
+		return false
+	var spec := container_spec(parent)
+	if String(spec.get("kind", "")) == "slots":
+		for slot in spec.get("slots", []):
+			if not _tag_match(_item_tags(child), slot.get("accept", [])):
+				continue
+			var sid := String(slot.get("id", ""))
+			var occupied := false
+			for ch in parent.get("children", []):
+				if String(ch.get("slot_id", "")) == sid:
+					occupied = true
+					break
+			if not occupied:
+				child["slot_id"] = sid
+				child["x"] = 0
+				child["y"] = 0
+				parent["children"].append(child)
+				return true
+		return false
+	for y in range(int(spec.get("height", 1))):
+		for x in range(int(spec.get("width", 1))):
+			for rot in [false, true]:
+				if container_can_place(parent, child, x, y, rot):
+					child["x"] = x
+					child["y"] = y
+					child["rotated"] = rot
+					child["slot_id"] = ""
+					parent["children"].append(child)
+					return true
+	return false
+
+func container_remove_child(parent: Dictionary, child_uid: int) -> Dictionary:
+	var children: Array = parent.get("children", [])
+	for i in range(children.size()):
+		if int(children[i].get("uid", -1)) == child_uid:
+			var ch: Dictionary = children[i]
+			children.remove_at(i)
+			parent["children"] = children
+			return ch
+	return {}
+
+func container_move_child(parent: Dictionary, child_uid: int, x: int, y: int, rotated: bool = false) -> bool:
+	var children: Array = parent.get("children", [])
+	for ch in children:
+		if int(ch.get("uid", -1)) == child_uid:
+			if container_can_place(parent, ch, x, y, rotated, child_uid):
+				ch["x"] = x
+				ch["y"] = y
+				ch["rotated"] = rotated
+				return true
+			return false
+	return false
+
+func _detach_from_tree(parent: Dictionary, uid: int) -> Dictionary:
+	var children: Array = parent.get("children", [])
+	for i in range(children.size()):
+		if int(children[i].get("uid", -1)) == uid:
+			var found: Dictionary = children[i]
+			children.remove_at(i)
+			parent["children"] = children
+			return found
+		var nested := _detach_from_tree(children[i], uid)
+		if not nested.is_empty():
+			return nested
+	return {}
+
+func detach_item(uid: int) -> Dictionary:
+	for i in range(inventory.size()):
+		if int(inventory[i].get("uid", -1)) == uid:
+			var top: Dictionary = inventory[i]
+			inventory.remove_at(i)
+			return top
+		var nested := _detach_from_tree(inventory[i], uid)
+		if not nested.is_empty():
+			return nested
+	for i in range(display.size()):
+		if int(display[i].get("uid", -1)) == uid:
+			var topd: Dictionary = display[i]
+			display.remove_at(i)
+			return topd
+		var nestedd := _detach_from_tree(display[i], uid)
+		if not nestedd.is_empty():
+			return nestedd
+	if int(counter_item.get("uid", -1)) == uid:
+		var topc := counter_item
+		counter_item = {}
+		return topc
+	var nestedc := _detach_from_tree(counter_item, uid)
+	if not nestedc.is_empty():
+		return nestedc
+	return {}
+
+func move_item_to_container(uid: int, parent_uid: int, x: int = -1, y: int = -1) -> bool:
+	var child := find_item(uid)
+	var parent := find_item(parent_uid)
+	if child.is_empty() or parent.is_empty() or not is_container_item(parent) or not container_can_accept(parent, child):
+		return false
+	child = detach_item(uid)
+	if child.is_empty():
+		return false
+	var ok := false
+	if x >= 0 and y >= 0:
+		if container_can_place(parent, child, x, y, bool(child.get("rotated", false))):
+			child["x"] = x
+			child["y"] = y
+			parent["children"].append(child)
+			ok = true
+	else:
+		ok = container_auto_add(parent, child)
+	if not ok:
+		add_item(child)
+	emit_signal("state_changed")
+	return ok
 
 func move_item(uid: int, x: int, y: int, page: int = 0) -> bool:
 	var it := find_item(uid)
@@ -1389,7 +1654,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 		var it := make_item(entry[0], entry[1], entry[2], entry[3])
 		it["known"] = true
 		add_item(it)
-	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["flashlight", 1], ["water_test_strip", 3], ["plant_analyser", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
+	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["flashlight", 1], ["water_test_strip", 3], ["plant_analyser", 1], ["backpack_small", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
 		if items_def.has(stock[0]):
 			for i in range(int(stock[1])):
 				var it2 := make_item(stock[0], 100, true, false)
@@ -1584,7 +1849,10 @@ func effective_value(item: Dictionary) -> int:
 		else:
 			feat_mod += mod
 	var feat_mult := clampf(1.0 + float(feat_mod) / 100.0, 0.2, 3.0) * final_mult
-	return int(round(base * cond * auth * stolen * contra * feat_mult))
+	var total := float(round(base * cond * auth * stolen * contra * feat_mult))
+	for ch in item.get("children", []):
+		total += float(effective_value(ch))
+	return int(round(total))
 
 func market_value(item: Dictionary, for_sale: bool = false, faction: String = "") -> int:
 	var v := float(effective_value(item))
@@ -1626,9 +1894,32 @@ func put_display_on_counter(uid: int) -> bool:
 	emit_signal("state_changed")
 	return true
 
-func add_to_display(uid: int) -> bool:
-	if display.size() >= DISPLAY_SLOTS:
+func display_can_place(it: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int = -1) -> bool:
+	var shape: Array = get_item_def(String(it.get("def_id", ""))).get("shape", [1, 1])
+	var w: int = int(shape[1]) if rotated else int(shape[0])
+	var h: int = int(shape[0]) if rotated else int(shape[1])
+	if x < 0 or y < 0 or x + w > SHOWCASE_W or y + h > SHOWCASE_H:
 		return false
+	for other in display:
+		if int(other.get("uid", -1)) == ignore_uid:
+			continue
+		var os := item_shape(other)
+		if x < int(other.get("x", 0)) + int(os[0]) and int(other.get("x", 0)) < x + w and y < int(other.get("y", 0)) + int(os[1]) and int(other.get("y", 0)) < y + h:
+			return false
+	return true
+
+func display_auto_place(it: Dictionary) -> bool:
+	for y in range(SHOWCASE_H):
+		for x in range(SHOWCASE_W):
+			for rot in [false, true]:
+				if display_can_place(it, x, y, rot, int(it.get("uid", -1))):
+					it["x"] = x
+					it["y"] = y
+					it["rotated"] = rot
+					return true
+	return false
+
+func add_to_display(uid: int) -> bool:
 	var idx := -1
 	for i in range(inventory.size()):
 		if int(inventory[i]["uid"]) == uid:
@@ -1637,8 +1928,11 @@ func add_to_display(uid: int) -> bool:
 	if idx < 0:
 		return false
 	var it: Dictionary = inventory[idx]
-	inventory.remove_at(idx)
 	it["location"] = "display"
+	if not display_auto_place(it):
+		it["location"] = "backpack"
+		return false
+	inventory.remove_at(idx)
 	display.append(it)
 	_refresh_pages()
 	emit_signal("state_changed")
@@ -2456,24 +2750,35 @@ func machine_def(id: String) -> Dictionary:
 			return m
 	return {}
 
+func _count_item_tree(it: Dictionary, def_id: String) -> int:
+	var n := 1 if String(it.get("def_id", "")) == def_id else 0
+	for ch in it.get("children", []):
+		n += _count_item_tree(ch, def_id)
+	return n
+
 func inventory_count(def_id: String) -> int:
 	var n := 0
 	for it in inventory:
-		if String(it.get("def_id", "")) == def_id:
-			n += 1
+		n += _count_item_tree(it, def_id)
 	return n
+
+func _remove_from_tree(items: Array, def_id: String, need: int) -> int:
+	var i := 0
+	while i < items.size() and need > 0:
+		var it: Dictionary = items[i]
+		if String(it.get("def_id", "")) == def_id:
+			items.remove_at(i)
+			need -= 1
+			continue
+		var children: Array = it.get("children", [])
+		need = _remove_from_tree(children, def_id, need)
+		i += 1
+	return need
 
 func remove_inventory(def_id: String, count: int) -> bool:
 	if inventory_count(def_id) < count:
 		return false
-	var need := count
-	var i := 0
-	while i < inventory.size() and need > 0:
-		if String(inventory[i].get("def_id", "")) == def_id:
-			inventory.remove_at(i)
-			need -= 1
-		else:
-			i += 1
+	var need := _remove_from_tree(inventory, def_id, count)
 	return need == 0
 
 func module_def(module_id: String) -> Dictionary:
@@ -3684,6 +3989,8 @@ func load_game(slot: int = 1) -> bool:
 		max_pages_unlocked = max(max_pages_unlocked, int(it.get("page", 0)) + 1)
 	for it in display:
 		_normalize_item(it)
+		if int(it.get("x", -1)) < 0 or int(it.get("y", -1)) < 0:
+			display_auto_place(it)
 	pages_unlocked = clampi(max_pages_unlocked, 2, GRID_PAGES)
 	max_pages_unlocked = pages_unlocked
 	power = int(data.get("power", 10))
@@ -3751,9 +4058,25 @@ func _normalize_item(it: Dictionary) -> void:
 	it["stolen"] = bool(it.get("stolen", false))
 	it["known"] = bool(it.get("known", false))
 	it["rotated"] = bool(it.get("rotated", false))
+	it["unit_count"] = int(it.get("unit_count", 1))
 	if not it.has("clues") or not it["clues"] is Array:
 		it["clues"] = []
 	if not it.has("features") or not it["features"] is Array:
 		it["features"] = []
+	if not it.has("children") or not it["children"] is Array:
+		it["children"] = []
+	var spec := container_def(String(it.get("def_id", "")))
+	if not spec.is_empty():
+		if not it.has("container_spec") or not it["container_spec"] is Dictionary:
+			it["container_spec"] = spec.duplicate(true)
+		if not it.has("container_locked"):
+			it["container_locked"] = spec.has("locked") and String(spec.get("locked", "")) != ""
+		if String(spec.get("kind", "")) == "liquid" and not it.has("liquid_ml"):
+			var cap := int(spec.get("capacity_ml", 500))
+			it["liquid_ml"] = cap
+			it["liquid_purity"] = clampi(int(it.get("condition", 100)) * 100, 0, 10000)
+			it["liquid_contents"] = {"water": cap}
+	for ch in it["children"]:
+		_normalize_item(ch)
 
 

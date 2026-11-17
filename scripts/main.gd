@@ -49,6 +49,7 @@ var detail_rot_btn: Button
 var detail_display_btn: Button
 var detail_counter_btn: Button
 var detail_inspect_btn: Button
+var detail_open_btn: Button
 var modal_layer: Control
 var modal_panel: Panel
 var modal_title: Label
@@ -79,6 +80,19 @@ var inspection_actions: VBoxContainer
 var inspection_status: Label
 var inspection_appraisal_input: LineEdit
 var inspection_uid := -1
+var container_layer: Control
+var container_title: Label
+var container_info: Label
+var container_grid: Control
+var container_actions: VBoxContainer
+var open_container_uid := -1
+var container_stack: Array = []
+var container_selected_uid := -1
+var showcase_layer: Control
+var showcase_grid: Control
+var showcase_info: Label
+var showcase_actions: VBoxContainer
+var showcase_selected_uid := -1
 var inspection_owned := false
 var promotion_prompt_day := -1
 var select_layer: Control
@@ -185,6 +199,7 @@ func _ready() -> void:
 	_testminigame_if_requested()
 	_testmachineui_if_requested()
 	_testinspect_if_requested()
+	_testcontainerui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -386,6 +401,42 @@ func _testinspect_if_requested() -> void:
 	_submit_appraisal()
 	await get_tree().process_frame
 	print("APPRAISE modal=", modal_title.text, " ", modal_text.text.replace("\n", " | ").substr(0, 300))
+	get_tree().quit()
+
+func _testcontainerui_if_requested() -> void:
+	if not "--testcontainerui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	var bag := GameState.make_item("backpack_large", 100, true, false)
+	GameState.add_item(bag)
+	var fruit := GameState.make_item("nutrifruit", 100, true, false)
+	GameState.add_item(fruit)
+	GameState.move_item_to_container(int(fruit.uid), int(bag.uid))
+	_open_container(int(bag.uid))
+	await get_tree().process_frame
+	print("CUI title=", container_title.text)
+	print("CUI info=", container_info.text)
+	for b in container_actions.get_children():
+		if b is Button:
+			print("CUI BTN ", b.text)
+	print("CUI grid_children=", container_grid.get_child_count())
+	_open_container(int(fruit.uid))
+	print("CUI noncontainer_open=", container_layer.visible)
+	_open_container(int(bag.uid))
+	GameState.container_remove_child(bag, int(fruit.uid))
+	GameState.add_item(fruit)
+	_rebuild_container_grid()
+	print("CUI after take children=", bag.children.size(), " info=", container_info.text)
+	_refresh()
+	print("CUI grid page_dim=", GameState.page_size(current_page), " cap=", capacity_label.text)
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -666,6 +717,8 @@ func _build_ui() -> void:
 	_build_drawer()
 	_build_modal()
 	_build_inspection_layer()
+	_build_container_layer()
+	_build_showcase_layer()
 	_build_machine_bay()
 	_build_info_bay()
 	_build_story_layer()
@@ -765,10 +818,12 @@ func _build_drawer() -> void:
 	for i in range(tabs.size()):
 		var b := _button(p, tabs[i][0], Vector2(300 + i * 106, 10), Vector2(100, 44), C_MUTED, _set_filter.bind(tabs[i][1]))
 		tab_buttons[tabs[i][1]] = b
+	var page_names := ["前", "背", "隐"]
 	for i in range(3):
-		var pb := _button(p, str(i + 1), Vector2(1480 + i * 52, 10), Vector2(44, 44), C_MUTED, _on_page.bind(i))
+		var pb := _button(p, page_names[i], Vector2(1480 + i * 52, 10), Vector2(44, 44), C_MUTED, _on_page.bind(i))
 		page_buttons.append(pb)
 	capacity_label = _label(p, "", Vector2(1640, 18), Vector2(250, 28), 22, C_MUTED)
+	_button(p, "展示柜", Vector2(1900, 8), Vector2(150, 48), C_CYAN, _open_showcase)
 	_button(p, "整理", Vector2(2140, 8), Vector2(160, 48), C_CYAN, _auto_sort)
 	var ledger := _panel(p, Vector2(24, 64), Vector2(330, 250), C_PAPER, Color("#b9a98a"), 3)
 	_label(ledger, "今日流水", Vector2(16, 10), Vector2(200, 36), 26, C_INK)
@@ -786,7 +841,8 @@ func _build_drawer() -> void:
 	detail_rot_btn = _button(detail_panel, "旋转", Vector2(170, 190), Vector2(120, 48), C_TEXT, _on_rotate)
 	detail_display_btn = _button(detail_panel, "上架", Vector2(300, 190), Vector2(150, 48), C_TEXT, _on_display_toggle)
 	detail_counter_btn = _button(detail_panel, "放柜台", Vector2(460, 190), Vector2(160, 48), C_TEXT, _on_put_counter)
-	detail_inspect_btn = _button(detail_panel, "验货", Vector2(630, 190), Vector2(130, 48), C_CYAN, _on_inspect_owned)
+	detail_inspect_btn = _button(detail_panel, "验货", Vector2(630, 190), Vector2(110, 48), C_CYAN, _on_inspect_owned)
+	detail_open_btn = _button(detail_panel, "打开", Vector2(750, 190), Vector2(100, 48), C_GREEN, _on_open_selected_container)
 
 func _build_modal() -> void:
 	modal_layer = Control.new()
@@ -858,6 +914,295 @@ func _build_inspection_layer() -> void:
 	right.add_child(inspection_appraisal_input)
 	var submit := _button(right, "提交估价", Vector2(410, 770), Vector2(210, 52), C_AMBER, _submit_appraisal)
 	submit.name = "AppraisalSubmit"
+
+func _build_container_layer() -> void:
+	container_layer = Control.new()
+	container_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	container_layer.visible = false
+	container_layer.z_index = 140
+	container_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(container_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.8)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	container_layer.add_child(dim)
+	var panel := _panel(container_layer, Vector2(500, 70), Vector2(1360, 920), C_PANEL, C_CYAN, 3)
+	container_title = _label(panel, "容器", Vector2(30, 16), Vector2(900, 46), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(1200, 14), Vector2(130, 48), C_MUTED, _close_container)
+	var left := _panel(panel, Vector2(24, 80), Vector2(930, 810), C_PANEL2, C_LINE, 2)
+	container_info = _label(left, "", Vector2(16, 12), Vector2(900, 70), 20, C_TEXT)
+	container_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
+	container_grid = Control.new()
+	container_grid.position = Vector2(16, 88)
+	container_grid.size = Vector2(900, 700)
+	left.add_child(container_grid)
+	var right := _panel(panel, Vector2(970, 80), Vector2(360, 810), C_PANEL2, C_LINE, 2)
+	_label(right, "容器操作", Vector2(20, 12), Vector2(300, 32), 24, C_AMBER)
+	container_actions = VBoxContainer.new()
+	container_actions.position = Vector2(20, 56)
+	container_actions.size = Vector2(320, 700)
+	container_actions.add_theme_constant_override("separation", 10)
+	right.add_child(container_actions)
+
+func _build_showcase_layer() -> void:
+	showcase_layer = Control.new()
+	showcase_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	showcase_layer.visible = false
+	showcase_layer.z_index = 140
+	showcase_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(showcase_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.8)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	showcase_layer.add_child(dim)
+	var panel := _panel(showcase_layer, Vector2(500, 90), Vector2(1360, 880), C_PANEL, C_CYAN, 3)
+	_label(panel, "展示柜 · SHOWCASE", Vector2(30, 16), Vector2(700, 46), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(1200, 14), Vector2(130, 48), C_MUTED, _close_showcase)
+	var left := _panel(panel, Vector2(24, 80), Vector2(930, 770), C_PANEL2, C_LINE, 2)
+	showcase_info = _label(left, "", Vector2(16, 12), Vector2(900, 54), 20, C_TEXT)
+	showcase_grid = Control.new()
+	showcase_grid.position = Vector2(16, 72)
+	showcase_grid.size = Vector2(900, 680)
+	left.add_child(showcase_grid)
+	var right := _panel(panel, Vector2(970, 80), Vector2(360, 770), C_PANEL2, C_LINE, 2)
+	_label(right, "展示柜操作", Vector2(20, 12), Vector2(300, 32), 24, C_AMBER)
+	showcase_actions = VBoxContainer.new()
+	showcase_actions.position = Vector2(20, 56)
+	showcase_actions.size = Vector2(320, 660)
+	showcase_actions.add_theme_constant_override("separation", 10)
+	right.add_child(showcase_actions)
+
+func _open_container(uid: int) -> void:
+	var it := GameState.find_item(uid)
+	if it.is_empty() or not GameState.is_container_item(it):
+		_toast("这件物品不是可打开的容器。")
+		return
+	if open_container_uid >= 0 and open_container_uid != uid:
+		container_stack.append(open_container_uid)
+	open_container_uid = uid
+	container_selected_uid = -1
+	container_layer.visible = true
+	_rebuild_container_grid()
+
+func _close_container() -> void:
+	container_layer.visible = false
+	open_container_uid = -1
+	container_stack.clear()
+	container_selected_uid = -1
+
+func _container_back() -> void:
+	if container_stack.is_empty():
+		return
+	open_container_uid = int(container_stack.pop_back())
+	container_selected_uid = -1
+	_rebuild_container_grid()
+
+func _container_action(label: String, cb: Callable, color: Color = C_CYAN) -> void:
+	var b := _button(container_actions, label, Vector2.ZERO, Vector2(310, 52), color, cb)
+	b.custom_minimum_size = Vector2(310, 52)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 18)
+
+func _rebuild_container_grid() -> void:
+	var it := GameState.find_item(open_container_uid)
+	if it.is_empty():
+		_close_container()
+		return
+	var spec := GameState.container_spec(it)
+	container_title.text = "容器 · %s" % GameState.item_display_name(it)
+	var kind := String(spec.get("kind", "grid"))
+	var children: Array = it.get("children", [])
+	var cap_text := ""
+	if kind == "slots":
+		cap_text = "槽位 %d/%d" % [children.size(), spec.get("slots", []).size()]
+	elif kind == "liquid":
+		cap_text = "液体 %d/%d ml" % [int(it.get("liquid_ml", 0)), int(spec.get("capacity_ml", 0))]
+	else:
+		cap_text = "格数 %d / %d" % [children.size(), int(spec.get("width", 0)) * int(spec.get("height", 0))]
+	container_info.text = "%s  ·  %s  ·  内容估值 %d₵" % [GameState.item_display_name(it), cap_text, GameState.effective_value(it)]
+	_clear_children(container_grid)
+	_clear_children(container_actions)
+	if kind == "slots":
+		var slots: Array = spec.get("slots", [])
+		for i in range(slots.size()):
+			var slot: Dictionary = slots[i]
+			var sid := String(slot.get("id", ""))
+			var label := "%s：空" % sid
+			var child_uid := -1
+			for ch in children:
+				if String(ch.get("slot_id", "")) == sid:
+					child_uid = int(ch.get("uid", -1))
+					label = "%s：%s" % [sid, GameState.item_display_name(ch)]
+					break
+			var b := _button(container_grid, label, Vector2((i % 4) * 220, (i / 4) * 120), Vector2(210, 84), C_PANEL2 if child_uid < 0 else C_PANEL, _container_select_child.bind(child_uid))
+			b.add_theme_font_size_override("font_size", 18)
+		_container_action("存入模块", _container_store_select)
+	else:
+		for y in range(int(spec.get("height", 1))):
+			for x in range(int(spec.get("width", 1))):
+				var cell := _panel(container_grid, Vector2(x * 56, y * 56), Vector2(52, 52), Color("#11151d"), Color("#2a3140"), 1)
+				cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		for ch in children:
+			var def := GameState.get_item_def(String(ch.get("def_id", "")))
+			var shape := GameState.item_shape(ch)
+			var w := int(shape[0]) * 52 + (int(shape[0]) - 1) * 4
+			var h := int(shape[1]) * 52 + (int(shape[1]) - 1) * 4
+			var icon := TextureButton.new()
+			icon.position = Vector2(int(ch.get("x", 0)) * 56, int(ch.get("y", 0)) * 56)
+			icon.size = Vector2(w, h)
+			var gip := GameState.item_icon_path(def)
+			icon.texture_normal = load(gip) if gip != "" else null
+			icon.ignore_texture_size = true
+			icon.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+			icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+			icon.focus_mode = Control.FOCUS_NONE
+			var cuid := int(ch.get("uid", -1))
+			icon.pressed.connect(_container_select_child.bind(cuid))
+			if cuid == container_selected_uid:
+				icon.self_modulate = Color(1.3, 1.2, 0.85)
+			container_grid.add_child(icon)
+		_container_action("存入物品", _container_store_select)
+	var selected := GameState.find_item(container_selected_uid) if container_selected_uid >= 0 else {}
+	if not selected.is_empty():
+		_container_action("取出到背包", _container_take_selected, C_AMBER)
+		if GameState.is_container_item(selected):
+			_container_action("打开选中容器", _container_open_selected, C_CYAN)
+	if not container_stack.is_empty():
+		_container_action("返回上层", _container_back, C_MUTED)
+	_refresh_container_actions()
+
+func _container_select_child(uid: int) -> void:
+	container_selected_uid = uid
+	_rebuild_container_grid()
+
+func _refresh_container_actions() -> void:
+	pass
+
+func _container_take_selected() -> void:
+	var parent := GameState.find_item(open_container_uid)
+	if parent.is_empty() or container_selected_uid < 0:
+		return
+	var child := GameState.container_remove_child(parent, container_selected_uid)
+	if child.is_empty():
+		_toast("没有选中容器内的物品。")
+		return
+	child["location"] = "backpack"
+	if not GameState.add_item(child):
+		GameState.container_auto_add(parent, child)
+		_toast("背包空间不足，物品留在容器里。")
+	else:
+		container_selected_uid = -1
+	_rebuild_container_grid()
+	_refresh()
+
+func _container_open_selected() -> void:
+	var child := GameState.find_item(container_selected_uid)
+	if child.is_empty() or not GameState.is_container_item(child):
+		_toast("选中的物品不是容器。")
+		return
+	_open_container(container_selected_uid)
+
+func _container_store_select() -> void:
+	var parent := GameState.find_item(open_container_uid)
+	if parent.is_empty():
+		return
+	var items: Array = []
+	for it in GameState.inventory:
+		if int(it.get("uid", -1)) == int(parent.get("uid", -2)):
+			continue
+		if GameState.container_can_accept(parent, it):
+			items.append({"id": str(it.get("uid", 0)), "label": "%s · 品相 %d%%" % [GameState.item_display_name(it), int(it.get("condition", 100))]})
+	if items.is_empty():
+		_toast("背包里没有能放入这个容器的物品。")
+		return
+	_open_select("存入 · %s" % GameState.item_display_name(parent), items, _container_store_choice)
+
+func _container_store_choice(uid_text: String) -> void:
+	if GameState.move_item_to_container(int(uid_text), open_container_uid):
+		container_selected_uid = int(uid_text)
+	else:
+		_toast("放不下。")
+	_rebuild_container_grid()
+	_refresh()
+
+func _open_showcase() -> void:
+	showcase_layer.visible = true
+	showcase_selected_uid = -1
+	_rebuild_showcase()
+
+func _close_showcase() -> void:
+	showcase_layer.visible = false
+	showcase_selected_uid = -1
+
+func _rebuild_showcase() -> void:
+	_clear_children(showcase_grid)
+	_clear_children(showcase_actions)
+	var total := 0
+	for it in GameState.display:
+		total += GameState.effective_value(it)
+	showcase_info.text = "展示品 %d 件 · 网格 7×5 · 总估值 %d₵" % [GameState.display.size(), total]
+	for y in range(GameState.SHOWCASE_H):
+		for x in range(GameState.SHOWCASE_W):
+			var cell := _panel(showcase_grid, Vector2(x * 56, y * 56), Vector2(52, 52), Color("#11151d"), Color("#2a3140"), 1)
+			cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for it in GameState.display:
+		var def := GameState.get_item_def(String(it.get("def_id", "")))
+		var shape := GameState.item_shape(it)
+		var w := int(shape[0]) * 52 + (int(shape[0]) - 1) * 4
+		var h := int(shape[1]) * 52 + (int(shape[1]) - 1) * 4
+		var icon := TextureButton.new()
+		icon.position = Vector2(int(it.get("x", 0)) * 56, int(it.get("y", 0)) * 56)
+		icon.size = Vector2(w, h)
+		var gip := GameState.item_icon_path(def)
+		icon.texture_normal = load(gip) if gip != "" else null
+		icon.ignore_texture_size = true
+		icon.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.focus_mode = Control.FOCUS_NONE
+		var uid := int(it.get("uid", -1))
+		icon.pressed.connect(_showcase_select.bind(uid))
+		if uid == showcase_selected_uid:
+			icon.self_modulate = Color(1.3, 1.2, 0.85)
+		showcase_grid.add_child(icon)
+	_showcase_action("整理展示柜", _showcase_arrange, C_CYAN)
+	if showcase_selected_uid >= 0:
+		_showcase_action("下架到背包", _showcase_take, C_AMBER)
+		if GameState.current_customer.get("intent") == "buy":
+			_showcase_action("放到柜台", _showcase_counter, C_GREEN)
+
+func _showcase_action(label: String, cb: Callable, color: Color = C_CYAN) -> void:
+	var b := _button(showcase_actions, label, Vector2.ZERO, Vector2(310, 52), color, cb)
+	b.custom_minimum_size = Vector2(310, 52)
+	b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+	b.add_theme_font_size_override("font_size", 18)
+
+func _showcase_select(uid: int) -> void:
+	showcase_selected_uid = uid
+	_rebuild_showcase()
+
+func _showcase_take() -> void:
+	if showcase_selected_uid < 0:
+		return
+	GameState.take_from_display(showcase_selected_uid)
+	showcase_selected_uid = -1
+	_rebuild_showcase()
+	_refresh()
+
+func _showcase_counter() -> void:
+	if showcase_selected_uid < 0:
+		return
+	if GameState.put_display_on_counter(showcase_selected_uid):
+		_close_showcase()
+		_refresh()
+
+func _showcase_arrange() -> void:
+	var list: Array = GameState.display.duplicate()
+	GameState.display = []
+	for it in list:
+		GameState.display_auto_place(it)
+		GameState.display.append(it)
+	_rebuild_showcase()
+	_refresh()
 
 func _build_machine_bay() -> void:
 	machine_layer = Control.new()
@@ -1366,11 +1711,15 @@ func _rebuild_display() -> void:
 		else:
 			_label(p, "空", Vector2(0, 54), Vector2(176, 26), 20, C_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
 
+const GRID_CELL := 54
+const GRID_STEP := 58
+
 func _rebuild_grid() -> void:
 	_clear_children(grid_root)
-	for y in range(GameState.GRID_H):
-		for x in range(GameState.GRID_W):
-			var cell := _panel(grid_root, Vector2(x * 66, y * 66), Vector2(62, 62), Color("#11151d"), Color("#2a3140"), 1)
+	var dims := GameState.page_size(current_page)
+	for y in range(int(dims[1])):
+		for x in range(int(dims[0])):
+			var cell := _panel(grid_root, Vector2(x * GRID_STEP, y * GRID_STEP), Vector2(GRID_CELL, GRID_CELL), Color("#11151d"), Color("#2a3140"), 1)
 			cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for it in GameState.inventory:
 		if it.get("location", "backpack") != "backpack":
@@ -1381,10 +1730,10 @@ func _rebuild_grid() -> void:
 			continue
 		var def := GameState.get_item_def(it.get("def_id", ""))
 		var shape := GameState.item_shape(it)
-		var w := int(shape[0]) * 62 + (int(shape[0]) - 1) * 4
-		var h := int(shape[1]) * 62 + (int(shape[1]) - 1) * 4
+		var w := int(shape[0]) * GRID_CELL + (int(shape[0]) - 1) * (GRID_STEP - GRID_CELL)
+		var h := int(shape[1]) * GRID_CELL + (int(shape[1]) - 1) * (GRID_STEP - GRID_CELL)
 		var icon := TextureButton.new()
-		icon.position = Vector2(int(it["x"]) * 66, int(it["y"]) * 66)
+		icon.position = Vector2(int(it["x"]) * GRID_STEP, int(it["y"]) * GRID_STEP)
 		icon.size = Vector2(w, h)
 		var gip := GameState.item_icon_path(def)
 		icon.texture_normal = load(gip) if gip != "" else null
@@ -1402,7 +1751,7 @@ func _rebuild_grid() -> void:
 		current_page = GameState.pages_unlocked - 1
 	for i in range(page_buttons.size()):
 		page_buttons[i].disabled = i >= GameState.pages_unlocked
-	capacity_label.text = "容量 %d / %d" % [GameState.inventory.size(), GameState.GRID_W * GameState.GRID_H * GameState.pages_unlocked]
+	capacity_label.text = "物品 %d · %s" % [GameState.inventory.size(), ["前台", "背后", "隐藏格"][current_page]]
 
 func _selected_item() -> Dictionary:
 	for it in GameState.inventory:
@@ -1427,6 +1776,7 @@ func _update_detail() -> void:
 		detail_display_btn.disabled = true
 		detail_counter_btn.disabled = true
 		detail_inspect_btn.disabled = true
+		detail_open_btn.disabled = true
 		return
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var tip := GameState.item_icon_path(def)
@@ -1450,7 +1800,17 @@ func _update_detail() -> void:
 		feat_text += ("、" if feat_text != "" else "") + String(f.get("name", ""))
 	if feat_text == "":
 		feat_text = "无"
-	detail_meta.text = "品相 %d%% · %s%s\n%s\n特征：%s · %s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, tags_text, feat_text, loc_text]
+	var container_text := ""
+	var cspec := GameState.container_spec(it)
+	if GameState.is_container_item(it):
+		container_text = "\n容器：%d 件" % it.get("children", []).size()
+		if String(cspec.get("kind", "")) == "slots":
+			container_text += " / %d 槽" % cspec.get("slots", []).size()
+		else:
+			container_text += " / %d 格" % (int(cspec.get("width", 0)) * int(cspec.get("height", 0)))
+	elif GameState.is_liquid_container(it):
+		container_text = "\n液体：%d/%d ml · 纯度 %d%%" % [int(it.get("liquid_ml", 0)), int(cspec.get("capacity_ml", 0)), int(it.get("liquid_purity", 0)) / 100]
+	detail_meta.text = "品相 %d%% · %s%s\n%s\n特征：%s · %s%s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, tags_text, feat_text, loc_text, container_text]
 	if known or loc == "backpack":
 		detail_price.text = "%d¥" % GameState.market_value(it, false)
 	else:
@@ -1461,6 +1821,7 @@ func _update_detail() -> void:
 	detail_display_btn.disabled = loc not in ["backpack", "display"]
 	detail_counter_btn.disabled = not (loc == "display" and GameState.current_customer.get("intent") == "buy")
 	detail_inspect_btn.disabled = loc not in ["backpack", "display"]
+	detail_open_btn.disabled = not GameState.is_container_item(it)
 
 func _loc_name(loc: String) -> String:
 	match loc:
@@ -1568,6 +1929,13 @@ func _on_display_slot(uid: int) -> void:
 	if GameState.current_customer.get("intent") == "buy":
 		GameState.put_display_on_counter(uid)
 	_refresh()
+
+func _on_open_selected_container() -> void:
+	var it := _selected_item()
+	if it.is_empty() or not GameState.is_container_item(it):
+		_toast("这件物品不是容器。")
+		return
+	_open_container(int(it.get("uid", -1)))
 
 func _on_rotate() -> void:
 	if GameState.rotate_item(selected_uid):

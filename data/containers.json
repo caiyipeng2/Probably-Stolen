@@ -1,0 +1,496 @@
+{
+  "backpack_small": {
+    "kind": "grid",
+    "width": 6,
+    "height": 6,
+    "nesting": "backpack"
+  },
+  "backpack_medium": {
+    "kind": "grid",
+    "width": 6,
+    "height": 9,
+    "nesting": "backpack"
+  },
+  "backpack_medium_military": {
+    "kind": "grid",
+    "width": 6,
+    "height": 9,
+    "nesting": "backpack"
+  },
+  "backpack_large": {
+    "kind": "grid",
+    "width": 8,
+    "height": 9,
+    "nesting": "backpack"
+  },
+  "backpack_large_military": {
+    "kind": "grid",
+    "width": 7,
+    "height": 11,
+    "nesting": "backpack"
+  },
+  "kids_backpack": {
+    "kind": "grid",
+    "width": 5,
+    "height": 5,
+    "nesting": "backpack"
+  },
+  "kids_backpack_large": {
+    "kind": "grid",
+    "width": 5,
+    "height": 6,
+    "nesting": "backpack"
+  },
+  "fanny_pack": {
+    "kind": "grid",
+    "width": 3,
+    "height": 3,
+    "nesting": "backpack"
+  },
+  "satchel": {
+    "kind": "grid",
+    "width": 6,
+    "height": 3,
+    "nesting": "backpack"
+  },
+  "sec_box": {
+    "kind": "grid",
+    "width": 7,
+    "height": 5,
+    "locked": "LOCK_ID_SEC",
+    "contraband": 3
+  },
+  "eng_box": {
+    "kind": "grid",
+    "width": 7,
+    "height": 5,
+    "locked": "LOCK_ID_ENG"
+  },
+  "med_box": {
+    "kind": "grid",
+    "width": 7,
+    "height": 5,
+    "locked": "LOCK_ID_MED"
+  },
+  "service_box": {
+    "kind": "grid",
+    "width": 7,
+    "height": 5,
+    "locked": "LOCK_ID_SER"
+  },
+  "evidence_box": {
+    "kind": "grid",
+    "width": 7,
+    "height": 5,
+    "locked": "LOCK_ID_SEC",
+    "contraband": 2
+  },
+  "nutrifruit_seed_packet": {
+    "kind": "grid",
+    "width": 3,
+    "height": 3,
+    "allowed_tags": [
+      "SEED"
+    ],
+    "storable": true
+  },
+  "beerCase": {
+    "kind": "grid",
+    "width": 8,
+    "height": 4,
+    "allowed_tags": [
+      "RED_IMP_BEER_TAG"
+    ]
+  },
+  "water_test_container": {
+    "kind": "grid",
+    "width": 10,
+    "height": 2,
+    "allowed_tags": [
+      "WATER_TESTING_STRIP_TAG"
+    ]
+  },
+  "water_tablet_container": {
+    "kind": "grid",
+    "width": 1,
+    "height": 9,
+    "allowed_tags": [
+      "WATER_PURIFICATION_TABLET"
+    ]
+  },
+  "nutrient_tablet_container": {
+    "kind": "grid",
+    "width": 1,
+    "height": 9,
+    "allowed_tags": [
+      "NUTRIENT_TABLET"
+    ]
+  },
+  "ammo_box": {
+    "kind": "grid",
+    "width": 3,
+    "height": 2,
+    "allowed_tags": [
+      "AMMUNITION"
+    ]
+  },
+  "mouse_trap": {
+    "kind": "grid",
+    "width": 1,
+    "height": 1,
+    "nestable_device": true
+  },
+  "water_pitcher": {
+    "kind": "grid",
+    "width": 1,
+    "height": 1,
+    "filter_slots": 1,
+    "liquid_capacity_ml": 3000
+  },
+  "water_jug": {
+    "kind": "liquid",
+    "capacity_ml": 6000
+  },
+  "bottled_water": {
+    "kind": "liquid",
+    "capacity_ml": 750
+  },
+  "small_bottled_water": {
+    "kind": "liquid",
+    "capacity_ml": 450
+  },
+  "mini_bottle": {
+    "kind": "liquid",
+    "capacity_ml": 250
+  },
+  "large_bottled_water": {
+    "kind": "liquid",
+    "capacity_ml": 2000
+  },
+  "water_bottle_full": {
+    "kind": "liquid",
+    "capacity_ml": 500
+  },
+  "large_water_bottle_full": {
+    "kind": "liquid",
+    "capacity_ml": 1000
+  },
+  "handmade_pistol": {
+    "kind": "slots",
+    "slots": [
+      {
+        "id": "stock",
+        "accept": [
+          "MOD_STOCK_TAG"
+        ]
+      },
+      {
+        "id": "rail",
+        "accept": [
+          "MOD_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "magazine",
+        "accept": [
+          "MOD_MAGAZINE_TAG"
+        ]
+      },
+      {
+        "id": "underbarrel",
+        "accept": [
+          "MOD_UNDER_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "barrel",
+        "accept": [
+          "MOD_BARREL_TAG"
+        ]
+      },
+      {
+        "id": "special1",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special2",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special3",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      }
+    ]
+  },
+  "heavy_handmade_pistol": {
+    "kind": "slots",
+    "slots": [
+      {
+        "id": "stock",
+        "accept": [
+          "MOD_STOCK_TAG"
+        ]
+      },
+      {
+        "id": "rail",
+        "accept": [
+          "MOD_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "magazine",
+        "accept": [
+          "MOD_MAGAZINE_TAG"
+        ]
+      },
+      {
+        "id": "underbarrel",
+        "accept": [
+          "MOD_UNDER_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "barrel",
+        "accept": [
+          "MOD_BARREL_TAG"
+        ]
+      },
+      {
+        "id": "special1",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special2",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special3",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      }
+    ]
+  },
+  "printed_gun": {
+    "kind": "slots",
+    "slots": [
+      {
+        "id": "stock",
+        "accept": [
+          "MOD_STOCK_TAG"
+        ]
+      },
+      {
+        "id": "rail",
+        "accept": [
+          "MOD_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "magazine",
+        "accept": [
+          "MOD_MAGAZINE_TAG"
+        ]
+      },
+      {
+        "id": "underbarrel",
+        "accept": [
+          "MOD_UNDER_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "barrel",
+        "accept": [
+          "MOD_BARREL_TAG"
+        ]
+      },
+      {
+        "id": "special1",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special2",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special3",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      }
+    ]
+  },
+  "glock_receiver": {
+    "kind": "slots",
+    "slots": [
+      {
+        "id": "stock",
+        "accept": [
+          "MOD_STOCK_TAG"
+        ]
+      },
+      {
+        "id": "rail",
+        "accept": [
+          "MOD_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "magazine",
+        "accept": [
+          "MOD_MAGAZINE_TAG"
+        ]
+      },
+      {
+        "id": "underbarrel",
+        "accept": [
+          "MOD_UNDER_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "barrel",
+        "accept": [
+          "MOD_BARREL_TAG"
+        ]
+      },
+      {
+        "id": "special1",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special2",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special3",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      }
+    ]
+  },
+  "shotgun": {
+    "kind": "slots",
+    "slots": [
+      {
+        "id": "stock",
+        "accept": [
+          "MOD_STOCK_TAG"
+        ]
+      },
+      {
+        "id": "rail",
+        "accept": [
+          "MOD_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "magazine",
+        "accept": [
+          "MOD_MAGAZINE_TAG"
+        ]
+      },
+      {
+        "id": "underbarrel",
+        "accept": [
+          "MOD_UNDER_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "barrel",
+        "accept": [
+          "MOD_BARREL_TAG"
+        ]
+      },
+      {
+        "id": "special1",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special2",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special3",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      }
+    ]
+  },
+  "smg": {
+    "kind": "slots",
+    "slots": [
+      {
+        "id": "stock",
+        "accept": [
+          "MOD_STOCK_TAG"
+        ]
+      },
+      {
+        "id": "rail",
+        "accept": [
+          "MOD_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "magazine",
+        "accept": [
+          "MOD_MAGAZINE_TAG"
+        ]
+      },
+      {
+        "id": "underbarrel",
+        "accept": [
+          "MOD_UNDER_RAIL_TAG"
+        ]
+      },
+      {
+        "id": "barrel",
+        "accept": [
+          "MOD_BARREL_TAG"
+        ]
+      },
+      {
+        "id": "special1",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special2",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      },
+      {
+        "id": "special3",
+        "accept": [
+          "MOD_SPECIAL_TAG"
+        ]
+      }
+    ]
+  }
+}
