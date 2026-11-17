@@ -1,50 +1,490 @@
 [
   {
     "id": "thug",
-    "name": "街头混混",
-    "hp": 40,
+    "name": "暴徒",
+    "hp": 70,
     "atk_min": 6,
     "atk_max": 10,
     "sprite": "maleUpper_2.png",
     "reward": 90,
     "rep": {
       "lower": -1
-    }
+    },
+    "accuracy": 60,
+    "reaction": 7,
+    "priority": 5,
+    "weapon": "thug_attack",
+    "ai": "murderous",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        50
+      ],
+      [
+        "scrap_metal",
+        40
+      ]
+    ],
+    "dodge": 0,
+    "crit": 10,
+    "crit_receive": 0,
+    "death_chance": 100,
+    "abilities": []
   },
   {
     "id": "raider",
-    "name": "查抄队员",
-    "hp": 55,
+    "name": "飞车党",
+    "hp": 90,
     "atk_min": 8,
     "atk_max": 12,
     "sprite": "maleSec_0.png",
     "reward": 150,
     "rep": {
       "security": -2
-    }
+    },
+    "accuracy": 70,
+    "reaction": 9,
+    "priority": 5,
+    "weapon": "raider_attack",
+    "ai": "murderous",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        60
+      ],
+      [
+        "combat_knife",
+        20
+      ]
+    ],
+    "dodge": 0,
+    "crit": 10,
+    "crit_receive": 0,
+    "death_chance": 100,
+    "abilities": []
   },
   {
     "id": "enforcer",
-    "name": "卡特尔打手",
-    "hp": 70,
+    "name": "强制执行者",
+    "hp": 110,
     "atk_min": 10,
     "atk_max": 14,
     "sprite": "femaleBM_2.png",
     "reward": 260,
     "rep": {
       "cartel": -3
-    }
+    },
+    "accuracy": 75,
+    "reaction": 10,
+    "priority": 6,
+    "weapon": "enforcer_attack",
+    "ai": "sadistic",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        70
+      ],
+      [
+        "common_medical",
+        30
+      ]
+    ],
+    "dodge": 0,
+    "crit": 10,
+    "crit_receive": 0,
+    "death_chance": 100,
+    "abilities": []
   },
   {
     "id": "boss_lou",
     "name": "卢",
-    "hp": 80,
+    "hp": 150,
     "atk_min": 10,
     "atk_max": 14,
     "sprite": "maleUpper_5.png",
     "reward": 1500,
     "rep": {
       "blackmarket": -6
-    }
+    },
+    "accuracy": 80,
+    "reaction": 9,
+    "priority": 8,
+    "weapon": "boss_attack",
+    "ai": "boss",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        100
+      ],
+      [
+        "combat_knife",
+        40
+      ],
+      [
+        "common_medical",
+        50
+      ]
+    ],
+    "dodge": 0,
+    "crit": 10,
+    "crit_receive": 0,
+    "death_chance": 100,
+    "abilities": []
+  },
+  {
+    "id": "scav",
+    "name": "拾荒者",
+    "hp": 90,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 70,
+    "reaction": 7,
+    "priority": 5,
+    "weapon": "scav_attack",
+    "ai": "murderous",
+    "loot": [
+      [
+        "scrap_metal",
+        50
+      ],
+      [
+        "wire",
+        30
+      ]
+    ]
+  },
+  {
+    "id": "junker",
+    "name": "废品客",
+    "hp": 100,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 75,
+    "reaction": 8,
+    "priority": 5,
+    "weapon": "glock_attack",
+    "ai": "junker",
+    "loot": [
+      [
+        "common_electronic",
+        40
+      ],
+      [
+        "small_pistol_ammo",
+        40
+      ]
+    ]
+  },
+  {
+    "id": "pirate_rookie",
+    "name": "海盗新兵",
+    "hp": 80,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 80,
+    "reaction": 9,
+    "priority": 5,
+    "weapon": "weapon_attack",
+    "ai": "murderous",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        50
+      ]
+    ]
+  },
+  {
+    "id": "pirate_veteran",
+    "name": "海盗老兵",
+    "hp": 100,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 80,
+    "reaction": 10,
+    "priority": 5,
+    "weapon": "mp9_attack",
+    "ai": "overwatch",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        60
+      ],
+      [
+        "common_medical",
+        30
+      ]
+    ]
+  },
+  {
+    "id": "pirate_chief",
+    "name": "海盗头目",
+    "hp": 120,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 80,
+    "reaction": 9,
+    "priority": 7,
+    "weapon": "shotgun_attack",
+    "ai": "boss",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        80
+      ],
+      [
+        "common_medical",
+        50
+      ]
+    ]
+  },
+  {
+    "id": "marine",
+    "name": "陆战队员",
+    "hp": 100,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 80,
+    "reaction": 11,
+    "priority": 6,
+    "weapon": "marine_attack",
+    "ai": "overwatch",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        60
+      ],
+      [
+        "common_medical",
+        30
+      ]
+    ]
+  },
+  {
+    "id": "combat_medic",
+    "name": "战地医疗兵",
+    "hp": 100,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 75,
+    "reaction": 10,
+    "priority": 5,
+    "weapon": "medic_attack",
+    "abilities": [
+      "bandage_ability"
+    ],
+    "ai": "medic",
+    "loot": [
+      [
+        "bandage_item",
+        70
+      ],
+      [
+        "common_medical",
+        50
+      ]
+    ]
+  },
+  {
+    "id": "field_technician",
+    "name": "战地技师",
+    "hp": 100,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 70,
+    "reaction": 8,
+    "priority": 5,
+    "weapon": "weapon_attack",
+    "ai": "murderous",
+    "loot": [
+      [
+        "common_electronic",
+        60
+      ],
+      [
+        "screwdriver",
+        30
+      ]
+    ]
+  },
+  {
+    "id": "trooper",
+    "name": "突击兵",
+    "hp": 115,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 70,
+    "reaction": 9,
+    "priority": 6,
+    "weapon": "marine_attack",
+    "ai": "murderous",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        70
+      ]
+    ]
+  },
+  {
+    "id": "sharpshooter",
+    "name": "狙击手",
+    "hp": 85,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 80,
+    "reaction": 11,
+    "priority": 7,
+    "weapon": "sniper_attack",
+    "ai": "overwatch",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        80
+      ]
+    ]
+  },
+  {
+    "id": "raider_boss",
+    "name": "突袭头目",
+    "hp": 120,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 75,
+    "reaction": 9,
+    "priority": 8,
+    "weapon": "boss_attack",
+    "ai": "boss",
+    "loot": [
+      [
+        "small_pistol_ammo",
+        100
+      ],
+      [
+        "combat_machete",
+        35
+      ]
+    ]
+  },
+  {
+    "id": "xeno_drone",
+    "name": "异形工蜂",
+    "hp": 90,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 50,
+    "reaction": 8,
+    "priority": 4,
+    "weapon": "xeno_scratch",
+    "ai": "xeno",
+    "loot": [
+      [
+        "raw_xeno_meat",
+        60
+      ]
+    ]
+  },
+  {
+    "id": "xeno_hunter",
+    "name": "异形猎手",
+    "hp": 100,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 50,
+    "reaction": 12,
+    "priority": 6,
+    "weapon": "xeno_laceration",
+    "ai": "hunter",
+    "loot": [
+      [
+        "raw_xeno_meat",
+        70
+      ]
+    ]
+  },
+  {
+    "id": "xeno_herald",
+    "name": "异形传令官",
+    "hp": 110,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 50,
+    "reaction": 10,
+    "priority": 7,
+    "weapon": "xeno_scratch",
+    "abilities": [
+      "herald_buff"
+    ],
+    "ai": "herald",
+    "loot": [
+      [
+        "raw_xeno_meat",
+        80
+      ]
+    ]
+  },
+  {
+    "id": "xeno_brewer",
+    "name": "异形酿造者",
+    "hp": 105,
+    "atk_min": 0,
+    "atk_max": 0,
+    "sprite": "maleUpper_2.png",
+    "reward": 0,
+    "rep": {},
+    "accuracy": 50,
+    "reaction": 9,
+    "priority": 5,
+    "weapon": "xeno_scratch",
+    "abilities": [
+      "brewer_heal"
+    ],
+    "ai": "brewer",
+    "loot": [
+      [
+        "raw_xeno_meat",
+        80
+      ]
+    ]
   }
 ]

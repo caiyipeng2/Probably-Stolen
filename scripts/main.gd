@@ -52,6 +52,7 @@ var detail_inspect_btn: Button
 var detail_open_btn: Button
 var detail_liquid_btn: Button
 var detail_split_btn: Button
+var detail_equip_btn: Button
 var modal_layer: Control
 var modal_panel: Panel
 var modal_title: Label
@@ -153,6 +154,7 @@ var combat_enemy_bar: ProgressBar
 var combat_player_bar: ProgressBar
 var combat_log_label: Label
 var combat_status: Label
+var combat_actions_box: HFlowContainer
 var action_buttons: Dictionary = {}
 var rail_buttons: Dictionary = {}
 var rep_labels: Dictionary = {}
@@ -250,6 +252,7 @@ func _ready() -> void:
 	_testcontainerui_if_requested()
 	_testbarterui_if_requested()
 	_testphoneui_if_requested()
+	_testcombatui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -568,6 +571,36 @@ func _testphoneui_if_requested() -> void:
 	await get_tree().process_frame
 	print("PUI after intro book=", phone_book_box.get_child_count(), " state=", GameState.phone_client("red_imp").get("state", ""), " future=", GameState.future_customers.size())
 	_close_phone()
+	get_tree().quit()
+
+func _testcombatui_if_requested() -> void:
+	if not "--testcombatui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.1).timeout
+	var guard := 0
+	while story_layer.visible and guard < 40:
+		_story_advance()
+		guard += 1
+	if modal_layer.visible:
+		_close_modal()
+	GameState.start_combat("thug")
+	await get_tree().process_frame
+	print("CUI layer=", combat_layer.visible, " status=", combat_status.text.replace("
+", " | "))
+	print("CUI skills=", combat_actions_box.get_child_count())
+	for b in combat_actions_box.get_children():
+		if b is Button:
+			print("CUI BTN ", b.text)
+	guard = 0
+	while GameState.combat_active and guard < 40:
+		guard += 1
+		if GameState.combat_waiting_for_player():
+			GameState.combat_player_action(GameState.combat_player_weapon, GameState.combat_target_uid)
+			_update_combat_ui()
+	await get_tree().process_frame
+	print("CUI end active=", GameState.combat_active, " log=", " / ".join(GameState.combat_log.slice(maxi(0, GameState.combat_log.size() - 4))))
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -980,6 +1013,8 @@ func _build_drawer() -> void:
 	detail_open_btn = _button(detail_panel, "打开", Vector2(750, 190), Vector2(100, 48), C_GREEN, _on_open_selected_container)
 	detail_liquid_btn = _button(detail_panel, "倒液", Vector2(750, 190), Vector2(100, 48), C_CYAN, _on_liquid_transfer)
 	detail_split_btn = _button(detail_panel, "分瓶", Vector2(630, 190), Vector2(100, 48), C_CYAN, _on_split_pressed)
+	detail_equip_btn = _button(detail_panel, "装备", Vector2(630, 190), Vector2(110, 48), C_GREEN, _on_equip_armor)
+	detail_equip_btn.visible = false
 
 func _build_modal() -> void:
 	modal_layer = Control.new()
@@ -2125,11 +2160,14 @@ func _build_combat_layer() -> void:
 	combat_player_bar.add_theme_stylebox_override("background", _style(Color("#101a18"), C_LINE, 2))
 	combat_player_bar.add_theme_stylebox_override("fill", _style(C_GREEN, C_GREEN, 1))
 	panel.add_child(combat_player_bar)
-	combat_log_label = _label(panel, "", Vector2(420, 230), Vector2(1250, 300), 22, C_TEXT)
-	combat_status = _label(panel, "", Vector2(420, 530), Vector2(1250, 36), 20, C_MUTED)
-	var buttons := [["攻击", "attack", C_RUST], ["防御", "guard", C_CYAN], ["技能", "skill", C_AMBER], ["逃跑", "flee", C_MUTED]]
-	for i in range(buttons.size()):
-		_button(panel, buttons[i][0], Vector2(420 + i * 220, 590), Vector2(200, 68), buttons[i][2], _combat_action.bind(buttons[i][1]))
+	combat_log_label = _label(panel, "", Vector2(420, 230), Vector2(1250, 280), 22, C_TEXT)
+	combat_status = _label(panel, "", Vector2(420, 510), Vector2(1250, 56), 20, C_MUTED)
+	combat_actions_box = HFlowContainer.new()
+	combat_actions_box.position = Vector2(420, 576)
+	combat_actions_box.size = Vector2(1260, 200)
+	combat_actions_box.add_theme_constant_override("h_separation", 12)
+	combat_actions_box.add_theme_constant_override("v_separation", 10)
+	panel.add_child(combat_actions_box)
 
 func _build_minigame_layer() -> void:
 	minigame_layer = Control.new()
@@ -2558,6 +2596,7 @@ func _update_detail() -> void:
 		detail_open_btn.disabled = true
 		detail_liquid_btn.disabled = true
 		detail_split_btn.disabled = true
+		detail_equip_btn.visible = false
 		return
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var tip := GameState.item_icon_path(def)
@@ -2617,7 +2656,9 @@ func _update_detail() -> void:
 	detail_open_btn.visible = not GameState.is_liquid_container(it) or GameState.is_container_item(it)
 	detail_liquid_btn.visible = GameState.is_liquid_container(it)
 	detail_split_btn.visible = GameState.is_liquid_container(it) or is_stack
-	detail_inspect_btn.visible = not GameState.is_liquid_container(it)
+	detail_inspect_btn.visible = not GameState.is_liquid_container(it) and not GameState.is_armor_item(it)
+	detail_equip_btn.visible = GameState.is_armor_item(it)
+	detail_equip_btn.text = "卸下" if GameState.equipped_armor_uid == int(it.get("uid", -1)) else "装备"
 
 func _loc_name(loc: String) -> String:
 	match loc:
@@ -2767,6 +2808,19 @@ func _on_display_slot(uid: int) -> void:
 	if GameState.current_customer.get("intent") == "buy":
 		GameState.put_display_on_counter(uid)
 	_refresh()
+
+func _on_equip_armor() -> void:
+	var it := _selected_item()
+	if it.is_empty():
+		return
+	var res: Dictionary
+	if GameState.equipped_armor_uid == int(it.get("uid", -1)):
+		res = GameState.unequip_armor()
+	else:
+		res = GameState.equip_armor(int(it.get("uid", -1)))
+	_toast(String(res.get("text", "")))
+	_refresh()
+	_update_detail()
 
 func _on_split_pressed() -> void:
 	var it := _selected_item()
@@ -3860,6 +3914,22 @@ func _on_combat_finished(victory: bool, message: String) -> void:
 		return
 	_show_modal("战斗结果", message, [{"label": "关闭", "cb": _close_modal}])
 
+func _combat_effect_text(u: Dictionary) -> String:
+	var parts: Array = []
+	for e in u.get("effects", []):
+		var dur := int(e.get("duration", 0))
+		if dur <= 0:
+			continue
+		match String(e.get("type", "")):
+			"bleed": parts.append("流血×%d" % dur)
+			"stun": parts.append("眩晕×%d" % dur)
+			"buff": parts.append("增益×%d" % dur)
+			"debuff": parts.append("减益×%d" % dur)
+			"overwatch": parts.append("警戒")
+			"retaliate": parts.append("反击")
+			"overtime_heal": parts.append("恢复×%d" % dur)
+	return "、".join(parts)
+
 func _update_combat_ui() -> void:
 	if GameState.combat_enemy.is_empty():
 		return
@@ -3867,13 +3937,55 @@ func _update_combat_ui() -> void:
 	combat_enemy_name.text = String(e.get("name", ""))
 	var path := _customer_path(String(e.get("sprite", "")))
 	combat_enemy_sprite.texture = load(path) if ResourceLoader.exists(path) else null
-	combat_enemy_bar.max_value = maxi(1, int(e.get("hp", 40)))
-	combat_enemy_bar.value = clampi(GameState.combat_enemy_hp, 0, int(e.get("hp", 40)))
+	var emax := maxi(1, int(e.get("max_hp", e.get("hp", 40))))
+	combat_enemy_bar.max_value = emax
+	combat_enemy_bar.value = clampi(int(e.get("hp", 40)), 0, emax)
 	combat_player_bar.max_value = GameState.combat_player_max
 	combat_player_bar.value = clampi(GameState.combat_player_hp, 0, GameState.combat_player_max)
 	combat_log_label.text = "
 ".join(GameState.combat_log.slice(maxi(0, GameState.combat_log.size() - 8)))
-	combat_status.text = "敌人 HP %d/%d · 你的 HP %d/%d · 技能冷却 %d" % [GameState.combat_enemy_hp, int(e.get("hp", 40)), GameState.combat_player_hp, GameState.combat_player_max, GameState.combat_skill_cd]
+	var pl := GameState._combat_unit_by_uid(0)
+	var effects_p := _combat_effect_text(pl)
+	var effects_e := _combat_effect_text(e)
+	var turn_text := "你的回合" if GameState.combat_waiting_for_player() else "敌人行动中"
+	var weapon_name := String(GameState.combat_abilities.get(GameState.combat_player_weapon, {}).get("name", "徒手"))
+	var armor_text := ""
+	var p_armor: Dictionary = pl.get("armor", {}) if not pl.is_empty() else {}
+	if not p_armor.is_empty():
+		armor_text = " · 护甲 %d/%d" % [int(p_armor.get("value", 0)), int(p_armor.get("max", 0))]
+	combat_status.text = "第 %d 回合 · %s · 武器：%s%s
+敌人 HP %d/%d%s · 你的 HP %d/%d%s" % [
+		GameState.combat_round, turn_text, weapon_name, armor_text,
+		int(e.get("hp", 0)), emax, ("（" + effects_e + "）") if effects_e != "" else "",
+		GameState.combat_player_hp, GameState.combat_player_max, ("（" + effects_p + "）") if effects_p != "" else ""]
+	_clear_children(combat_actions_box)
+	if not GameState.combat_waiting_for_player():
+		return
+	var foes := GameState._combat_enemies_of(pl)
+	if foes.size() > 1:
+		for f in foes:
+			var tb := _button(combat_actions_box, "目标：%s" % String(f.get("name", "")), Vector2.ZERO, Vector2(170, 54), C_AMBER if int(f.get("uid", -1)) == GameState.combat_target_uid else C_MUTED, _combat_target.bind(int(f.get("uid", -1))))
+			tb.custom_minimum_size = Vector2(170, 54)
+	for skill in GameState.combat_player_skills():
+		var sid := String(skill.get("id", ""))
+		var iuid := int(skill.get("item_uid", -1))
+		var b := _button(combat_actions_box, String(skill.get("name", sid)), Vector2.ZERO, Vector2(170, 64), C_RUST if iuid < 0 and sid not in ["brace_ability", "overwatch"] else C_CYAN, _combat_use_skill.bind(sid, iuid))
+		b.custom_minimum_size = Vector2(170, 64)
+		b.add_theme_font_size_override("font_size", 19)
+	var flee := _button(combat_actions_box, "无法逃跑", Vector2.ZERO, Vector2(170, 64), C_MUTED, _toast.bind("原版战斗中无法逃跑。"))
+	flee.disabled = true
+	flee.custom_minimum_size = Vector2(170, 64)
+
+func _combat_target(uid: int) -> void:
+	GameState.combat_select_target(uid)
+	_update_combat_ui()
+
+func _combat_use_skill(id: String, item_uid: int) -> void:
+	if not GameState.combat_waiting_for_player():
+		return
+	_play_sfx("gun" if item_uid < 0 else "soft")
+	GameState.combat_player_action(id, GameState.combat_target_uid, item_uid)
+	_update_combat_ui()
 
 func _combat_action(action: String) -> void:
 	if not GameState.combat_active:

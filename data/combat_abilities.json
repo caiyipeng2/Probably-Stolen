@@ -1,0 +1,523 @@
+{
+  "abilities": {
+    "fists": {
+      "name": "徒手攻击",
+      "bonus_accuracy": 0,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 5,
+          "max": 8
+        }
+      ]
+    },
+    "weapon_attack": {
+      "name": "武器攻击",
+      "bonus_accuracy": 0,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 26,
+          "max": 34
+        }
+      ]
+    },
+    "glock_attack": {
+      "name": "古董手枪射击",
+      "bonus_accuracy": 10,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 24,
+          "max": 24
+        }
+      ]
+    },
+    "mp9_attack": {
+      "name": "MP9 连射",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 14,
+          "max": 22
+        }
+      ]
+    },
+    "ump_attack": {
+      "name": "UMP 点射",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 8,
+          "max": 16
+        }
+      ]
+    },
+    "shotgun_attack": {
+      "name": "霰弹枪射击",
+      "bonus_accuracy": -5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 30,
+          "max": 40
+        }
+      ]
+    },
+    "knife_attack": {
+      "name": "小刀攻击",
+      "bonus_accuracy": 30,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 13,
+          "max": 13
+        },
+        {
+          "type": "bleed",
+          "target": "singleEnemy",
+          "value": 2,
+          "duration": 9
+        }
+      ]
+    },
+    "combat_knife_attack": {
+      "name": "战斗匕首攻击",
+      "bonus_accuracy": 30,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 15,
+          "max": 15
+        },
+        {
+          "type": "bleed",
+          "target": "singleEnemy",
+          "value": 2,
+          "duration": 9
+        }
+      ]
+    },
+    "cleaver_attack": {
+      "name": "剁骨刀攻击",
+      "bonus_accuracy": 20,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 17,
+          "max": 17
+        },
+        {
+          "type": "bleed",
+          "target": "singleEnemy",
+          "value": 4,
+          "duration": 8
+        }
+      ]
+    },
+    "combat_machete_attack": {
+      "name": "开山刀攻击",
+      "bonus_accuracy": 25,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 22,
+          "max": 22
+        },
+        {
+          "type": "bleed",
+          "target": "singleEnemy",
+          "value": 4,
+          "duration": 8
+        }
+      ]
+    },
+    "lead_pipe_attack": {
+      "name": "铅管攻击",
+      "bonus_accuracy": 30,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 12,
+          "max": 12
+        },
+        {
+          "type": "stun",
+          "target": "singleEnemy",
+          "duration": 1
+        }
+      ]
+    },
+    "stun_baton_attack": {
+      "name": "电击棍攻击",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 10,
+          "max": 10
+        },
+        {
+          "type": "stun",
+          "target": "singleEnemy",
+          "duration": 1
+        }
+      ]
+    },
+    "taser_attack": {
+      "name": "电击枪",
+      "bonus_accuracy": -5,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "stun",
+          "target": "singleEnemy",
+          "duration": 2
+        }
+      ]
+    },
+    "scav_attack": {
+      "name": "粗暴挥击",
+      "bonus_accuracy": 0,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 7,
+          "max": 11
+        }
+      ]
+    },
+    "thug_attack": {
+      "name": "铁管猛击",
+      "bonus_accuracy": 10,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 9,
+          "max": 14
+        },
+        {
+          "type": "stun",
+          "target": "singleEnemy",
+          "duration": 1,
+          "chance": 25
+        }
+      ]
+    },
+    "raider_attack": {
+      "name": "手枪射击",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 18,
+          "max": 24
+        }
+      ]
+    },
+    "enforcer_attack": {
+      "name": "冲锋枪扫射",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 16,
+          "max": 24
+        }
+      ]
+    },
+    "boss_attack": {
+      "name": "重型射击",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 24,
+          "max": 32
+        }
+      ]
+    },
+    "marine_attack": {
+      "name": "制式步枪射击",
+      "bonus_accuracy": 10,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 20,
+          "max": 26
+        }
+      ]
+    },
+    "sniper_attack": {
+      "name": "精准射击",
+      "bonus_accuracy": 20,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 26,
+          "max": 32
+        }
+      ]
+    },
+    "xeno_scratch": {
+      "name": "异形抓击",
+      "bonus_accuracy": 0,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 18,
+          "max": 22
+        }
+      ]
+    },
+    "xeno_laceration": {
+      "name": "异形撕裂",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 26,
+          "max": 34
+        },
+        {
+          "type": "bleed",
+          "target": "singleEnemy",
+          "value": 3,
+          "duration": 6
+        }
+      ]
+    },
+    "medic_attack": {
+      "name": "手枪射击",
+      "bonus_accuracy": 5,
+      "trigger_overwatch": true,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "singleEnemy",
+          "min": 14,
+          "max": 18
+        }
+      ]
+    },
+    "bandage_ability": {
+      "name": "包扎",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "stop_bleed",
+          "target": "singleFriendly"
+        }
+      ]
+    },
+    "smelling_salt_ability": {
+      "name": "嗅盐",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "remove_stun",
+          "target": "singleFriendlyExceptSelf"
+        }
+      ]
+    },
+    "bicarsole_ability": {
+      "name": "止痛药",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "overtime_heal",
+          "target": "singleFriendly",
+          "value": 20,
+          "duration": 2
+        }
+      ]
+    },
+    "flashbang": {
+      "name": "闪光弹",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "stun",
+          "target": "singleEnemy",
+          "duration": 2
+        }
+      ]
+    },
+    "smoke_grenade": {
+      "name": "催泪瓦斯",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "debuff",
+          "target": "singleEnemy",
+          "stat": "accuracy",
+          "value": -30,
+          "duration": 3
+        }
+      ]
+    },
+    "frag_grenade": {
+      "name": "破片手雷",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "attack",
+          "target": "allEnemy",
+          "min": 25,
+          "max": 25
+        }
+      ]
+    },
+    "overwatch": {
+      "name": "警戒",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "overwatch",
+          "target": "self",
+          "duration": 1
+        }
+      ]
+    },
+    "retaliate": {
+      "name": "反击姿态",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "retaliate",
+          "target": "self",
+          "duration": 3
+        }
+      ]
+    },
+    "brace_ability": {
+      "name": "防御",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "buff",
+          "target": "self",
+          "stat": "dodge",
+          "value": 25,
+          "duration": 1
+        }
+      ]
+    },
+    "herald_buff": {
+      "name": "异形嚎叫",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "buff",
+          "target": "allFriendly",
+          "stat": "accuracy",
+          "value": 15,
+          "duration": 2
+        }
+      ]
+    },
+    "brewer_heal": {
+      "name": "异形修补",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "heal",
+          "target": "singleFriendly",
+          "value": 20
+        }
+      ]
+    },
+    "combat_scavenge": {
+      "name": "战场搜刮",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": []
+    }
+  },
+  "weapon_map": {
+    "glock_receiver": "glock_attack",
+    "glock_receiver2": "glock_attack",
+    "printed_gun": "weapon_attack",
+    "handmade_pistol": "weapon_attack",
+    "heavy_handmade_pistol": "weapon_attack",
+    "revolver": "glock_attack",
+    "revolver_short": "glock_attack",
+    "revolver_long": "glock_attack",
+    "revolver_short_tac": "glock_attack",
+    "smg": "mp9_attack",
+    "shotgun": "shotgun_attack",
+    "combat_knife": "combat_knife_attack",
+    "kitchen_knife": "knife_attack",
+    "kitchen_cleaver": "cleaver_attack",
+    "combat_machete": "combat_machete_attack",
+    "pipe_weapon": "lead_pipe_attack",
+    "stun_baton": "stun_baton_attack",
+    "tazer": "taser_attack",
+    "box_cutter": "knife_attack",
+    "glass_shard_shiv": "knife_attack"
+  },
+  "armor": {
+    "armor_lining": {
+      "max": 100,
+      "efficiency": 4,
+      "mitigation": 0,
+      "protection": 0,
+      "resilience": 0
+    }
+  }
+}

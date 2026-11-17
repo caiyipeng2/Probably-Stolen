@@ -64,13 +64,30 @@ var wanted_defeated: Array = []
 var combat_active := false
 var combat_enemy: Dictionary = {}
 var combat_enemy_hp := 0
-var combat_player_hp := 60
-var combat_player_max := 60
+var combat_player_hp := 100
+var combat_player_max := 100
 var combat_log: Array = []
 var combat_skill_cd := 0
 var combat_guarding := false
 var combat_wanted_id := ""
 var combat_context := ""
+var combat_abilities: Dictionary = {}
+var combat_weapon_map: Dictionary = {}
+var combat_units: Array = []
+var combat_turn_order: Array = []
+var combat_turn_pos := 0
+var combat_round := 1
+var combat_current_uid := -1
+var combat_player_uid := 0
+var combat_uid_seq := 1
+var combat_player_weapon := ""
+var combat_player_weapon_uid := -1
+var combat_player_items: Array = []
+var combat_target_uid := -1
+var combat_ended := false
+var combat_pending_victory := false
+var combat_armor_defs: Dictionary = {}
+var equipped_armor_uid := -1
 var ending_id := ""
 var machine_jobs: Array = []
 var power := 10
@@ -366,6 +383,13 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			combat_data = data
+	f = FileAccess.open("res://data/combat_abilities.json", FileAccess.READ)
+	if f:
+		var abdata = JSON.parse_string(f.get_as_text())
+		if abdata is Dictionary:
+			combat_abilities = abdata.get("abilities", {})
+			combat_weapon_map = abdata.get("weapon_map", {})
+			combat_armor_defs = abdata.get("armor", {})
 	f = FileAccess.open("res://data/wanted.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -3285,103 +3309,707 @@ func resolve_ending(id: String) -> String:
 		return "cartel_retired" if int(rep.get("cartel", 0)) >= 20 else "cartel"
 	return id
 
+func armor_def(def_id: String) -> Dictionary:
+	var d = combat_armor_defs.get(def_id, {})
+	return d if d is Dictionary else {}
+
+func is_armor_item(it: Dictionary) -> bool:
+	return not armor_def(String(it.get("def_id", ""))).is_empty()
+
+func equipped_armor() -> Dictionary:
+	if equipped_armor_uid < 0:
+		return {}
+	return find_item(equipped_armor_uid)
+
+func equip_armor(uid: int) -> Dictionary:
+	var it := find_item(uid)
+	if it.is_empty() or not is_armor_item(it):
+		return {"ok": false, "text": "这件物品不是护甲。"}
+	var ad := armor_def(String(it.get("def_id", "")))
+	if not it.has("armor_value"):
+		it["armor_value"] = int(ad.get("max", 100))
+	equipped_armor_uid = uid
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已装备护甲：%s。" % item_display_name(it)}
+
+func unequip_armor() -> Dictionary:
+	if equipped_armor_uid < 0:
+		return {"ok": false, "text": "没有装备护甲。"}
+	var it := find_item(equipped_armor_uid)
+	equipped_armor_uid = -1
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已卸下护甲：%s。" % (item_display_name(it) if not it.is_empty() else "")}
+
+func _combat_player_armor() -> Dictionary:
+	var it := equipped_armor()
+	if it.is_empty():
+		return {}
+	var ad := armor_def(String(it.get("def_id", "")))
+	var val := int(it.get("armor_value", ad.get("max", 100)))
+	return {
+		"item_uid": int(it.get("uid", -1)),
+		"value": maxi(0, val),
+		"max": int(ad.get("max", 100)),
+		"efficiency": int(ad.get("efficiency", 0)),
+		"mitigation": int(ad.get("mitigation", 0)),
+		"protection": int(ad.get("protection", 0)),
+		"resilience": int(ad.get("resilience", 0)),
+	}
+
+func _combat_armor_absorb(u: Dictionary, damage: int) -> int:
+	var a: Dictionary = u.get("armor", {})
+	if a.is_empty() or damage <= 0:
+		return 0
+	var remaining := damage
+	var absorbed := 0
+	var value := int(a.get("value", 0))
+	var protection := int(a.get("protection", 0))
+	if protection > 0 and value > 0:
+		var block := mini(remaining, mini(protection, value))
+		remaining -= block
+		value -= block
+		absorbed += block
+	if remaining > 0 and value > 0 and int(a.get("efficiency", 0)) > 0:
+		for i in range(remaining):
+			if value <= 0:
+				break
+			if rng.randi_range(1, 100) <= int(a.get("efficiency", 0)):
+				value -= 1
+				absorbed += 1
+				remaining -= 1
+	if value <= 0 and int(a.get("resilience", 0)) > 0:
+		var res_absorb := mini(remaining, int(a.get("resilience", 0)))
+		absorbed += res_absorb
+		remaining -= res_absorb
+	a["value"] = maxi(0, value)
+	u["armor"] = a
+	var it := find_item(int(a.get("item_uid", -1)))
+	if not it.is_empty():
+		it["armor_value"] = int(a.get("value", 0))
+	if absorbed > 0:
+		combat_log.append("护甲吸收了 %d 点伤害（%d/%d）。" % [absorbed, int(a.get("value", 0)), int(a.get("max", 0))])
+	return absorbed
+
+func _combat_weapon_choice() -> Dictionary:
+	var best_uid := -1
+	var best_ability := "fists"
+	var best_score := -1
+	for it in _iter_inventory_items():
+		var did := String(it.get("def_id", ""))
+		if not combat_weapon_map.has(did):
+			continue
+		var score := int(get_item_def(did).get("base_value", 0)) + int(it.get("condition", 100))
+		if score > best_score:
+			best_score = score
+			best_uid = int(it.get("uid", -1))
+			best_ability = String(combat_weapon_map[did])
+	return {"uid": best_uid, "ability": best_ability}
+
+func _combat_item_abilities() -> Array:
+	var out: Array = []
+	var map := {"bandage_item": "bandage_ability", "smelling_salt": "smelling_salt_ability", "smoke_grenade": "smoke_grenade", "flashbang_grenade": "flashbang"}
+	for it in _iter_inventory_items():
+		var did := String(it.get("def_id", ""))
+		if map.has(did):
+			out.append({"id": String(map[did]), "item_uid": int(it.get("uid", -1))})
+	return out
+
+func _combat_make_unit(base: Dictionary, team: int) -> Dictionary:
+	var u := base.duplicate(true)
+	u["uid"] = combat_uid_seq
+	combat_uid_seq += 1
+	u["team"] = team
+	u["max_hp"] = int(base.get("hp", 100))
+	u["hp"] = int(base.get("hp", 100))
+	u["accuracy"] = int(base.get("accuracy", 70))
+	u["reaction"] = int(base.get("reaction", 10))
+	u["priority"] = int(base.get("priority", 5))
+	u["dodge"] = int(base.get("dodge", 0))
+	u["crit"] = int(base.get("crit", 10))
+	u["crit_receive"] = int(base.get("crit_receive", 0))
+	u["death_chance"] = int(base.get("death_chance", 100))
+	u["effects"] = []
+	u["dead"] = false
+	u["is_player"] = false
+	u["max_action"] = 1
+	u["action"] = 1
+	return u
+
+func _combat_unit_by_uid(uid: int) -> Dictionary:
+	for u in combat_units:
+		if int(u.get("uid", -1)) == uid:
+			return u
+	return {}
+
+func _combat_alive(team: int) -> Array:
+	var out: Array = []
+	for u in combat_units:
+		if int(u.get("team", -1)) == team and not bool(u.get("dead", false)):
+			out.append(u)
+	return out
+
+func _combat_enemies_of(u: Dictionary) -> Array:
+	return _combat_alive(1 - int(u.get("team", 0)))
+
+func _combat_allies_of(u: Dictionary, include_self: bool = true) -> Array:
+	var out: Array = []
+	for x in combat_units:
+		if int(x.get("team", -1)) != int(u.get("team", 0)) or bool(x.get("dead", false)):
+			continue
+		if not include_self and int(x.get("uid", -1)) == int(u.get("uid", -2)):
+			continue
+		out.append(x)
+	return out
+
+func _combat_sync_legacy() -> void:
+	var enemies := _combat_alive(1)
+	if not enemies.is_empty():
+		combat_enemy = enemies[0]
+		combat_enemy_hp = int(enemies[0].get("hp", 0))
+	var pl := _combat_unit_by_uid(combat_player_uid)
+	if not pl.is_empty():
+		combat_player_hp = int(pl.get("hp", 0))
+		combat_player_max = int(pl.get("max_hp", 100))
+
 func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "", context: String = "") -> Dictionary:
 	var e := enemy_def(enemy_id)
 	if e.is_empty():
 		return {"ok": false, "text": "敌人不存在。"}
+	combat_uid_seq = 1
+	combat_units = []
+	combat_ended = false
 	combat_active = true
-	combat_enemy = e.duplicate(true)
+	combat_wanted_id = wanted_id
+	combat_context = context
+	combat_skill_cd = 0
+	combat_guarding = false
+	combat_round = 1
+	combat_log = []
+	var pw := _combat_weapon_choice()
+	combat_player_weapon = String(pw.get("ability", "fists"))
+	combat_player_weapon_uid = int(pw.get("uid", -1))
+	combat_player_items = _combat_item_abilities()
+	var player := {
+		"uid": 0, "team": 0, "name": "你", "hp": 100, "max_hp": 100,
+		"accuracy": 70, "reaction": 10, "priority": 5, "dodge": 0, "crit": 10,
+		"crit_receive": 0, "death_chance": 40, "weapon": combat_player_weapon,
+		"abilities": [], "effects": [], "dead": false, "is_player": true,
+		"max_action": 1, "action": 1, "loot": [],
+		"armor": _combat_player_armor(),
+	}
+	combat_player_uid = 0
+	combat_units.append(player)
+	var enemy_unit := _combat_make_unit(e, 1)
 	if wanted_id != "":
 		var w := wanted_def(wanted_id)
 		if not w.is_empty():
-			combat_enemy["reward"] = int(w.get("reward", e.get("reward", 50)))
-			combat_enemy["rep"] = w.get("rep", e.get("rep", {})).duplicate(true)
-	combat_enemy_hp = int(e.get("hp", 40))
-	combat_player_max = 60
-	combat_player_hp = 60
-	combat_skill_cd = 0
-	combat_guarding = false
-	combat_wanted_id = wanted_id
-	combat_context = context
-	combat_log = ["遭遇：%s" % e.get("name", enemy_id)]
+			enemy_unit["reward"] = int(w.get("reward", 0))
+			enemy_unit["rep"] = w.get("rep", {}).duplicate(true)
+	combat_units.append(enemy_unit)
+	combat_turn_order = []
+	for u in combat_units:
+		combat_turn_order.append(int(u.get("uid", -1)))
+	combat_turn_order.sort_custom(func(a, b):
+		var ua := _combat_unit_by_uid(a)
+		var ub := _combat_unit_by_uid(b)
+		if int(ua.get("reaction", 0)) == int(ub.get("reaction", 0)):
+			return int(ua.get("priority", 0)) > int(ub.get("priority", 0))
+		return int(ua.get("reaction", 0)) > int(ub.get("reaction", 0))
+	)
+	combat_turn_pos = 0
+	combat_current_uid = -1
+	combat_log.append("遭遇：%s（第 %d 回合）" % [String(e.get("name", enemy_id)), combat_round])
+	_combat_sync_legacy()
 	emit_signal("combat_started")
 	emit_signal("state_changed")
+	_combat_advance()
 	return {"ok": true, "text": "战斗开始。"}
 
 func combat_roll(minv: int, maxv: int) -> int:
 	return rng.randi_range(minv, maxv)
 
-func _combat_enemy_turn() -> void:
-	if not combat_active:
+func _combat_current_unit() -> Dictionary:
+	return _combat_unit_by_uid(combat_current_uid)
+
+func combat_waiting_for_player() -> bool:
+	return combat_active and not combat_ended and combat_current_uid == combat_player_uid
+
+func _combat_is_stunned(u: Dictionary) -> bool:
+	for e in u.get("effects", []):
+		if String(e.get("type", "")) == "stun" and int(e.get("duration", 0)) > 0:
+			return true
+	return false
+
+func _combat_has_effect(u: Dictionary, type_id: String) -> bool:
+	for e in u.get("effects", []):
+		if String(e.get("type", "")) == type_id and int(e.get("duration", 0)) > 0:
+			return true
+	return false
+
+func _combat_stat_key(stat: String) -> String:
+	match stat:
+		"accuracy": return "accuracy"
+		"dodge": return "dodge"
+		"reaction": return "reaction"
+		"crit", "criticalChanceDealing": return "crit"
+		"criticalChanceReceving", "criticalChanceReceiving": return "crit_receive"
+		"priority": return "priority"
+	return stat
+
+func _combat_add_effect(target: Dictionary, effect: Dictionary) -> void:
+	var e := effect.duplicate(true)
+	e["duration"] = int(effect.get("duration", 1))
+	var etype := String(e.get("type", ""))
+	if etype in ["buff", "debuff"]:
+		var key := _combat_stat_key(String(e.get("stat", "")))
+		var val := int(e.get("value", 0))
+		target[key] = int(target.get(key, 0)) + val
+		e["applied_stat"] = key
+		e["applied_value"] = val
+		combat_log.append("%s：%s（%d 回合）" % [target.get("name", ""), "增益" if etype == "buff" else "减益", e["duration"]])
+	elif etype == "stun":
+		combat_log.append("%s 被眩晕 %d 回合。" % [target.get("name", ""), e["duration"]])
+	elif etype == "bleed":
+		combat_log.append("%s 开始流血（%d 回合）。" % [target.get("name", ""), e["duration"]])
+	elif etype == "overwatch":
+		combat_log.append("%s 进入警戒。" % target.get("name", ""))
+	elif etype == "retaliate":
+		combat_log.append("%s 进入反击姿态。" % target.get("name", ""))
+	var effects: Array = target.get("effects", [])
+	var keep: Array = []
+	for old in effects:
+		if String(old.get("type", "")) == etype and String(old.get("stat", "")) == String(e.get("stat", "")):
+			continue
+		keep.append(old)
+	keep.append(e)
+	target["effects"] = keep
+
+func _combat_expire_effects(u: Dictionary) -> void:
+	var keep: Array = []
+	for e in u.get("effects", []):
+		var dur := int(e.get("duration", 0)) - 1
+		e["duration"] = dur
+		if dur > 0:
+			keep.append(e)
+			continue
+		if String(e.get("type", "")) in ["buff", "debuff"] and e.has("applied_stat"):
+			var key := String(e.get("applied_stat", ""))
+			u[key] = int(u.get(key, 0)) - int(e.get("applied_value", 0))
+	u["effects"] = keep
+
+func _combat_heal(u: Dictionary, amount: int) -> void:
+	if bool(u.get("dead", false)) or amount <= 0:
 		return
-	var dmg := combat_roll(int(combat_enemy.get("atk_min", 5)), int(combat_enemy.get("atk_max", 9)))
-	dmg = maxi(1, int(round(float(dmg) * float(DIFFICULTY[difficulty]["damage"]))))
-	if combat_guarding:
-		dmg = maxi(1, int(round(float(dmg) * 0.5)))
-	combat_player_hp -= dmg
-	combat_log.append("%s 反击，造成 %d 伤害。" % [combat_enemy.get("name", "敌人"), dmg])
+	u["hp"] = mini(int(u.get("max_hp", 100)), int(u.get("hp", 0)) + amount)
+	combat_log.append("%s 恢复 %d 生命。" % [u.get("name", ""), amount])
+
+func _combat_death_roll(u: Dictionary) -> void:
+	if bool(u.get("dead", false)):
+		return
+	var dc := int(u.get("death_chance", 100))
+	var roll := rng.randi_range(1, 100)
+	if roll <= dc:
+		u["hp"] = 0
+		u["dead"] = true
+		combat_log.append("%s 倒下了。" % u.get("name", ""))
+	else:
+		u["hp"] = 1
+		combat_log.append("%s 濒死挣扎，撑住了！" % u.get("name", ""))
+
+func _combat_damage(u: Dictionary, amount: int, source_name: String) -> void:
+	if bool(u.get("dead", false)) or amount <= 0:
+		return
+	var dealt := amount
+	if u.has("armor") and not (u.get("armor", {}) as Dictionary).is_empty():
+		var absorbed := _combat_armor_absorb(u, amount)
+		dealt = maxi(0, amount - absorbed)
+		if dealt <= 0:
+			combat_log.append("%s 的护甲挡住了全部伤害。" % u.get("name", ""))
+			return
+	u["hp"] = int(u.get("hp", 0)) - dealt
+	combat_log.append("%s 对 %s 造成 %d 伤害。" % [source_name, u.get("name", ""), dealt])
+	if int(u.get("hp", 0)) <= 0:
+		_combat_death_roll(u)
+
+func _combat_hit_chance(caster: Dictionary, target: Dictionary, ability: Dictionary) -> int:
+	var bonus := int(ability.get("bonus_accuracy", 0))
+	if bonus >= 1000:
+		return 100
+	var chance := int(caster.get("accuracy", 70)) + bonus - int(target.get("dodge", 0))
+	return clampi(chance, 0, 100)
+
+func _combat_ability_has_offense(ability: Dictionary) -> bool:
+	for eff in ability.get("effects", []):
+		if String(eff.get("type", "")) in ["attack", "bleed", "stun"]:
+			if String(eff.get("target", "singleEnemy")) in ["singleEnemy", "allEnemy", "all"]:
+				return true
+	return false
+
+func _combat_resolve_effect(caster: Dictionary, target: Dictionary, eff: Dictionary, crit: bool) -> void:
+	var etype := String(eff.get("type", ""))
+	match etype:
+		"attack":
+			var dmg := rng.randi_range(int(eff.get("min", 1)), int(eff.get("max", 1)))
+			if crit:
+				dmg *= 2
+				combat_log.append("暴击！")
+			_combat_damage(target, dmg, String(caster.get("name", "")))
+		"heal":
+			_combat_heal(target, int(eff.get("value", 0)))
+		"overtime_heal":
+			_combat_add_effect(target, {"type": "overtime_heal", "value": int(eff.get("value", 0)), "duration": int(eff.get("duration", 1))})
+		"bleed":
+			if rng.randi_range(1, 100) <= int(eff.get("chance", 100)):
+				_combat_add_effect(target, {"type": "bleed", "value": int(eff.get("value", 2)), "duration": int(eff.get("duration", 1))})
+		"stun":
+			if rng.randi_range(1, 100) <= int(eff.get("chance", 100)):
+				_combat_add_effect(target, {"type": "stun", "duration": int(eff.get("duration", 1))})
+		"buff", "debuff":
+			_combat_add_effect(target, {"type": etype, "stat": String(eff.get("stat", "accuracy")), "value": int(eff.get("value", 0)), "duration": int(eff.get("duration", 1))})
+		"overwatch", "retaliate":
+			_combat_add_effect(target, {"type": etype, "duration": int(eff.get("duration", 1))})
+		"stop_bleed":
+			var keep: Array = []
+			for e in target.get("effects", []):
+				if String(e.get("type", "")) != "bleed":
+					keep.append(e)
+			target["effects"] = keep
+			combat_log.append("%s 的流血被止住了。" % target.get("name", ""))
+		"remove_stun":
+			var keep2: Array = []
+			for e in target.get("effects", []):
+				if String(e.get("type", "")) != "stun":
+					keep2.append(e)
+			target["effects"] = keep2
+			combat_log.append("%s 清醒过来。" % target.get("name", ""))
+
+func _combat_targets_for(caster: Dictionary, ability: Dictionary, target_uid: int) -> Array:
+	var effects: Array = ability.get("effects", [])
+	if effects.is_empty():
+		return []
+	var ttype := String(effects[0].get("target", "singleEnemy"))
+	match ttype:
+		"self":
+			return [caster]
+		"allEnemy":
+			return _combat_enemies_of(caster)
+		"allFriendly":
+			return _combat_allies_of(caster, true)
+		"singleFriendly", "singleFriendlyExceptSelf":
+			var t := _combat_unit_by_uid(target_uid)
+			if not t.is_empty() and int(t.get("team", -1)) == int(caster.get("team", 0)) and not bool(t.get("dead", false)):
+				return [t]
+			var allies := _combat_allies_of(caster, ttype != "singleFriendlyExceptSelf")
+			if allies.is_empty():
+				return []
+			return [allies[0]]
+		"all":
+			return _combat_alive(0) + _combat_alive(1)
+	var target := _combat_unit_by_uid(target_uid)
+	if target.is_empty() or bool(target.get("dead", false)):
+		var enemies := _combat_enemies_of(caster)
+		if enemies.is_empty():
+			return []
+		return [enemies[0]]
+	if int(target.get("team", -1)) == int(caster.get("team", 0)):
+		var enemies2 := _combat_enemies_of(caster)
+		if enemies2.is_empty():
+			return []
+		return [enemies2[0]]
+	return [target]
+
+func _combat_reactions(caster: Dictionary, ability: Dictionary) -> void:
+	if not bool(ability.get("trigger_overwatch", true)):
+		return
+	var foes := _combat_enemies_of(caster)
+	for f in foes:
+		if bool(caster.get("dead", false)):
+			return
+		var weapon := String(f.get("weapon", "weapon_attack"))
+		if _combat_has_effect(f, "overwatch"):
+			var keep: Array = []
+			for e in f.get("effects", []):
+				if String(e.get("type", "")) != "overwatch":
+					keep.append(e)
+			f["effects"] = keep
+			combat_log.append("%s 警戒射击！" % f.get("name", ""))
+			_combat_use_ability(f, weapon, int(caster.get("uid", -1)), -1, true)
+		elif _combat_has_effect(f, "retaliate"):
+			combat_log.append("%s 发起反击！" % f.get("name", ""))
+			_combat_use_ability(f, weapon, int(caster.get("uid", -1)), -1, true)
+
+func _combat_use_ability(caster: Dictionary, ability_id: String, target_uid: int, item_uid: int = -1, is_reaction: bool = false) -> String:
+	if bool(caster.get("dead", false)):
+		return ""
+	var ability: Dictionary = combat_abilities.get(ability_id, {})
+	if ability.is_empty():
+		ability = combat_abilities.get("fists", {})
+		ability_id = "fists"
+	var targets := _combat_targets_for(caster, ability, target_uid)
+	if targets.is_empty():
+		return "没有合法目标。"
+	var primary: Dictionary = targets[0]
+	var hit := true
+	if _combat_ability_has_offense(ability):
+		var chance := _combat_hit_chance(caster, primary, ability)
+		hit = chance >= 100 or rng.randi_range(1, 100) <= chance
+		if not hit:
+			combat_log.append("%s 使用%s，但没有命中。" % [caster.get("name", ""), String(ability.get("name", ability_id))])
+	if hit:
+		var crit := rng.randi_range(1, 100) <= int(caster.get("crit", 10)) + int(primary.get("crit_receive", 0))
+		for eff in ability.get("effects", []):
+			if not hit and String(eff.get("target", "")) in ["singleEnemy", "allEnemy", "all"] and _combat_ability_has_offense(ability):
+				continue
+			var eff_targets: Array = targets
+			if String(eff.get("target", "")) not in ["singleEnemy", "allEnemy", "all"]:
+				eff_targets = _combat_targets_for(caster, {"effects": [eff]}, target_uid)
+			for t in eff_targets:
+				_combat_resolve_effect(caster, t, eff, crit)
+	if item_uid >= 0:
+		var consumed := detach_item(item_uid)
+		if not consumed.is_empty():
+			combat_log.append("消耗了 %s。" % item_display_name(consumed))
+			var kept: Array = []
+			for entry in combat_player_items:
+				if int(entry.get("item_uid", -1)) != item_uid:
+					kept.append(entry)
+			combat_player_items = kept
+	if not is_reaction and hit and _combat_ability_has_offense(ability):
+		_combat_reactions(caster, ability)
+	return String(ability.get("name", ability_id))
+
+func _combat_ai_pick_target(u: Dictionary) -> Dictionary:
+	var enemies := _combat_enemies_of(u)
+	if enemies.is_empty():
+		return {}
+	match String(u.get("ai", "murderous")):
+		"sadistic", "hunter":
+			var best: Dictionary = enemies[0]
+			for e in enemies:
+				if int(e.get("hp", 0)) < int(best.get("hp", 0)):
+					best = e
+			return best
+		"boss":
+			var best2: Dictionary = enemies[0]
+			for e in enemies:
+				if int(e.get("priority", 0)) > int(best2.get("priority", 0)):
+					best2 = e
+			return best2
+	var total := 0
+	for e in enemies:
+		total += maxi(1, int(e.get("priority", 1)))
+	var roll := rng.randi_range(1, maxi(1, total))
+	var acc := 0
+	for e in enemies:
+		acc += maxi(1, int(e.get("priority", 1)))
+		if roll <= acc:
+			return e
+	return enemies[0]
+
+func _combat_ai_turn(u: Dictionary) -> void:
+	var target := _combat_ai_pick_target(u)
+	if target.is_empty():
+		return
+	var abilities: Array = u.get("abilities", [])
+	var allies := _combat_allies_of(u, true)
+	match String(u.get("ai", "murderous")):
+		"medic":
+			for a in allies:
+				if _combat_has_effect(a, "bleed") and abilities.has("bandage_ability"):
+					_combat_use_ability(u, "bandage_ability", int(a.get("uid", -1)))
+					return
+		"brewer":
+			for a in allies:
+				if int(a.get("hp", 0)) < int(a.get("max_hp", 100)) and abilities.has("brewer_heal"):
+					_combat_use_ability(u, "brewer_heal", int(a.get("uid", -1)))
+					return
+		"herald":
+			if not _combat_has_effect(u, "buff") and abilities.has("herald_buff"):
+				_combat_use_ability(u, "herald_buff", int(u.get("uid", -1)))
+				return
+		"overwatch":
+			if not _combat_has_effect(u, "overwatch"):
+				_combat_use_ability(u, "overwatch", int(u.get("uid", -1)))
+				return
+	var weapon := String(u.get("weapon", "weapon_attack"))
+	_combat_use_ability(u, weapon, int(target.get("uid", -1)))
+
+func _combat_start_turn(u: Dictionary) -> void:
+	for e in u.get("effects", []).duplicate():
+		if String(e.get("type", "")) == "bleed" and int(e.get("duration", 0)) > 0:
+			_combat_damage(u, absi(int(e.get("value", 2))), "流血")
+		elif String(e.get("type", "")) == "overtime_heal" and int(e.get("duration", 0)) > 0:
+			_combat_heal(u, int(e.get("value", 0)))
+		if bool(u.get("dead", false)):
+			return
+
+func _combat_end_turn(u: Dictionary) -> void:
+	_combat_expire_effects(u)
+
+func _combat_check_end() -> bool:
+	if combat_ended:
+		return true
+	if _combat_alive(1).is_empty():
+		_combat_victory()
+		return true
+	var pl := _combat_unit_by_uid(combat_player_uid)
+	if pl.is_empty() or bool(pl.get("dead", false)):
+		_combat_defeat()
+		return true
+	return false
+
+func _combat_victory() -> void:
+	combat_ended = true
+	combat_active = false
+	var reward := 0
+	var reps: Dictionary = {}
+	var loot_lines: Array = []
+	for u in combat_units:
+		if int(u.get("team", 0)) != 1:
+			continue
+		reward += int(u.get("reward", 0))
+		var r: Dictionary = u.get("rep", {})
+		for k in r.keys():
+			reps[k] = int(reps.get(k, 0)) + int(r[k])
+		for entry in u.get("loot", []):
+			var iid := String(entry[0])
+			var chance := int(entry[1])
+			if rng.randi_range(1, 100) <= chance and items_def.has(iid):
+				add_item(make_item(iid, 100, true, false))
+				loot_lines.append(String(get_item_def(iid).get("name", iid)))
+	cash += reward
+	for k in reps.keys():
+		add_rep(String(k), int(reps[k]))
+	if combat_wanted_id != "" and not wanted_defeated.has(combat_wanted_id):
+		wanted_defeated.append(combat_wanted_id)
+	var msg := "战斗胜利"
+	if reward > 0:
+		msg += "，获得 %d₵" % reward
+	if not loot_lines.is_empty():
+		msg += "，战利品：%s" % "、".join(loot_lines)
+	combat_log.append(msg)
+	combat_skill_cd = 0
 	combat_guarding = false
+	_combat_sync_legacy()
+	emit_signal("combat_finished", true, msg)
+	emit_signal("state_changed")
+
+func _combat_defeat() -> void:
+	combat_ended = true
+	combat_active = false
+	cash = maxi(0, cash - 100)
+	add_rep("lower", -3)
+	var end_id := ""
+	if combat_context == "security_raid":
+		end_id = "sec"
+	elif combat_context == "street_ambush":
+		end_id = "mob"
+	elif String(combat_enemy.get("id", "")) == "boss_lou":
+		end_id = "lou_bombed_debt" if cash < loan else "lou_bombed"
+	if end_id != "":
+		phase = "gameover"
+		ending_id = end_id
+	_combat_sync_legacy()
+	emit_signal("combat_finished", false, "你被打倒了，损失 100₵。")
+	emit_signal("state_changed")
+
+func _combat_advance() -> void:
+	if combat_ended:
+		return
+	var guard := 0
+	while guard < 64:
+		guard += 1
+		if _combat_check_end():
+			return
+		if combat_turn_pos >= combat_turn_order.size():
+			combat_round += 1
+			combat_turn_pos = 0
+			combat_log.append("第 %d 回合。" % combat_round)
+			continue
+		var uid := int(combat_turn_order[combat_turn_pos])
+		var u := _combat_unit_by_uid(uid)
+		if u.is_empty() or bool(u.get("dead", false)):
+			combat_turn_pos += 1
+			continue
+		_combat_start_turn(u)
+		if bool(u.get("dead", false)):
+			combat_turn_pos += 1
+			continue
+		if _combat_is_stunned(u):
+			combat_log.append("%s 被眩晕，跳过行动。" % u.get("name", ""))
+			_combat_end_turn(u)
+			combat_turn_pos += 1
+			continue
+		if bool(u.get("is_player", false)):
+			combat_current_uid = uid
+			var foes := _combat_enemies_of(u)
+			if not foes.is_empty():
+				combat_target_uid = int(foes[0].get("uid", -1))
+			_combat_sync_legacy()
+			emit_signal("combat_updated")
+			emit_signal("state_changed")
+			return
+		_combat_ai_turn(u)
+		_combat_end_turn(u)
+		if combat_ended:
+			return
+		combat_turn_pos += 1
+	_combat_sync_legacy()
+	emit_signal("combat_updated")
+
+func combat_player_skills() -> Array:
+	var out: Array = []
+	var weapon := combat_player_weapon if combat_player_weapon != "" else "fists"
+	var ab: Dictionary = combat_abilities.get(weapon, {})
+	out.append({"id": weapon, "name": String(ab.get("name", "攻击")), "item_uid": -1})
+	for entry in combat_player_items:
+		var aid := String(entry.get("id", ""))
+		var item_uid := int(entry.get("item_uid", -1))
+		if find_item(item_uid).is_empty():
+			continue
+		var a: Dictionary = combat_abilities.get(aid, {})
+		if a.is_empty():
+			continue
+		out.append({"id": aid, "name": String(a.get("name", aid)), "item_uid": item_uid})
+	out.append({"id": "brace_ability", "name": "防御", "item_uid": -1})
+	out.append({"id": "overwatch", "name": "警戒", "item_uid": -1})
+	return out
+
+func combat_select_target(uid: int) -> void:
+	combat_target_uid = uid
+	emit_signal("combat_updated")
+
+func combat_player_action(ability_id: String, target_uid: int = -1, item_uid: int = -1) -> Dictionary:
+	if not combat_active or combat_ended or combat_current_uid != combat_player_uid:
+		return {"ok": false, "text": "还没轮到你。"}
+	var pl := _combat_unit_by_uid(combat_player_uid)
+	var use_target := target_uid
+	if use_target < 0:
+		use_target = combat_target_uid
+	if item_uid < 0:
+		for s in combat_player_skills():
+			if String(s.get("id", "")) == ability_id:
+				item_uid = int(s.get("item_uid", -1))
+				break
+	var label := _combat_use_ability(pl, ability_id, use_target, item_uid)
+	_combat_end_turn(pl)
+	if _combat_check_end():
+		return {"ok": true, "text": label}
+	combat_turn_pos += 1
+	_combat_advance()
+	return {"ok": true, "text": label}
 
 func combat_action(action: String) -> Dictionary:
-	if not combat_active:
-		return {"ok": false, "text": "当前没有战斗。"}
-	if action == "flee":
-		if rng.randf() < 0.5:
-			combat_active = false
-			emit_signal("combat_finished", false, "你逃离了战斗。")
-			emit_signal("state_changed")
-			return {"ok": true, "text": "你逃离了战斗。"}
-		combat_log.append("逃跑失败。")
-	elif action == "guard":
-		combat_guarding = true
-		combat_log.append("你举起手臂防御。")
-	elif action == "skill":
-		if combat_skill_cd > 0:
-			combat_log.append("技能冷却中（%d）。" % combat_skill_cd)
-		else:
-			var dmg := combat_roll(16, 24)
-			combat_enemy_hp -= dmg
-			combat_skill_cd = 3
-			combat_log.append("瞄准射击，造成 %d 伤害。" % dmg)
-	else:
-		var dmg := combat_roll(8, 14)
-		combat_enemy_hp -= dmg
-		combat_log.append("你发起攻击，造成 %d 伤害。" % dmg)
-	if combat_enemy_hp <= 0:
-		var reward := int(combat_enemy.get("reward", 50))
-		cash += reward
-		var reps: Dictionary = combat_enemy.get("rep", {})
-		for k in reps.keys():
-			add_rep(String(k), int(reps[k]))
-		if combat_wanted_id != "" and not wanted_defeated.has(combat_wanted_id):
-			wanted_defeated.append(combat_wanted_id)
-		var msg := "战斗胜利，获得 %d₵。" % reward
-		combat_active = false
-		emit_signal("combat_finished", true, msg)
-		emit_signal("state_changed")
-		return {"ok": true, "text": msg}
-	_combat_enemy_turn()
-	if combat_player_hp <= 0:
-		cash = maxi(0, cash - 100)
-		add_rep("lower", -3)
-		combat_active = false
-		var end_id := ""
-		if combat_context == "security_raid":
-			end_id = "sec"
-		elif combat_context == "street_ambush":
-			end_id = "mob"
-		elif String(combat_enemy.get("id", "")) == "boss_lou":
-			end_id = "lou_bombed_debt" if cash < loan else "lou_bombed"
-		if end_id != "":
-			phase = "gameover"
-			ending_id = end_id
-		emit_signal("combat_finished", false, "你被打倒了，损失 100₵。")
-		emit_signal("state_changed")
-		return {"ok": true, "text": "战斗失败。"}
-	combat_skill_cd = maxi(0, combat_skill_cd - 1)
-	emit_signal("combat_updated")
-	emit_signal("state_changed")
-	return {"ok": true, "text": ""}
+	match action:
+		"attack":
+			return combat_player_action(combat_player_weapon if combat_player_weapon != "" else "fists", combat_target_uid)
+		"guard":
+			return combat_player_action("brace_ability", combat_player_uid)
+		"skill":
+			return combat_player_action("overwatch", combat_player_uid)
+		"flee":
+			return {"ok": false, "text": "战斗中无法逃跑。"}
+	return {"ok": false, "text": "未知动作。"}
 
 func set_ending(id: String) -> void:
 	ending_id = id
@@ -5170,7 +5798,7 @@ func save_game(slot: int = 1) -> bool:
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
 		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
-		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
@@ -5218,6 +5846,7 @@ func load_game(slot: int = 1) -> bool:
 	max_pages_unlocked = pages_unlocked
 	power = int(data.get("power", 10))
 	owned_upgrades = data.get("owned_upgrades", {}).duplicate(true)
+	equipped_armor_uid = int(data.get("equipped_armor_uid", -1))
 	profession_id = String(data.get("profession_id", ""))
 	profession_chosen = bool(data.get("profession_chosen", false))
 	commissions = data.get("commissions", []).duplicate(true)

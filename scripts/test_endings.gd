@@ -39,14 +39,18 @@ func _init() -> void:
 	# event combat loss
 	gs.new_game()
 	gs.start_combat("raider", "security", "", "security_raid")
-	gs.combat_player_hp = 1
-	gs.combat_action("guard")
+	gs._combat_unit_by_uid(0)["hp"] = 1
+	gs._combat_unit_by_uid(0)["death_chance"] = 100
+	gs._combat_damage(gs._combat_unit_by_uid(0), 100, "测试")
+	gs._combat_check_end()
 	print("raid phase=", gs.phase, " ending=", gs.ending_id)
 	# boss loss
 	gs.new_game()
 	gs.start_combat("boss_lou", "lower", "w_lou", "")
-	gs.combat_player_hp = 1
-	gs.combat_action("guard")
+	gs._combat_unit_by_uid(0)["hp"] = 1
+	gs._combat_unit_by_uid(0)["death_chance"] = 100
+	gs._combat_damage(gs._combat_unit_by_uid(0), 100, "测试")
+	gs._combat_check_end()
 	print("boss phase=", gs.phase, " ending=", gs.ending_id)
 	# event ending
 	gs.new_game()
@@ -58,7 +62,9 @@ func _init() -> void:
 	gs.cash = 0
 	gs.loan = 200
 	gs.start_combat("boss_lou", "lower", "w_lou", "")
-	gs.combat_player_hp = 1
-	gs.combat_action("guard")
+	gs._combat_unit_by_uid(0)["hp"] = 1
+	gs._combat_unit_by_uid(0)["death_chance"] = 100
+	gs._combat_damage(gs._combat_unit_by_uid(0), 100, "测试")
+	gs._combat_check_end()
 	print("boss_debt phase=", gs.phase, " ending=", gs.ending_id)
 	quit()
