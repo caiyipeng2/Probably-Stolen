@@ -192,7 +192,6 @@ func _ready() -> void:
 	_setup_theme()
 	_setup_audio()
 	_load_window_positions()
-	_audioinfo_if_requested()
 	_build_ui()
 	GameState.state_changed.connect(_refresh)
 	GameState.customer_changed.connect(_on_customer_changed)
@@ -206,328 +205,6 @@ func _ready() -> void:
 	GameState.combat_finished.connect(_on_combat_finished)
 	_refresh()
 	_show_welcome()
-	_capture_if_requested()
-	_autotest_if_requested()
-	_dumpui_if_requested()
-	_dumpinspect_if_requested()
-	_testminigame_if_requested()
-	_testmachineui_if_requested()
-	_testinspect_if_requested()
-	_testcontainerui_if_requested()
-
-func _dumpinspect_if_requested() -> void:
-	if not "--dumpinspect" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.3).timeout
-	_close_modal()
-	var c := GameState._gen_customer()
-	var guard := 0
-	while c.get("intent") != "sell" and guard < 50:
-		c = GameState._gen_customer()
-		guard += 1
-	GameState.current_customer = c
-	GameState.counter_item = c["item"]
-	GameState.phase = "customer"
-	_refresh()
-	_open_inspection()
-	await get_tree().process_frame
-	print("INSPECT_MODAL ", modal_actions.get_global_rect())
-	for b in modal_actions.get_children():
-		if b is Button:
-			print("IBTN ", b.text, " ", b.get_global_rect(), " disabled=", b.disabled)
-	var first := modal_actions.get_child(0)
-	if first is Button:
-		print("CASH_BEFORE ", GameState.cash)
-		first.pressed.emit()
-		await get_tree().process_frame
-		print("CASH_AFTER ", GameState.cash, " TEXT ", modal_text.text)
-	get_tree().quit()
-
-
-func _dumpui_if_requested() -> void:
-	if not "--dumpui" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.3).timeout
-	_close_modal()
-	_open_inspection()
-	await get_tree().process_frame
-	print("MODAL_ACTIONS ", modal_actions.get_global_rect())
-	for b in modal_actions.get_children():
-		if b is Button:
-			print("BTN ", b.text, " ", b.get_global_rect())
-	get_tree().quit()
-
-
-func _autotest_if_requested() -> void:
-	if not "--autotest" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.4).timeout
-	_welcome_done()
-	await get_tree().process_frame
-	var guard_story := 0
-	while story_layer.visible and guard_story < 40:
-		_story_advance()
-		guard_story += 1
-	if modal_layer.visible:
-		_close_modal()
-	var c := GameState.current_customer
-	print("AUTOTEST start day=", GameState.day, " cash=", GameState.cash, " intent=", c.get("intent", "?"))
-	if c.get("intent") == "buy":
-		var uid := int(GameState.inventory[0]["uid"])
-		GameState.add_to_display(uid)
-		GameState.put_display_on_counter(uid)
-		_refresh()
-		print("AUTOTEST buyer offer=", c.get("offer", 0), " max=", c.get("max_price", 0))
-		bargain_price = int(c.get("offer", 0))
-		_refresh_bargain_modal()
-		_bargain_confirm()
-		print("AUTOTEST buyer done cash=", GameState.cash, " modal=", modal_text.text)
-	else:
-		var uid2 := int(GameState.counter_item.get("uid", -1))
-		print("AUTOTEST clue1=", GameState.inspect_item(uid2, 0))
-		print("AUTOTEST clue2=", GameState.inspect_item(uid2, 1))
-		_refresh()
-		bargain_price = int(GameState.counter_item.get("asking_price", 0))
-		_refresh_bargain_modal()
-		_bargain_confirm()
-		print("AUTOTEST seller done cash=", GameState.cash, " inv=", GameState.inventory.size(), " modal=", modal_text.text)
-	var s := GameState.finish_day()
-	print("AUTOTEST summary=", s)
-	_next_day()
-	print("AUTOTEST next day=", GameState.day, " customers=", GameState.customers_today.size())
-	_refresh()
-	await get_tree().create_timer(0.3).timeout
-	get_tree().quit()
-
-
-func _testminigame_if_requested() -> void:
-	if not "--testminigame" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.5).timeout
-	_welcome_done()
-	await get_tree().create_timer(0.1).timeout
-	var guard := 0
-	while story_layer.visible and guard < 40:
-		_story_advance()
-		guard += 1
-	if modal_layer.visible:
-		_close_modal()
-	if GameState.inventory_count("metal_ingot") < 1:
-		GameState.add_item(GameState.make_item("metal_ingot", 100, true, false))
-	selected_machine_id = "printer"
-	_open_printer_minigame()
-	_confirm_minigame()
-	print("MINIGAME fail_status=", minigame_status.text, " jobs=", GameState.machine_jobs.size())
-	for i in range(16):
-		minigame_selected[i] = int(minigame_target[i]) == 1
-		minigame_cells[i].button_pressed = minigame_selected[i]
-	_confirm_minigame()
-	print("MINIGAME printer_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
-	selected_machine_id = "chem_finisher"
-	_open_mix_minigame()
-	for i in range(3):
-		mix_sliders[i].set_value_no_signal(float(mix_target[i]))
-	_confirm_mix()
-	print("MINIGAME mix_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
-	selected_machine_id = "plant_dna_manipulator"
-	_open_dna_minigame()
-	dna_input = dna_target.duplicate()
-	dna_input_label.text = "你的序列： " + " ".join(dna_input)
-	_confirm_dna()
-	print("MINIGAME dna_jobs=", GameState.machine_jobs.size(), " status=", machine_status_label.text)
-	get_tree().quit()
-
-func _testmachineui_if_requested() -> void:
-	if not "--testmachineui" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.5).timeout
-	_welcome_done()
-	await get_tree().create_timer(0.1).timeout
-	var guard := 0
-	while story_layer.visible and guard < 40:
-		_story_advance()
-		guard += 1
-	if modal_layer.visible:
-		_close_modal()
-	_open_machines()
-	selected_machine_id = "printer"
-	_refresh_machine_panel()
-	print("MUI printer io=", machine_io_label.text.replace("\n", " | "))
-	selected_machine_id = "recharger"
-	_refresh_machine_panel()
-	print("MUI recharger aux=", machine_aux_btn.visible, " special=", machine_special_btn.visible, " rule=", machine_io_label.text.replace("\n", " | "))
-	print("MUI recharger toggle=", GameState.machine_toggle_active("recharger").get("text", ""))
-	selected_machine_id = "vending_machine"
-	_refresh_machine_panel()
-	print("MUI vending stockbtn=", machine_stock_btn.visible, " rule=", machine_io_label.text.replace("\n", " | "))
-	GameState.machine_toggle_active("vending_machine")
-	_refresh_machine_panel()
-	print("MUI vending special=", machine_special_btn.text, " stock=", machine_stock_btn.visible)
-	selected_machine_id = "makeshift_reactor"
-	_refresh_machine_panel()
-	print("MUI reactor special=", machine_special_btn.text)
-	selected_machine_id = "animal_cage"
-	_refresh_machine_panel()
-	print("MUI cage special=", machine_special_btn.text, " stock=", machine_stock_btn.visible)
-	selected_machine_id = "hydroponic"
-	_refresh_machine_panel()
-	print("MUI hydro recipe=", machine_recipe_btn.text, " io=", machine_io_label.text.replace("\n", " | "))
-	selected_machine_id = "fridge"
-	_refresh_machine_panel()
-	print("MUI fridge gridbtn=", machine_stock_grid_btn.visible, " text=", machine_stock_grid_btn.text)
-	_open_machine_stock_grid()
-	await get_tree().process_frame
-	print("MUI fridge container=", container_title.text, " ", container_info.text)
-	selected_machine_id = "furnace"
-	_refresh_machine_panel()
-	print("MUI furnace io in=", machine_io_in_btn.visible, " ", machine_io_in_btn.text, " out=", machine_io_out_btn.visible, " ", machine_io_out_btn.text)
-	_open_machine_io("input")
-	await get_tree().process_frame
-	print("MUI furnace input=", container_title.text, " ", container_info.text)
-	_close_container()
-	get_tree().quit()
-
-func _testinspect_if_requested() -> void:
-	if not "--testinspect" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.5).timeout
-	_welcome_done()
-	await get_tree().create_timer(0.1).timeout
-	var guard := 0
-	while story_layer.visible and guard < 40:
-		_story_advance()
-		guard += 1
-	if modal_layer.visible:
-		_close_modal()
-	var cig := GameState.make_item("cig_red", 100, false, false)
-	GameState.counter_item = cig
-	GameState.current_customer = {"intent": "sell", "arche": {"faction": "lower", "name": "测试顾客", "sprite": "maleUpper_0.png"}, "item": cig, "patience": 3, "done": false}
-	GameState.phase = "customer"
-	_open_inspection()
-	await get_tree().process_frame
-	print("INSPECT title=", inspection_title.text)
-	print("INSPECT info=", inspection_info.text.replace("\n", " | "))
-	for b in inspection_actions.get_children():
-		if b is Button:
-			print("INSPECT BTN ", b.text)
-	GameState.inspect_counter_with_tool("magnifier")
-	_refresh_inspection_modal()
-	print("INSPECT after magnifier=", inspection_info.text.replace("\n", " | ").substr(0, 400))
-	GameState.confront_counter_item(String(cig.issues[0]))
-	_refresh_inspection_modal()
-	print("INSPECT after confront=", inspection_status.text)
-	var app_item := GameState.make_item("hand_steel", 100, true, false)
-	app_item.appraisal_value = 620
-	GameState.counter_item = app_item
-	GameState.current_customer = {"intent": "appraise", "arche": {"faction": "lower", "name": "估价客", "sprite": "maleUpper_0.png"}, "item": app_item, "patience": 3, "done": false, "impatience": 0}
-	GameState.phase = "customer"
-	_open_inspection()
-	await get_tree().process_frame
-	print("APPRAISE input_visible=", inspection_appraisal_input.visible, " default=", inspection_appraisal_input.text)
-	inspection_appraisal_input.text = "620"
-	_submit_appraisal()
-	await get_tree().process_frame
-	print("APPRAISE modal=", modal_title.text, " ", modal_text.text.replace("\n", " | ").substr(0, 300))
-	get_tree().quit()
-
-func _testcontainerui_if_requested() -> void:
-	if not "--testcontainerui" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(0.5).timeout
-	_welcome_done()
-	await get_tree().create_timer(0.1).timeout
-	var guard := 0
-	while story_layer.visible and guard < 40:
-		_story_advance()
-		guard += 1
-	if modal_layer.visible:
-		_close_modal()
-	var bag := GameState.make_item("backpack_large", 100, true, false)
-	GameState.add_item(bag)
-	var fruit := GameState.make_item("nutrifruit", 100, true, false)
-	GameState.add_item(fruit)
-	GameState.move_item_to_container(int(fruit.uid), int(bag.uid))
-	_open_container(int(bag.uid))
-	await get_tree().process_frame
-	print("CUI title=", container_title.text)
-	print("CUI info=", container_info.text)
-	for b in container_actions.get_children():
-		if b is Button:
-			print("CUI BTN ", b.text)
-	print("CUI grid_children=", container_grid.get_child_count())
-	_open_container(int(fruit.uid))
-	print("CUI noncontainer_open=", container_layer.visible)
-	_open_container(int(bag.uid))
-	GameState.container_remove_child(bag, int(fruit.uid))
-	GameState.add_item(fruit)
-	_rebuild_container_grid()
-	print("CUI after take children=", bag.children.size(), " info=", container_info.text)
-	_refresh()
-	print("CUI grid page_dim=", GameState.page_size(current_page), " cap=", capacity_label.text)
-	get_tree().quit()
-
-func _capture_if_requested() -> void:
-	if "--capturearchive" in OS.get_cmdline_args():
-		await get_tree().create_timer(1.0).timeout
-		_welcome_done()
-		await get_tree().create_timer(0.2).timeout
-		var aguard := 0
-		while story_layer.visible and aguard < 40:
-			_story_advance()
-			aguard += 1
-		if modal_layer.visible:
-			_close_modal()
-		_open_info_tab("archive")
-		await get_tree().create_timer(0.3).timeout
-		var aimg := get_viewport().get_texture().get_image()
-		aimg.save_png("res://_research/mockups/phone/m16_archive.png")
-		get_tree().quit()
-		return
-	if "--captureminigame" in OS.get_cmdline_args():
-		await get_tree().create_timer(1.0).timeout
-		_welcome_done()
-		await get_tree().create_timer(0.2).timeout
-		var mguard := 0
-		while story_layer.visible and mguard < 40:
-			_story_advance()
-			mguard += 1
-		if modal_layer.visible:
-			_close_modal()
-		_open_printer_minigame()
-		await get_tree().create_timer(0.3).timeout
-		var mimg := get_viewport().get_texture().get_image()
-		mimg.save_png("res://_research/mockups/phone/m7_minigame.png")
-		get_tree().quit()
-		return
-	if "--capturetutorial" in OS.get_cmdline_args():
-		await get_tree().create_timer(1.0).timeout
-		_welcome_done()
-		await get_tree().create_timer(0.2).timeout
-		var guard := 0
-		while story_layer.visible and guard < 40:
-			_story_advance()
-			guard += 1
-		await get_tree().create_timer(0.3).timeout
-		var timg := get_viewport().get_texture().get_image()
-		timg.save_png("res://_research/mockups/phone/m6_tutorial.png")
-		get_tree().quit()
-		return
-	if "--capturestory" in OS.get_cmdline_args():
-		await get_tree().create_timer(1.0).timeout
-		_welcome_done()
-		await get_tree().create_timer(0.3).timeout
-		var simg := get_viewport().get_texture().get_image()
-		simg.save_png("res://_research/mockups/phone/m6_story.png")
-		get_tree().quit()
-		return
-	if not "--capture" in OS.get_cmdline_args():
-		return
-	await get_tree().create_timer(1.0).timeout
-	_close_modal()
-	await get_tree().process_frame
-	var img := get_viewport().get_texture().get_image()
-	img.save_png("res://_research/mockups/phone/m1_ui.png")
-	get_tree().quit()
 
 func _setup_theme() -> void:
 	font = load(FONT_PATH)
@@ -538,15 +215,6 @@ func _setup_theme() -> void:
 		th.default_font = font
 		th.default_font_size = 30
 		theme = th
-
-func _audioinfo_if_requested() -> void:
-	if not "--audioinfo" in OS.get_cmdline_args():
-		return
-	print("AUDIO music=", _audio_path("music_main.ogg"), " len=", music_player.stream.get_length() if music_player.stream else 0.0)
-	print("AUDIO ambience=", _audio_path("ambience_station.ogg"), " len=", ambience_player.stream.get_length() if ambience_player.stream else 0.0)
-	for key in ["click", "cash", "fail", "bell", "page", "shutter", "machine", "drink", "gun", "hit", "water", "soft"]:
-		print("AUDIO sfx=", key, " path=", _audio_path("sfx_%s.ogg" % key))
-	get_tree().quit()
 
 func _setup_audio() -> void:
 	var cfg := FileAccess.open("user://audio.json", FileAccess.READ)
@@ -793,6 +461,7 @@ func _build_right_rail() -> void:
 	for i in range(actions.size()):
 		var key: String = actions[i][1]
 		var b := _button(rail, actions[i][0], Vector2(20, 54 + i * 90), Vector2(170, 80), actions[i][2], _on_action.bind(key))
+		b.name = "action_" + key
 		action_buttons[key] = b
 	_label(rail, "派系声望", Vector2(20, 500), Vector2(170, 24), 17, C_MUTED)
 	var reps := [["lower", "下层", C_AMBER], ["upper", "上层", C_TEXT], ["security", "治安", C_CYAN], ["blackmarket", "黑市", C_RUST], ["rev", "革命", C_GREEN], ["tourist", "游客", Color("#b58cff")], ["church", "教会", C_PAPER], ["cartel", "卡特尔", Color("#d08050")]]
@@ -1210,6 +879,7 @@ func _rebuild_container_grid() -> void:
 			icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 			icon.focus_mode = Control.FOCUS_NONE
 			var cuid := int(ch.get("uid", -1))
+			icon.name = "container_item_%d" % cuid
 			icon.pressed.connect(_container_select_child.bind(cuid))
 			icon.gui_input.connect(_on_drag_gui_input.bind(cuid, icon, "container"))
 			if cuid == container_selected_uid:
@@ -1382,6 +1052,7 @@ func _rebuild_showcase() -> void:
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.focus_mode = Control.FOCUS_NONE
 		var uid := int(it.get("uid", -1))
+		icon.name = "showcase_item_%d" % uid
 		icon.pressed.connect(_showcase_select.bind(uid))
 		icon.gui_input.connect(_on_drag_gui_input.bind(uid, icon, "showcase"))
 		if uid == showcase_selected_uid:
@@ -1635,6 +1306,7 @@ func _build_minigame_layer() -> void:
 		b.add_theme_stylebox_override("pressed", _style(Color("#6b5526"), C_AMBER, 3))
 		b.add_theme_stylebox_override("focus", StyleBoxEmpty.new())
 		b.pressed.connect(_toggle_minigame_cell.bind(i))
+		b.name = "minigame_cell_%d" % i
 		grid.add_child(b)
 		minigame_cells.append(b)
 	minigame_status = _label(panel, "", Vector2(90, 610), Vector2(700, 40), 24, C_MUTED)
@@ -1779,7 +1451,8 @@ func _build_dna_layer() -> void:
 	dna_input_label = _label(panel, "", Vector2(90, 230), Vector2(1220, 60), 38, C_AMBER)
 	var bases := ["A", "C", "G", "T"]
 	for i in range(bases.size()):
-		_button(panel, bases[i], Vector2(160 + i * 220, 360), Vector2(180, 90), C_CYAN, _dna_press.bind(bases[i]))
+		var base_btn := _button(panel, bases[i], Vector2(160 + i * 220, 360), Vector2(180, 90), C_CYAN, _dna_press.bind(bases[i]))
+		base_btn.name = "dna_base_" + bases[i]
 	dna_status = _label(panel, "", Vector2(90, 500), Vector2(1200, 40), 24, C_MUTED)
 	_button(panel, "提交序列", Vector2(740, 580), Vector2(240, 72), C_AMBER, _confirm_dna)
 	_button(panel, "清空", Vector2(1010, 580), Vector2(180, 72), C_CYAN, _clear_dna)
@@ -1934,6 +1607,7 @@ func _rebuild_display() -> void:
 			btn.size = Vector2(176, 136)
 			btn.focus_mode = Control.FOCUS_NONE
 			btn.pressed.connect(_on_display_slot.bind(uid))
+			btn.name = "display_%d" % uid
 			p.add_child(btn)
 		else:
 			_label(p, "空", Vector2(0, 54), Vector2(176, 26), 20, C_MUTED, HORIZONTAL_ALIGNMENT_CENTER)
@@ -1981,6 +1655,7 @@ func _rebuild_grid() -> void:
 		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
 		icon.focus_mode = Control.FOCUS_NONE
 		var uid := int(it["uid"])
+		icon.name = "item_%d" % uid
 		icon.pressed.connect(_on_item_selected.bind(uid))
 		icon.gui_input.connect(_on_drag_gui_input.bind(uid, icon, "main"))
 		if uid == selected_uid:
@@ -2091,9 +1766,9 @@ func _update_action_buttons() -> void:
 	var intent := String(c.get("intent", ""))
 	action_buttons["inspect"].disabled = not (has_customer and intent in ["sell", "appraise"])
 	action_buttons["inspect"].text = "估价" if intent == "appraise" else "鉴定"
-	action_buttons["bargain"].disabled = not (has_customer and has_counter and intent == "sell")
+	action_buttons["bargain"].disabled = not (has_customer and has_counter and intent in ["sell", "buy"])
 	action_buttons["threaten"].disabled = not (has_customer and has_counter and intent == "sell")
-	action_buttons["deal"].disabled = not (has_customer and has_counter and intent == "sell")
+	action_buttons["deal"].disabled = not (has_customer and has_counter and intent in ["sell", "buy"])
 	action_buttons["dismiss"].disabled = not has_customer
 	rail_buttons["end_day"].disabled = GameState.phase == "gameover"
 
@@ -2168,7 +1843,7 @@ func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source
 				icon_ref.z_index = 0
 				icon_ref.modulate.a = 1.0
 				if did_drag:
-					_finish_drag(uid, source)
+					_finish_drag(uid, source, event.global_position)
 				else:
 					match source:
 						"main": call_deferred("_on_item_selected", uid)
@@ -2180,8 +1855,7 @@ func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source
 		if parent_ctrl:
 			drag_icon.position = drag_icon.get_global_mouse_position() - drag_offset - parent_ctrl.global_position
 
-func _finish_drag(uid: int, source: String) -> void:
-	var mouse := get_global_mouse_position()
+func _finish_drag(uid: int, source: String, mouse: Vector2) -> void:
 	var handled := false
 	var target := ""
 	if container_layer and container_layer.visible and container_grid.get_global_rect().has_point(mouse):

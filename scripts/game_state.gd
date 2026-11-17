@@ -134,7 +134,15 @@ var tutorial_done := false
 var tutorial_step := 0
 
 func _ready() -> void:
-	rng.randomize()
+	var qa_seed := FileAccess.open("user://qa_seed.txt", FileAccess.READ)
+	if qa_seed:
+		rng.seed = int(qa_seed.get_as_text().strip_edges())
+		qa_seed.close()
+		var dir := DirAccess.open("user://")
+		if dir:
+			dir.remove("qa_seed.txt")
+	else:
+		rng.randomize()
 	_load_defs()
 	new_game()
 
