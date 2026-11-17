@@ -51,6 +51,7 @@ var detail_counter_btn: Button
 var detail_inspect_btn: Button
 var detail_open_btn: Button
 var detail_liquid_btn: Button
+var detail_split_btn: Button
 var modal_layer: Control
 var modal_panel: Panel
 var modal_title: Label
@@ -75,6 +76,8 @@ var machine_special_btn: Button
 var machine_stock_btn: Button
 var machine_take_btn: Button
 var machine_stock_grid_btn: Button
+var machine_io_in_btn: Button
+var machine_io_out_btn: Button
 var inspection_layer: Control
 var inspection_title: Label
 var inspection_info: Label
@@ -172,6 +175,14 @@ var dragging_uid := -1
 var drag_icon: TextureButton
 var drag_offset := Vector2.ZERO
 var dragged := false
+var drag_source := "main"
+const CONTAINER_CELL := 46
+const CONTAINER_STEP := 50
+const UI_WINDOWS_PATH := "user://ui_windows.json"
+var container_panel: Panel
+var container_positions: Dictionary = {}
+var window_dragging := false
+var window_drag_offset := Vector2.ZERO
 var bargain_price := 0
 var welcome_shown := false
 var last_summary: Dictionary = {}
@@ -180,6 +191,7 @@ func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
 	_setup_theme()
 	_setup_audio()
+	_load_window_positions()
 	_audioinfo_if_requested()
 	_build_ui()
 	GameState.state_changed.connect(_refresh)
@@ -366,6 +378,13 @@ func _testmachineui_if_requested() -> void:
 	_open_machine_stock_grid()
 	await get_tree().process_frame
 	print("MUI fridge container=", container_title.text, " ", container_info.text)
+	selected_machine_id = "furnace"
+	_refresh_machine_panel()
+	print("MUI furnace io in=", machine_io_in_btn.visible, " ", machine_io_in_btn.text, " out=", machine_io_out_btn.visible, " ", machine_io_out_btn.text)
+	_open_machine_io("input")
+	await get_tree().process_frame
+	print("MUI furnace input=", container_title.text, " ", container_info.text)
+	_close_container()
 	get_tree().quit()
 
 func _testinspect_if_requested() -> void:
@@ -852,6 +871,7 @@ func _build_drawer() -> void:
 	detail_inspect_btn = _button(detail_panel, "验货", Vector2(630, 190), Vector2(110, 48), C_CYAN, _on_inspect_owned)
 	detail_open_btn = _button(detail_panel, "打开", Vector2(750, 190), Vector2(100, 48), C_GREEN, _on_open_selected_container)
 	detail_liquid_btn = _button(detail_panel, "倒液", Vector2(750, 190), Vector2(100, 48), C_CYAN, _on_liquid_transfer)
+	detail_split_btn = _button(detail_panel, "分瓶", Vector2(630, 190), Vector2(100, 48), C_CYAN, _on_split_pressed)
 
 func _build_modal() -> void:
 	modal_layer = Control.new()
@@ -935,23 +955,34 @@ func _build_container_layer() -> void:
 	dim.color = Color(0, 0, 0, 0.8)
 	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	container_layer.add_child(dim)
-	var panel := _panel(container_layer, Vector2(500, 70), Vector2(1360, 920), C_PANEL, C_CYAN, 3)
-	container_title = _label(panel, "容器", Vector2(30, 16), Vector2(900, 46), 34, C_AMBER)
-	_button(panel, "关闭", Vector2(1200, 14), Vector2(130, 48), C_MUTED, _close_container)
-	var left := _panel(panel, Vector2(24, 80), Vector2(930, 810), C_PANEL2, C_LINE, 2)
-	container_info = _label(left, "", Vector2(16, 12), Vector2(900, 70), 20, C_TEXT)
+	var panel := _panel(container_layer, Vector2(420, 30), Vector2(1000, 700), C_PANEL, C_CYAN, 3)
+	container_panel = panel
+	var dragbar := Control.new()
+	dragbar.position = Vector2.ZERO
+	dragbar.size = Vector2(1000, 62)
+	dragbar.mouse_filter = Control.MOUSE_FILTER_STOP
+	dragbar.gui_input.connect(_on_container_window_input)
+	panel.add_child(dragbar)
+	panel.move_child(dragbar, 0)
+	container_title = _label(panel, "容器", Vector2(24, 12), Vector2(700, 46), 32, C_AMBER)
+	container_title.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	_button(panel, "关闭", Vector2(850, 10), Vector2(130, 48), C_MUTED, _close_container)
+	var left := _panel(panel, Vector2(20, 70), Vector2(600, 610), C_PANEL2, C_LINE, 2)
+	container_info = _label(left, "", Vector2(14, 10), Vector2(570, 54), 18, C_TEXT)
 	container_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	container_grid = Control.new()
-	container_grid.position = Vector2(16, 88)
-	container_grid.size = Vector2(900, 700)
+	container_grid.position = Vector2(14, 70)
+	container_grid.size = Vector2(570, 520)
 	left.add_child(container_grid)
-	var right := _panel(panel, Vector2(970, 80), Vector2(360, 810), C_PANEL2, C_LINE, 2)
-	_label(right, "容器操作", Vector2(20, 12), Vector2(300, 32), 24, C_AMBER)
+	var right := _panel(panel, Vector2(630, 70), Vector2(350, 610), C_PANEL2, C_LINE, 2)
+	_label(right, "容器操作", Vector2(16, 10), Vector2(300, 32), 22, C_AMBER)
 	container_actions = VBoxContainer.new()
-	container_actions.position = Vector2(20, 56)
-	container_actions.size = Vector2(320, 700)
-	container_actions.add_theme_constant_override("separation", 10)
+	container_actions.position = Vector2(16, 50)
+	container_actions.size = Vector2(318, 540)
+	container_actions.add_theme_constant_override("separation", 8)
 	right.add_child(container_actions)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	container_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 func _build_showcase_layer() -> void:
 	showcase_layer = Control.new()
@@ -981,6 +1012,63 @@ func _build_showcase_layer() -> void:
 	showcase_actions.add_theme_constant_override("separation", 10)
 	right.add_child(showcase_actions)
 
+func _load_window_positions() -> void:
+	container_positions = {}
+	if not FileAccess.file_exists(UI_WINDOWS_PATH):
+		return
+	var f := FileAccess.open(UI_WINDOWS_PATH, FileAccess.READ)
+	if f == null:
+		return
+	var parsed = JSON.parse_string(f.get_as_text())
+	if parsed is Dictionary:
+		container_positions = parsed
+
+func _save_window_positions() -> void:
+	var f := FileAccess.open(UI_WINDOWS_PATH, FileAccess.WRITE)
+	if f == null:
+		return
+	f.store_string(JSON.stringify(container_positions))
+
+func _container_window_key() -> String:
+	var it := GameState.find_item(open_container_uid)
+	if it.is_empty():
+		return ""
+	if it.has("_window_key"):
+		return String(it.get("_window_key", ""))
+	return String(it.get("def_id", ""))
+
+func _apply_container_window_pos() -> void:
+	if container_panel == null:
+		return
+	var key := _container_window_key()
+	var pos := Vector2(420, 56)
+	if container_positions.has(key):
+		var saved = container_positions[key]
+		if saved is Dictionary:
+			pos = Vector2(float(saved.get("x", 420)), float(saved.get("y", 56)))
+	pos.x = clampf(pos.x, 0, 2340 - container_panel.size.x)
+	pos.y = clampf(pos.y, 48, 1080 - container_panel.size.y)
+	container_panel.position = pos
+
+func _on_container_window_input(event: InputEvent) -> void:
+	if container_panel == null:
+		return
+	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
+		if event.pressed:
+			window_dragging = true
+			window_drag_offset = event.global_position - container_panel.global_position
+		else:
+			window_dragging = false
+			var key := _container_window_key()
+			if key != "":
+				container_positions[key] = {"x": container_panel.position.x, "y": container_panel.position.y}
+				_save_window_positions()
+	elif event is InputEventMouseMotion and window_dragging:
+		var p: Vector2 = event.global_position - window_drag_offset
+		p.x = clampf(p.x, 0, 2340 - container_panel.size.x)
+		p.y = clampf(p.y, 48, 1080 - container_panel.size.y)
+		container_panel.position = p
+
 func _open_container(uid: int) -> void:
 	var it := GameState.find_item(uid)
 	if it.is_empty() or not GameState.is_container_item(it):
@@ -991,6 +1079,8 @@ func _open_container(uid: int) -> void:
 	open_container_uid = uid
 	container_selected_uid = -1
 	container_layer.visible = true
+	move_child(container_layer, get_child_count() - 1)
+	_apply_container_window_pos()
 	_rebuild_container_grid()
 
 func _close_container() -> void:
@@ -1027,12 +1117,35 @@ func _rebuild_container_grid() -> void:
 	elif kind == "liquid":
 		cap_text = "液体 %d/%d ml" % [int(it.get("liquid_ml", 0)), int(spec.get("capacity_ml", 0))]
 	else:
-		cap_text = "格数 %d / %d" % [children.size(), int(spec.get("width", 0)) * int(spec.get("height", 0))]
+		cap_text = "格数 %d / %d" % [children.size(), GameState.container_effective_width(spec) * int(spec.get("height", 0))]
 	var lock_text := "  ·  已锁定" if bool(it.get("container_locked", false)) else ""
-	container_info.text = "%s  ·  %s  ·  内容估值 %d₵%s" % [GameState.item_display_name(it), cap_text, GameState.effective_value(it), lock_text]
+	var zone_text := ""
+	var zones := GameState.container_zones(spec)
+	if not zones.is_empty():
+		var parts: Array = []
+		for z in zones:
+			var zc := 0
+			for ch in children:
+				if GameState.container_zone_at(spec, int(ch.get("x", 0))).get("id", "") == z.get("id"):
+					zc += 1
+			parts.append("%s %d/%d" % [String(z.get("label", z.get("id", ""))), zc, int(z.get("width", 1)) * int(spec.get("height", 1))])
+		zone_text = "  ·  " + " · ".join(parts)
+	container_info.text = "%s  ·  %s  ·  内容估值 %d₵%s%s" % [GameState.item_display_name(it), cap_text, GameState.effective_value(it), zone_text, lock_text]
 	_clear_children(container_grid)
 	_clear_children(container_actions)
-	if kind == "slots":
+	if kind == "liquid":
+		var fslots := GameState.container_filter_slots(spec)
+		for i in range(fslots):
+			var fch := GameState.container_filter_at(it, i)
+			var flabel := "滤芯 %d：空" % (i + 1)
+			var fuid := -1
+			if not fch.is_empty():
+				fuid = int(fch.get("uid", -1))
+				flabel = "滤芯 %d：%s（%d%%）" % [i + 1, GameState.item_display_name(fch), int(fch.get("condition", 100))]
+			var fb := _button(container_grid, flabel, Vector2(0, i * 90), Vector2(340, 70), C_PANEL2 if fuid < 0 else C_PANEL, _container_select_child.bind(fuid))
+			fb.add_theme_font_size_override("font_size", 18)
+		_container_action("装入滤芯", _container_store_select)
+	elif kind == "slots":
 		var slots: Array = spec.get("slots", [])
 		for i in range(slots.size()):
 			var slot: Dictionary = slots[i]
@@ -1044,21 +1157,51 @@ func _rebuild_container_grid() -> void:
 					child_uid = int(ch.get("uid", -1))
 					label = "%s：%s" % [sid, GameState.item_display_name(ch)]
 					break
-			var b := _button(container_grid, label, Vector2((i % 4) * 220, (i / 4) * 120), Vector2(210, 84), C_PANEL2 if child_uid < 0 else C_PANEL, _container_select_child.bind(child_uid))
+			var b := _button(container_grid, label, Vector2((i % 3) * 190, int(i / 3) * 100), Vector2(180, 74), C_PANEL2 if child_uid < 0 else C_PANEL, _container_select_child.bind(child_uid))
 			b.add_theme_font_size_override("font_size", 18)
 		_container_action("存入模块", _container_store_select)
 	else:
 		for y in range(int(spec.get("height", 1))):
 			for x in range(int(spec.get("width", 1))):
-				var cell := _panel(container_grid, Vector2(x * 56, y * 56), Vector2(52, 52), Color("#11151d"), Color("#2a3140"), 1)
+				var cell_zone := GameState.container_zone_at(spec, x)
+				if not zones.is_empty() and cell_zone.is_empty():
+					continue
+				var fill := Color("#11151d")
+				var edge := Color("#2a3140")
+				if not cell_zone.is_empty():
+					edge = Color("#2f5b6e") if String(cell_zone.get("id", "")) == "chill" else Color("#4a5f8f")
+					fill = Color("#101820") if String(cell_zone.get("id", "")) == "chill" else Color("#131826")
+				var cell := _panel(container_grid, Vector2(x * CONTAINER_STEP, y * CONTAINER_STEP), Vector2(CONTAINER_CELL, CONTAINER_CELL), fill, edge, 1)
 				cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		if not zones.is_empty():
+			for z in zones:
+				var zl := Label.new()
+				zl.text = String(z.get("label", z.get("id", "")))
+				zl.position = Vector2(int(z.get("x", 0)) * CONTAINER_STEP, int(spec.get("height", 1)) * CONTAINER_STEP + 4)
+				zl.size = Vector2(int(z.get("width", 1)) * CONTAINER_STEP, 24)
+				zl.add_theme_font_size_override("font_size", 18)
+				zl.add_theme_color_override("font_color", C_MUTED)
+				zl.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				container_grid.add_child(zl)
+		var grid_fslots := GameState.container_filter_slots(spec)
+		for i in range(grid_fslots):
+			var gfc := GameState.container_filter_at(it, i)
+			var gflabel := "滤芯 %d：空" % (i + 1)
+			var gfuid := -1
+			if not gfc.is_empty():
+				gfuid = int(gfc.get("uid", -1))
+				gflabel = "滤芯 %d：%s（%d%%）" % [i + 1, GameState.item_display_name(gfc), int(gfc.get("condition", 100))]
+			var gfb := _button(container_grid, gflabel, Vector2(i % 2 * 180, int(spec.get("height", 1)) * CONTAINER_STEP + 36 + int(i / 2) * 74), Vector2(170, 62), C_PANEL2 if gfuid < 0 else C_PANEL, _container_select_child.bind(gfuid))
+			gfb.add_theme_font_size_override("font_size", 16)
 		for ch in children:
+			if String(ch.get("slot_id", "")) != "":
+				continue
 			var def := GameState.get_item_def(String(ch.get("def_id", "")))
 			var shape := GameState.item_shape(ch)
-			var w := int(shape[0]) * 52 + (int(shape[0]) - 1) * 4
-			var h := int(shape[1]) * 52 + (int(shape[1]) - 1) * 4
+			var w := int(shape[0]) * CONTAINER_CELL + (int(shape[0]) - 1) * 4
+			var h := int(shape[1]) * CONTAINER_CELL + (int(shape[1]) - 1) * 4
 			var icon := TextureButton.new()
-			icon.position = Vector2(int(ch.get("x", 0)) * 56, int(ch.get("y", 0)) * 56)
+			icon.position = Vector2(int(ch.get("x", 0)) * CONTAINER_STEP, int(ch.get("y", 0)) * CONTAINER_STEP)
 			icon.size = Vector2(w, h)
 			var gip := GameState.item_icon_path(def)
 			icon.texture_normal = load(gip) if gip != "" else null
@@ -1068,15 +1211,23 @@ func _rebuild_container_grid() -> void:
 			icon.focus_mode = Control.FOCUS_NONE
 			var cuid := int(ch.get("uid", -1))
 			icon.pressed.connect(_container_select_child.bind(cuid))
+			icon.gui_input.connect(_on_drag_gui_input.bind(cuid, icon, "container"))
 			if cuid == container_selected_uid:
 				icon.self_modulate = Color(1.3, 1.2, 0.85)
 			container_grid.add_child(icon)
+			_add_count_badge(container_grid, icon.position, icon.size, int(ch.get("unit_count", 1)))
 		_container_action("存入物品", _container_store_select)
+		if GameState.container_filter_slots(spec) > 0:
+			_container_action("装入滤芯", _container_store_select)
 	var selected := GameState.find_item(container_selected_uid) if container_selected_uid >= 0 else {}
 	if not selected.is_empty():
 		_container_action("取出到背包", _container_take_selected, C_AMBER)
+		if GameState.is_stackable_item(selected) and int(selected.get("unit_count", 1)) > 1:
+			_container_action("分堆", _container_split_selected, C_CYAN)
 		if GameState.is_container_item(selected):
 			_container_action("打开选中容器", _container_open_selected, C_CYAN)
+	if not children.is_empty():
+		_container_action("全部取出", _container_take_all, C_GREEN)
 	if bool(it.get("container_locked", false)):
 		_container_action("使用门禁卡", _container_unlock_select, C_RUST)
 	if not container_stack.is_empty():
@@ -1089,6 +1240,40 @@ func _container_select_child(uid: int) -> void:
 
 func _refresh_container_actions() -> void:
 	pass
+
+func _container_split_selected() -> void:
+	if container_selected_uid < 0:
+		return
+	var res := GameState.split_stack(container_selected_uid)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_toast(String(res.get("text", "")))
+	_rebuild_container_grid()
+
+func _container_take_all() -> void:
+	var parent := GameState.find_item(open_container_uid)
+	if parent.is_empty():
+		return
+	if bool(parent.get("container_locked", false)):
+		_toast("容器已锁定，需要对应钥匙。")
+		return
+	var moved := 0
+	var blocked := false
+	for ch in parent.get("children", []).duplicate():
+		var uid := int(ch.get("uid", -1))
+		var item := GameState.container_remove_child(parent, uid)
+		if item.is_empty():
+			continue
+		item["location"] = "backpack"
+		if GameState.add_item(item):
+			moved += 1
+		else:
+			GameState.container_auto_add(parent, item)
+			blocked = true
+			break
+	container_selected_uid = -1
+	_toast("取出 %d 件%s。" % [moved, "，背包空间不足" if blocked else ""])
+	_rebuild_container_grid()
+	_refresh()
 
 func _container_take_selected() -> void:
 	var parent := GameState.find_item(open_container_uid)
@@ -1163,6 +1348,7 @@ func _container_store_choice(uid_text: String) -> void:
 
 func _open_showcase() -> void:
 	showcase_layer.visible = true
+	move_child(showcase_layer, get_child_count() - 1)
 	showcase_selected_uid = -1
 	_rebuild_showcase()
 
@@ -1197,9 +1383,11 @@ func _rebuild_showcase() -> void:
 		icon.focus_mode = Control.FOCUS_NONE
 		var uid := int(it.get("uid", -1))
 		icon.pressed.connect(_showcase_select.bind(uid))
+		icon.gui_input.connect(_on_drag_gui_input.bind(uid, icon, "showcase"))
 		if uid == showcase_selected_uid:
 			icon.self_modulate = Color(1.3, 1.2, 0.85)
 		showcase_grid.add_child(icon)
+		_add_count_badge(showcase_grid, icon.position, icon.size, int(it.get("unit_count", 1)))
 	_showcase_action("整理展示柜", _showcase_arrange, C_CYAN)
 	if showcase_selected_uid >= 0:
 		_showcase_action("下架到背包", _showcase_take, C_AMBER)
@@ -1289,10 +1477,12 @@ func _build_machine_bay() -> void:
 	machine_special_btn = _button(detail, "特殊操作", Vector2(730, 440), Vector2(230, 72), C_AMBER, _machine_special_pressed)
 	machine_stock_btn = _button(detail, "存入", Vector2(970, 440), Vector2(130, 72), C_CYAN, _open_machine_stock)
 	machine_take_btn = _button(detail, "取回", Vector2(1110, 440), Vector2(130, 72), C_MUTED, _take_machine_stock)
+	machine_io_in_btn = _button(detail, "输入网格", Vector2(24, 596), Vector2(300, 54), C_CYAN, _open_machine_io_input)
+	machine_io_out_btn = _button(detail, "输出网格", Vector2(340, 596), Vector2(300, 54), C_GREEN, _open_machine_io_output)
 	machine_status_label = _label(detail, "选择机器开始生产。", Vector2(24, 520), Vector2(1230, 64), 20, C_MUTED)
-	var jobs_panel := _panel(panel, Vector2(570, 700), Vector2(1280, 250), C_PANEL2, C_LINE, 2)
+	var jobs_panel := _panel(panel, Vector2(570, 760), Vector2(1280, 190), C_PANEL2, C_LINE, 2)
 	_label(jobs_panel, "运行队列", Vector2(24, 12), Vector2(300, 32), 24, C_AMBER)
-	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 180), 22, C_TEXT)
+	machine_jobs_label = _label(jobs_panel, "无", Vector2(24, 50), Vector2(1230, 130), 22, C_TEXT)
 
 func _build_info_bay() -> void:
 	info_layer = Control.new()
@@ -1751,6 +1941,18 @@ func _rebuild_display() -> void:
 const GRID_CELL := 54
 const GRID_STEP := 58
 
+func _add_count_badge(parent: Control, at: Vector2, size: Vector2, count: int) -> void:
+	if count <= 1:
+		return
+	var l := Label.new()
+	l.text = "×%d" % count
+	l.position = at + Vector2(maxf(0.0, size.x - 42.0), maxf(0.0, size.y - 26.0))
+	l.size = Vector2(40, 24)
+	l.add_theme_font_size_override("font_size", 18)
+	l.add_theme_color_override("font_color", C_AMBER)
+	l.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	parent.add_child(l)
+
 func _rebuild_grid() -> void:
 	_clear_children(grid_root)
 	var dims := GameState.page_size(current_page)
@@ -1780,10 +1982,11 @@ func _rebuild_grid() -> void:
 		icon.focus_mode = Control.FOCUS_NONE
 		var uid := int(it["uid"])
 		icon.pressed.connect(_on_item_selected.bind(uid))
-		icon.gui_input.connect(_on_item_gui_input.bind(uid, icon))
+		icon.gui_input.connect(_on_drag_gui_input.bind(uid, icon, "main"))
 		if uid == selected_uid:
 			icon.self_modulate = Color(1.3, 1.2, 0.85)
 		grid_root.add_child(icon)
+		_add_count_badge(grid_root, icon.position, icon.size, int(it.get("unit_count", 1)))
 	if current_page >= GameState.pages_unlocked:
 		current_page = GameState.pages_unlocked - 1
 	for i in range(page_buttons.size()):
@@ -1815,6 +2018,7 @@ func _update_detail() -> void:
 		detail_inspect_btn.disabled = true
 		detail_open_btn.disabled = true
 		detail_liquid_btn.disabled = true
+		detail_split_btn.disabled = true
 		return
 	var def := GameState.get_item_def(it.get("def_id", ""))
 	var tip := GameState.item_icon_path(def)
@@ -1848,7 +2052,11 @@ func _update_detail() -> void:
 			container_text += " / %d 格" % (int(cspec.get("width", 0)) * int(cspec.get("height", 0)))
 	elif GameState.is_liquid_container(it):
 		container_text = "\n液体：%d/%d ml · 纯度 %d%%" % [int(it.get("liquid_ml", 0)), int(cspec.get("capacity_ml", 0)), int(it.get("liquid_purity", 0)) / 100]
-	detail_meta.text = "品相 %d%% · %s%s\n%s\n特征：%s · %s%s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, tags_text, feat_text, loc_text, container_text]
+	var weight_text := ""
+	var wt := GameState.item_weight(it)
+	if wt > 0:
+		weight_text = "\n重量：%d g" % wt
+	detail_meta.text = "品相 %d%% · %s%s\n%s\n特征：%s · %s%s%s" % [cond, "已鉴定 · " + auth_text if known else "未鉴定", stolen_text, tags_text, feat_text, loc_text, container_text, weight_text]
 	if known or loc == "backpack":
 		detail_price.text = "%d¥" % GameState.market_value(it, false)
 	else:
@@ -1861,8 +2069,13 @@ func _update_detail() -> void:
 	detail_inspect_btn.disabled = loc not in ["backpack", "display"]
 	detail_open_btn.disabled = not GameState.is_container_item(it)
 	detail_liquid_btn.disabled = not GameState.is_liquid_container(it)
-	detail_open_btn.visible = not GameState.is_liquid_container(it)
+	var is_stack := GameState.is_stackable_item(it) and int(it.get("unit_count", 1)) > 1
+	detail_split_btn.disabled = not (GameState.is_liquid_container(it) or is_stack)
+	detail_split_btn.text = "分瓶" if GameState.is_liquid_container(it) else "分堆"
+	detail_open_btn.visible = not GameState.is_liquid_container(it) or GameState.is_container_item(it)
 	detail_liquid_btn.visible = GameState.is_liquid_container(it)
+	detail_split_btn.visible = GameState.is_liquid_container(it) or is_stack
+	detail_inspect_btn.visible = not GameState.is_liquid_container(it)
 
 func _loc_name(loc: String) -> String:
 	match loc:
@@ -1936,11 +2149,12 @@ func _on_item_selected(uid: int) -> void:
 	_rebuild_grid()
 	_update_detail()
 
-func _on_item_gui_input(event: InputEvent, uid: int, icon: TextureButton) -> void:
+func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source: String) -> void:
 	if event is InputEventMouseButton and event.button_index == MOUSE_BUTTON_LEFT:
 		if event.pressed:
 			dragging_uid = uid
 			drag_icon = icon
+			drag_source = source
 			drag_offset = icon.get_global_mouse_position() - icon.global_position
 			icon.z_index = 10
 			icon.modulate.a = 0.75
@@ -1949,27 +2163,77 @@ func _on_item_gui_input(event: InputEvent, uid: int, icon: TextureButton) -> voi
 			if dragging_uid == uid and drag_icon:
 				var did_drag := dragged
 				var icon_ref := drag_icon
-				var local := icon_ref.position
 				dragging_uid = -1
 				drag_icon = null
 				icon_ref.z_index = 0
 				icon_ref.modulate.a = 1.0
 				if did_drag:
-					var gx := int(round(local.x / 66.0))
-					var gy := int(round(local.y / 66.0))
-					GameState.move_item(uid, gx, gy, current_page)
-					_refresh()
+					_finish_drag(uid, source)
 				else:
-					call_deferred("_on_item_selected", uid)
+					match source:
+						"main": call_deferred("_on_item_selected", uid)
+						"container": _container_select_child(uid)
+						"showcase": _showcase_select(uid)
 	elif event is InputEventMouseMotion and dragging_uid == uid and drag_icon:
 		dragged = true
-		drag_icon.position = drag_icon.get_global_mouse_position() - drag_offset - grid_root.global_position
+		var parent_ctrl := drag_icon.get_parent() as Control
+		if parent_ctrl:
+			drag_icon.position = drag_icon.get_global_mouse_position() - drag_offset - parent_ctrl.global_position
+
+func _finish_drag(uid: int, source: String) -> void:
+	var mouse := get_global_mouse_position()
+	var handled := false
+	var target := ""
+	if container_layer and container_layer.visible and container_grid.get_global_rect().has_point(mouse):
+		target = "container"
+	elif showcase_layer and showcase_layer.visible and showcase_grid.get_global_rect().has_point(mouse):
+		target = "showcase"
+	elif grid_root.get_global_rect().has_point(mouse):
+		target = "main"
+	if target == "container":
+		var gx := int(floor((mouse.x - container_grid.global_position.x) / float(CONTAINER_STEP)))
+		var gy := int(floor((mouse.y - container_grid.global_position.y) / float(CONTAINER_STEP)))
+		var parent := GameState.find_item(open_container_uid)
+		if source == "container" and not parent.is_empty() and not GameState._find_child_item(parent, uid).is_empty():
+			handled = GameState.container_move_child(parent, uid, gx, gy, bool(GameState.find_item(uid).get("rotated", false)))
+		else:
+			handled = GameState.move_item_to_container(uid, open_container_uid, gx, gy)
+	elif target == "showcase":
+		var sx := int(floor((mouse.x - showcase_grid.global_position.x) / 56.0))
+		var sy := int(floor((mouse.y - showcase_grid.global_position.y) / 56.0))
+		if source == "showcase":
+			handled = GameState.move_display_item(uid, sx, sy)
+		else:
+			handled = GameState.place_item_in_showcase(uid, sx, sy)
+	elif target == "main":
+		var gx2 := int(floor((mouse.x - grid_root.global_position.x) / float(GRID_STEP)))
+		var gy2 := int(floor((mouse.y - grid_root.global_position.y) / float(GRID_STEP)))
+		if source == "main":
+			handled = GameState.move_item(uid, gx2, gy2, current_page)
+		else:
+			handled = GameState.place_item_in_player(uid, current_page, gx2, gy2)
+	if not handled:
+		_toast("这个位置放不下。")
+	_refresh()
+	if container_layer.visible:
+		_rebuild_container_grid()
+	if showcase_layer.visible:
+		_rebuild_showcase()
 
 func _on_display_slot(uid: int) -> void:
 	selected_uid = uid
 	if GameState.current_customer.get("intent") == "buy":
 		GameState.put_display_on_counter(uid)
 	_refresh()
+
+func _on_split_pressed() -> void:
+	var it := _selected_item()
+	if it.is_empty():
+		return
+	var res := GameState.split_liquid(it) if GameState.is_liquid_container(it) else GameState.split_stack(selected_uid)
+	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
+	_refresh()
+	_toast(String(res.get("text", "")))
 
 func _on_liquid_transfer() -> void:
 	var src := _selected_item()
@@ -2342,6 +2606,27 @@ func _refresh_machine_panel() -> void:
 	if machine_take_btn:
 		machine_take_btn.visible = kind in ["vending", "fountain", "wine", "fridge", "cage", "feed", "butcher"]
 		machine_take_btn.disabled = GameState.machine_stock_summary(selected_machine_id).is_empty()
+	var io := GameState.machine_io_spec(selected_machine_id)
+	if machine_io_in_btn:
+		var has_io_in := io.get("input", {}) is Dictionary and not (io.get("input", {}) as Dictionary).is_empty()
+		machine_io_in_btn.visible = has_io_in
+		machine_io_in_btn.disabled = dur <= 0 or fault != ""
+		if has_io_in:
+			var in_box := GameState.machine_io_container(selected_machine_id, "input")
+			var in_spec := GameState.container_spec(in_box)
+			var in_slots: Array = in_spec.get("slots", [])
+			var in_cap: int = in_slots.size() if String(in_spec.get("kind", "")) == "slots" else int(in_spec.get("width", 0)) * int(in_spec.get("height", 0))
+			machine_io_in_btn.text = "输入网格 %d/%d" % [in_box.get("children", []).size(), in_cap]
+	if machine_io_out_btn:
+		var has_io_out := io.get("output", {}) is Dictionary and not (io.get("output", {}) as Dictionary).is_empty()
+		machine_io_out_btn.visible = has_io_out
+		machine_io_out_btn.disabled = dur <= 0 or fault != ""
+		if has_io_out:
+			var out_box := GameState.machine_io_container(selected_machine_id, "output")
+			var out_spec := GameState.container_spec(out_box)
+			var out_slots: Array = out_spec.get("slots", [])
+			var out_cap: int = out_slots.size() if String(out_spec.get("kind", "")) == "slots" else int(out_spec.get("width", 0)) * int(out_spec.get("height", 0))
+			machine_io_out_btn.text = "输出网格 %d/%d" % [out_box.get("children", []).size(), out_cap]
 	if machine_special_btn:
 		var action_kinds := ["bargain", "vending", "fountain", "reactor", "cage", "bottle_printer", "fridge", "ras", "storage_preset", "music", "mark", "purify", "distill", "heat", "butcher"]
 		machine_special_btn.visible = kind in action_kinds
@@ -2534,6 +2819,19 @@ func _toggle_machine_active() -> void:
 	_play_sfx("click" if bool(res.get("ok", false)) else "fail")
 	_refresh_machine_panel()
 	machine_status_label.text = String(res.get("text", ""))
+
+func _open_machine_io_input() -> void:
+	_open_machine_io("input")
+
+func _open_machine_io_output() -> void:
+	_open_machine_io("output")
+
+func _open_machine_io(side: String) -> void:
+	var box := GameState.machine_io_container(selected_machine_id, side)
+	if box.is_empty():
+		_toast("这台机器没有%s网格。" % ("输入" if side == "input" else "输出"))
+		return
+	_open_container(int(box.get("uid", -1)))
 
 func _machine_special_pressed() -> void:
 	var res := GameState.machine_special_action(selected_machine_id)

@@ -98,9 +98,10 @@ func _init() -> void:
 
 	# fridge
 	gs.power = 100
-	gs.add_item(gs.make_item("nutrifruit", 100, true, false))
+	gs.add_item(gs.make_item("bottled_water", 100, true, false))
 	var f_uid = int(gs.inventory[gs.inventory.size() - 1]["uid"])
-	gs.machine_stock_add("fridge", f_uid)
+	var fadd = gs.machine_stock_add("fridge", f_uid)
+	check(fadd.get("ok", false), "fridge accepts water", fadd.get("text", ""))
 	gs.machine_toggle_active("fridge")
 	gs.advance_machines_one_cycle()
 	var fstock = gs.machine_stock.get("fridge", [])
@@ -163,7 +164,9 @@ func _init() -> void:
 	check(int(gs.machine_jobs[-1]["outputs"][0]["count"]) == 2, "furnace blast output 2", str(gs.machine_jobs[-1]["outputs"]))
 	for i in range(2):
 		gs.advance_machines_one_cycle()
-	check(gs.inventory_count("metal_ingot") >= 2, "furnace blast produced", str(gs.inventory_count("metal_ingot")))
+	var fout_box = gs.machine_io_container("furnace", "output")
+	check(fout_box.get("children", []).size() >= 2, "furnace blast produced", str(fout_box.get("children", []).size()))
+	fout_box["children"].clear()
 	gs.clear_modules("furnace")
 
 	# printer melee batch + module requirement
@@ -219,7 +222,8 @@ func _init() -> void:
 	for i in range(2):
 		gs.advance_machines_one_cycle()
 	var qfeat := false
-	for it in gs.inventory:
+	var qbox = gs.machine_io_container("furnace", "output")
+	for it in qbox.get("children", []):
 		if String(it.get("def_id", "")) == "metal_ingot":
 			for f in it.get("features", []):
 				if String(f.get("id", "")) == "machine_quality":

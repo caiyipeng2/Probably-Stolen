@@ -1,0 +1,897 @@
+{
+  "evidence_box": {
+    "rolls": [
+      {
+        "id": "current_converter",
+        "chance": 20
+      },
+      {
+        "id": "skincare_cream",
+        "chance": 4
+      },
+      {
+        "id": "bottled_water_premium",
+        "chance": 6
+      },
+      {
+        "id": "neuroactive_perfume",
+        "chance": 4
+      },
+      {
+        "id": "pheromone_perfume",
+        "chance": 6
+      },
+      {
+        "id": "turbo_booster_adv",
+        "chance": 6
+      },
+      {
+        "id": "blue_blood_bag",
+        "chance": 6
+      },
+      {
+        "id": "scav_token",
+        "chance": 15
+      },
+      {
+        "id": "water_filter_adv",
+        "chance": 6
+      },
+      {
+        "id": "portable_water_purifier",
+        "chance": 3
+      },
+      {
+        "id": "black_injector",
+        "chance": 25
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 35
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 35
+      },
+      {
+        "id": "bottled_water_premium",
+        "chance": 5
+      },
+      {
+        "id": "heavy_handmade_pistol",
+        "cond": 40,
+        "chance": 12
+      },
+      {
+        "id": "handmade_pistol",
+        "cond": 40,
+        "chance": 12
+      },
+      {
+        "id": "kitchen_knife",
+        "chance": 15
+      },
+      {
+        "id": "combat_knife",
+        "chance": 12
+      },
+      {
+        "id": "glass_shard_shiv",
+        "chance": 15
+      },
+      {
+        "id": "kitchen_cleaver",
+        "chance": 15
+      },
+      {
+        "id": "hatchet",
+        "chance": 12
+      },
+      {
+        "id": "pipe_weapon",
+        "chance": 15
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 25
+      },
+      {
+        "id": "raw_meat",
+        "chance": 25
+      },
+      {
+        "id": "sec_keycard",
+        "chance": 15
+      },
+      {
+        "id": "med_keycard",
+        "chance": 20
+      },
+      {
+        "id": "eng_keycard",
+        "chance": 20
+      },
+      {
+        "id": "cmd_keycard",
+        "chance": 10
+      },
+      {
+        "id": "common_chemical",
+        "chance": 75
+      },
+      {
+        "id": "common_chemical",
+        "chance": 75
+      },
+      {
+        "id": "restricted_chemical",
+        "chance": 50
+      },
+      {
+        "id": "common_electronic",
+        "chance": 33
+      },
+      {
+        "id": "scratcher",
+        "chance": 33
+      },
+      {
+        "id": "processed_cheese",
+        "chance": 25
+      },
+      {
+        "id": "unlicensed_phagimycin_pill",
+        "chance": 33
+      },
+      {
+        "id": "unlicensed_phagimycin_pill",
+        "chance": 33
+      },
+      {
+        "id": "unlicensed_phagimycin_pill",
+        "chance": 33
+      },
+      {
+        "id": "unlicensed_phagimycin_pill",
+        "chance": 33
+      },
+      {
+        "id": "dream_dust",
+        "chance": 50
+      },
+      {
+        "id": "dream_dust",
+        "chance": 50
+      },
+      {
+        "id": "dream_dust",
+        "chance": 50
+      },
+      {
+        "id": "dream_dust",
+        "chance": 50
+      },
+      {
+        "id": "zyanide_pill",
+        "chance": 33
+      },
+      {
+        "id": "zyanide_pill",
+        "chance": 33
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "small_pistol_ammo",
+        "chance": 33
+      },
+      {
+        "id": "small_pistol_ammo_p",
+        "chance": 33
+      },
+      {
+        "id": "small_pistol_ammo_nl",
+        "chance": 33
+      },
+      {
+        "id": "heavy_pistol_ammo",
+        "chance": 33
+      },
+      {
+        "id": "heavy_pistol_ammo_p",
+        "chance": 33
+      },
+      {
+        "id": "heavy_pistol_ammo_nl",
+        "chance": 33
+      },
+      {
+        "id": "nudka",
+        "chance": 25
+      },
+      {
+        "id": "wine_yeast_red",
+        "chance": 50
+      },
+      {
+        "id": "wine_yeast_red",
+        "chance": 50
+      }
+    ]
+  },
+  "med_box": {
+    "rolls": [
+      {
+        "id": "med_keycard",
+        "chance": 50
+      },
+      {
+        "id": "med_keycard",
+        "chance": 50
+      },
+      {
+        "id": "black_injector",
+        "chance": 33
+      },
+      {
+        "id": "black_injector",
+        "chance": 33
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 100
+      },
+      {
+        "id": "surgery_tool",
+        "chance": 25
+      },
+      {
+        "id": "common_chemical",
+        "chance": 75
+      },
+      {
+        "id": "common_chemical",
+        "chance": 75
+      },
+      {
+        "id": "common_chemical",
+        "chance": 75
+      },
+      {
+        "id": "restricted_chemical",
+        "chance": 50
+      },
+      {
+        "id": "common_medical",
+        "chance": 50
+      },
+      {
+        "id": "salve",
+        "chance": 75
+      },
+      {
+        "id": "rubbing_alcohol",
+        "chance": 75
+      },
+      {
+        "id": "energy_credit",
+        "credits": [
+          25,
+          50
+        ],
+        "chance": 100
+      },
+      {
+        "id": "bandage_item",
+        "chance": 75
+      },
+      {
+        "id": "bandage_item",
+        "chance": 75
+      },
+      {
+        "id": "bandage_item",
+        "chance": 50
+      },
+      {
+        "id": "bandage_item",
+        "chance": 50
+      },
+      {
+        "id": "blood_bag",
+        "chance": 50
+      },
+      {
+        "id": "blue_blood_bag",
+        "chance": 25
+      },
+      {
+        "id": "galaxy_blend",
+        "chance": 33
+      },
+      {
+        "id": "galaxy_blend",
+        "chance": 33
+      },
+      {
+        "id": "hemostatic_bandage_item",
+        "chance": 75
+      },
+      {
+        "id": "hemostatic_bandage_item",
+        "chance": 75
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 50
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 33
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 33
+      },
+      {
+        "id": "phagimycin_pill",
+        "chance": 50
+      },
+      {
+        "id": "phagimycin_pill",
+        "chance": 50
+      },
+      {
+        "id": "phagimycin_pill",
+        "chance": 50
+      },
+      {
+        "id": "phagimycin_pill",
+        "chance": 50
+      },
+      {
+        "id": "phagimycin_pill",
+        "chance": 50
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "fanta_pill",
+        "chance": 50
+      },
+      {
+        "id": "smelling_salt",
+        "chance": 50
+      },
+      {
+        "id": "smelling_salt",
+        "chance": 50
+      },
+      {
+        "id": "smelling_salt",
+        "chance": 50
+      },
+      {
+        "id": "birth_control_pill",
+        "chance": 50
+      },
+      {
+        "id": "birth_control_pill",
+        "chance": 50
+      },
+      {
+        "id": "birth_control_pill",
+        "chance": 50
+      },
+      {
+        "id": "caffeine_pill",
+        "chance": 50
+      },
+      {
+        "id": "caffeine_pill",
+        "chance": 50
+      },
+      {
+        "id": "caffeine_pill",
+        "chance": 50
+      }
+    ]
+  },
+  "sec_box": {
+    "rolls": [
+      {
+        "id": "glock_receiver",
+        "chance": 20
+      },
+      {
+        "id": "stun_gun",
+        "chance": 20
+      },
+      {
+        "id": "tazer",
+        "chance": 33
+      },
+      {
+        "id": "current_converter",
+        "chance": 20
+      },
+      {
+        "id": "energy_credit",
+        "credits": [
+          50,
+          100
+        ],
+        "chance": 100
+      },
+      {
+        "id": "stun_baton",
+        "chance": 35
+      },
+      {
+        "id": "stun_baton",
+        "chance": 35
+      },
+      {
+        "id": "combat_knife",
+        "chance": 35
+      },
+      {
+        "id": "combat_knife",
+        "chance": 35
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 50
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 50
+      },
+      {
+        "id": "pink_alt_injector",
+        "chance": 50
+      },
+      {
+        "id": "sec_keycard",
+        "chance": 50
+      },
+      {
+        "id": "sec_keycard",
+        "chance": 50
+      },
+      {
+        "id": "flashbang_grenade",
+        "chance": 50
+      },
+      {
+        "id": "flashbang_grenade",
+        "chance": 50
+      },
+      {
+        "id": "flashlight",
+        "chance": 33
+      },
+      {
+        "id": "smoke_grenade",
+        "chance": 50
+      },
+      {
+        "id": "smoke_grenade",
+        "chance": 50
+      },
+      {
+        "id": "heavy_pistol_ammo",
+        "chance": 55
+      },
+      {
+        "id": "heavy_pistol_ammo_p",
+        "chance": 55
+      },
+      {
+        "id": "heavy_pistol_ammo_nl",
+        "chance": 55
+      },
+      {
+        "id": "heavy_pistol_ammo",
+        "chance": 55
+      },
+      {
+        "id": "heavy_pistol_ammo_p",
+        "chance": 55
+      },
+      {
+        "id": "heavy_pistol_ammo_nl",
+        "chance": 55
+      },
+      {
+        "id": "topical_bandage_item",
+        "chance": 55
+      },
+      {
+        "id": "topical_bandage_item",
+        "chance": 55
+      }
+    ]
+  },
+  "service_box": {
+    "rolls": [
+      {
+        "id": "current_converter",
+        "chance": 33
+      },
+      {
+        "id": "neuroactive_perfume",
+        "chance": 8
+      },
+      {
+        "id": "ser_keycard",
+        "chance": 66
+      },
+      {
+        "id": "ser_keycard",
+        "chance": 33
+      },
+      {
+        "id": "aquascan",
+        "chance": 15
+      },
+      {
+        "id": "uv_filter",
+        "chance": 15
+      },
+      {
+        "id": "water_filter_adv",
+        "chance": 12
+      },
+      {
+        "id": "portable_water_purifier",
+        "chance": 8
+      },
+      {
+        "id": "toilet_paper",
+        "chance": 50
+      },
+      {
+        "id": "toilet_paper",
+        "chance": 33
+      },
+      {
+        "id": "toilet_paper",
+        "chance": 15
+      },
+      {
+        "id": "processed_cheese",
+        "chance": 33
+      },
+      {
+        "id": "toothpaste",
+        "chance": 75
+      },
+      {
+        "id": "water_filter",
+        "cond": 100,
+        "chance": 75
+      },
+      {
+        "id": "water_filter",
+        "cond": 100,
+        "chance": 50
+      },
+      {
+        "id": "water_filter",
+        "cond": 100,
+        "chance": 33
+      },
+      {
+        "container": "nutrifruit_seed_packet",
+        "fill": [
+          [
+            "nutrifruit_seed",
+            9
+          ]
+        ],
+        "chance": 33
+      },
+      {
+        "container": "water_test_container",
+        "fill": [
+          [
+            "water_test_strip",
+            10
+          ]
+        ],
+        "chance": 50
+      },
+      {
+        "container": "water_tablet_container",
+        "fill": [
+          [
+            "water_tablet",
+            9
+          ]
+        ],
+        "chance": 50
+      },
+      {
+        "id": "energy_credit",
+        "credits": [
+          100,
+          100
+        ],
+        "chance": 75
+      },
+      {
+        "id": "energy_credit",
+        "credits": [
+          33,
+          33
+        ],
+        "chance": 25
+      },
+      {
+        "id": "box_cutter",
+        "chance": 33
+      },
+      {
+        "id": "kitchen_knife",
+        "chance": 33
+      },
+      {
+        "id": "hatchet",
+        "chance": 25
+      },
+      {
+        "id": "paper_towel",
+        "chance": 33
+      },
+      {
+        "id": "paper_towel",
+        "chance": 33
+      },
+      {
+        "id": "shampoo",
+        "chance": 33
+      },
+      {
+        "id": "shampoo",
+        "chance": 33
+      },
+      {
+        "id": "caffeine_pill",
+        "chance": 33
+      },
+      {
+        "id": "caffeine_pill",
+        "chance": 33
+      },
+      {
+        "id": "caffeine_pill",
+        "chance": 33
+      },
+      {
+        "id": "kotton_seed",
+        "chance": 75
+      },
+      {
+        "id": "kotton_seed",
+        "chance": 50
+      },
+      {
+        "id": "kotton_seed",
+        "chance": 33
+      },
+      {
+        "id": "hydroreed_seed",
+        "chance": 75
+      },
+      {
+        "id": "hydroreed_seed",
+        "chance": 50
+      },
+      {
+        "id": "module_bay_expansion_kit",
+        "chance": 25
+      },
+      {
+        "id": "nutrient_tablet",
+        "chance": 50
+      },
+      {
+        "id": "nutrient_tablet",
+        "chance": 50
+      },
+      {
+        "id": "nutrient_tablet",
+        "chance": 50
+      },
+      {
+        "id": "nutrifruit",
+        "chance": 100
+      },
+      {
+        "id": "nutrifruit",
+        "chance": 100
+      }
+    ]
+  },
+  "eng_box": {
+    "rolls": [
+      {
+        "id": "energy_credit_breeder",
+        "chance": 12
+      },
+      {
+        "id": "system_capped_neural_core",
+        "chance": 4
+      },
+      {
+        "id": "module_bay_expansion_kit",
+        "chance": 25
+      },
+      {
+        "id": "module_bay_expansion_kit",
+        "chance": 25
+      },
+      {
+        "id": "current_converter",
+        "chance": 50
+      },
+      {
+        "id": "energy_credit",
+        "credits": [
+          100,
+          100
+        ],
+        "chance": 100
+      },
+      {
+        "id": "energy_credit",
+        "credits": [
+          0,
+          100
+        ],
+        "chance": 50
+      },
+      {
+        "id": "energy_credit_ext",
+        "credits": [
+          0,
+          125
+        ],
+        "chance": 100
+      },
+      {
+        "id": "screwdriver",
+        "chance": 50
+      },
+      {
+        "id": "wire_cutter",
+        "chance": 50
+      },
+      {
+        "id": "crowbar",
+        "chance": 50
+      },
+      {
+        "id": "welder",
+        "chance": 50
+      },
+      {
+        "id": "module_extractor",
+        "chance": 25
+      },
+      {
+        "id": "module_extractor",
+        "chance": 25
+      },
+      {
+        "id": "module_extractor_advanced",
+        "chance": 12
+      },
+      {
+        "id": "turbo_booster",
+        "chance": 25
+      },
+      {
+        "id": "turbo_booster",
+        "chance": 25
+      },
+      {
+        "id": "turbo_booster_adv",
+        "chance": 8
+      },
+      {
+        "id": "advanced_flux_agent",
+        "chance": 12
+      },
+      {
+        "id": "furnace_module_blast",
+        "chance": 15
+      },
+      {
+        "id": "eng_keycard",
+        "chance": 50
+      },
+      {
+        "id": "eng_keycard",
+        "chance": 50
+      },
+      {
+        "id": "system_module_performance",
+        "chance": 50
+      },
+      {
+        "id": "system_module_efficiancy",
+        "chance": 50
+      },
+      {
+        "id": "system_module_quality",
+        "chance": 50
+      },
+      {
+        "id": "system_module_overclock",
+        "chance": 33
+      },
+      {
+        "id": "system_module_eco",
+        "chance": 33
+      },
+      {
+        "id": "system_module_fineness",
+        "chance": 33
+      },
+      {
+        "id": "common_electronic",
+        "chance": 33
+      },
+      {
+        "id": "common_electronic",
+        "chance": 33
+      },
+      {
+        "id": "common_electronic",
+        "chance": 33
+      },
+      {
+        "id": "nuts_metal",
+        "chance": 33
+      },
+      {
+        "id": "nuts_metal",
+        "chance": 33
+      },
+      {
+        "id": "flux_agent",
+        "chance": 50
+      },
+      {
+        "id": "flux_agent",
+        "chance": 50
+      },
+      {
+        "id": "flux_agent",
+        "chance": 50
+      }
+    ]
+  }
+}

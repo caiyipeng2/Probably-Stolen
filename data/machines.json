@@ -133,7 +133,21 @@
     ],
     "module_slots": 3,
     "quality_ratio": 100,
-    "rule_text": "熔炼废金属/矿石为金属锭。高炉模组把每次投料改为 3 份并额外产 1 锭；垃圾处理模组可用 6 份垃圾再生 4 份废金属。"
+    "rule_text": "熔炼废金属/矿石为金属锭。高炉模组把每次投料改为 3 份并额外产 1 锭；垃圾处理模组可用 6 份垃圾再生 4 份废金属。",
+    "io": {
+      "input": {
+        "grid": [
+          9,
+          6
+        ]
+      },
+      "output": {
+        "grid": [
+          9,
+          6
+        ]
+      }
+    }
   },
   {
     "id": "printer",
@@ -698,7 +712,21 @@
     ],
     "module_slots": 4,
     "quality_ratio": 100,
-    "rule_text": "按打印芯片生产，进度 24/夜。金属类芯片需金属打印模组，框架/枪零件还需数控模组；近战批量模组让近战芯片每次多产 1 件。"
+    "rule_text": "按打印芯片生产，进度 24/夜。金属类芯片需金属打印模组，框架/枪零件还需数控模组；近战批量模组让近战芯片每次多产 1 件。",
+    "io": {
+      "input": {
+        "grid": [
+          9,
+          6
+        ]
+      },
+      "output": {
+        "grid": [
+          9,
+          5
+        ]
+      }
+    }
   },
   {
     "id": "bottle_printer",
@@ -777,6 +805,14 @@
       "kind": "bottle_printer",
       "material": "common_electronic",
       "max": 9
+    },
+    "io": {
+      "output": {
+        "grid": [
+          4,
+          4
+        ]
+      }
     }
   },
   {
@@ -1066,7 +1102,22 @@
     ],
     "module_slots": 4,
     "quality_ratio": 100,
-    "rule_text": "水培植物，每夜消耗水和电力推进生长。不同植物每回合耗水不同；对应水培模组可增加产量、改变产物或产出滤芯。"
+    "rule_text": "水培植物，每夜消耗水和电力推进生长。不同植物每回合耗水不同；对应水培模组可增加产量、改变产物或产出滤芯。",
+    "io": {
+      "input": {
+        "grid": [
+          3,
+          3
+        ],
+        "accept_containers": true
+      },
+      "output": {
+        "grid": [
+          9,
+          6
+        ]
+      }
+    }
   },
   {
     "id": "ras",
@@ -1227,7 +1278,21 @@
         "power_cost": 0,
         "chem_loss": true
       }
-    ]
+    ],
+    "io": {
+      "input": {
+        "grid": [
+          4,
+          4
+        ]
+      },
+      "output": {
+        "grid": [
+          4,
+          4
+        ]
+      }
+    }
   },
   {
     "id": "livestock_feed_dispenser",
@@ -1422,6 +1487,14 @@
         1,
         0
       ]
+    },
+    "io": {
+      "output": {
+        "grid": [
+          6,
+          4
+        ]
+      }
     }
   },
   {
@@ -1627,7 +1700,15 @@
     "special": {
       "kind": "desequencer"
     },
-    "contraband": 2
+    "contraband": 2,
+    "io": {
+      "input": {
+        "slots": 1
+      },
+      "output": {
+        "slots": 1
+      }
+    }
   },
   {
     "id": "deal_maker",

@@ -83,6 +83,8 @@ var machine_recipes: Dictionary = {}
 var modules_def: Array = []
 var containers_def: Dictionary = {}
 var machine_container_items: Dictionary = {}
+var machine_io: Dictionary = {}
+var loot_tables: Dictionary = {}
 var machine_active: Dictionary = {}
 var machine_stock: Dictionary = {}
 var machine_cash: Dictionary = {}
@@ -259,6 +261,11 @@ func _load_defs() -> void:
 		var cdefs = JSON.parse_string(f.get_as_text())
 		if cdefs is Dictionary:
 			containers_def = cdefs
+	f = FileAccess.open("res://data/loot_crates.json", FileAccess.READ)
+	if f:
+		var ldefs = JSON.parse_string(f.get_as_text())
+		if ldefs is Dictionary:
+			loot_tables = ldefs
 	f = FileAccess.open("res://data/inspection_families.json", FileAccess.READ)
 	if f:
 		var fams = JSON.parse_string(f.get_as_text())
@@ -1256,9 +1263,62 @@ func container_spec(item: Dictionary) -> Dictionary:
 		return item["container_spec"]
 	return container_def(String(item.get("def_id", "")))
 
+func container_zones(spec: Dictionary) -> Array:
+	var z = spec.get("zones", [])
+	return z if z is Array else []
+
+func container_zone_at(spec: Dictionary, x: int) -> Dictionary:
+	for z in container_zones(spec):
+		if x >= int(z.get("x", 0)) and x < int(z.get("x", 0)) + int(z.get("width", 0)):
+			return z
+	return {}
+
+func container_effective_width(spec: Dictionary) -> int:
+	var zones := container_zones(spec)
+	if zones.is_empty():
+		return int(spec.get("width", 1))
+	var total := 0
+	for z in zones:
+		total += int(z.get("width", 0))
+	return total
+
+const CHILLABLE_IDS := ["bottled_water", "bottled_water_premium", "small_bottled_water", "large_bottled_water", "water_ration", "water_ration_small", "energy_drink", "soda_red", "red_beer", "processed_juice", "processed_milk"]
+
+func is_chillable_item(it: Dictionary) -> bool:
+	var did := String(it.get("def_id", ""))
+	if is_liquid_container(it):
+		return true
+	return did in CHILLABLE_IDS
+
+func is_freezable_item(it: Dictionary) -> bool:
+	var did := String(it.get("def_id", ""))
+	return did == "beis_icecream"
+
+func is_spirit_item(it: Dictionary) -> bool:
+	return String(it.get("def_id", "")) == "nudka"
+
+func zone_accepts_item(zone: Dictionary, child: Dictionary) -> bool:
+	var zid := String(zone.get("id", ""))
+	var did := String(child.get("def_id", ""))
+	var def := get_item_def(did)
+	if String(def.get("category", "")) in ["machine", "furniture"]:
+		return false
+	if is_liquid_container(child):
+		return true
+	if zid == "chill":
+		return is_chillable_item(child) or is_spirit_item(child)
+	if zid == "freeze":
+		return is_freezable_item(child) or is_spirit_item(child)
+	return true
+
 func is_container_item(item: Dictionary) -> bool:
 	var spec := container_spec(item)
-	return not spec.is_empty() and String(spec.get("kind", "")) in ["grid", "slots"]
+	if spec.is_empty():
+		return false
+	var kind := String(spec.get("kind", ""))
+	if kind in ["grid", "slots"]:
+		return true
+	return kind == "liquid" and int(spec.get("filter_slots", 0)) > 0
 
 func is_liquid_container(item: Dictionary) -> bool:
 	var spec := container_spec(item)
@@ -1282,6 +1342,8 @@ func _init_container_state(it: Dictionary) -> void:
 		it["liquid_purity"] = clampi(int(it.get("condition", 100)) * 100, 0, 10000)
 		it["liquid_contents"] = {"water": cap}
 
+var shape_mask_cache: Dictionary = {}
+
 func item_shape(item: Dictionary) -> Array:
 	var def := get_item_def(item["def_id"])
 	var s = def.get("shape", [1, 1])
@@ -1289,14 +1351,67 @@ func item_shape(item: Dictionary) -> Array:
 		return [s[1], s[0]]
 	return [s[0], s[1]]
 
+func item_mask_cells(item: Dictionary, rotated_override: int = -1) -> Array:
+	var def := get_item_def(String(item.get("def_id", "")))
+	var s: Array = def.get("shape", [1, 1])
+	var w := int(s[0])
+	var h := int(s[1])
+	var rotated := bool(item.get("rotated", false)) if rotated_override < 0 else bool(rotated_override)
+	var key := "%s|%d" % [String(item.get("def_id", "")), 1 if rotated else 0]
+	if shape_mask_cache.has(key):
+		return shape_mask_cache[key]
+	var mask: Array = []
+	mask.resize(w * h)
+	mask.fill(true)
+	var path := item_icon_path(def)
+	if path != "" and ResourceLoader.exists(path):
+		var tex = load(path)
+		if tex is Texture2D:
+			var img: Image = tex.get_image()
+			if img != null:
+				if img.is_compressed():
+					img.decompress()
+				var iw := img.get_width()
+				var ih := img.get_height()
+				var want_ratio := float(w) / float(maxi(1, h))
+				var have_ratio := float(iw) / float(maxi(1, ih))
+				var ratio_ok := have_ratio <= want_ratio * 1.6 and have_ratio >= want_ratio / 1.6
+				var filled := 0
+				if ratio_ok:
+					for yy in range(h):
+						for xx in range(w):
+							var px := int((float(xx) + 0.5) / float(w) * float(iw))
+							var py := int((float(yy) + 0.5) / float(h) * float(ih))
+							px = clampi(px, 0, iw - 1)
+							py = clampi(py, 0, ih - 1)
+							var a := img.get_pixel(px, py).a
+							if a > 0.12:
+								mask[yy * w + xx] = true
+								filled += 1
+							else:
+								mask[yy * w + xx] = false
+				if filled <= 0:
+					mask.fill(true)
+	if rotated:
+		var rmask: Array = []
+		rmask.resize(w * h)
+		for yy in range(h):
+			for xx in range(w):
+				rmask[xx * h + (h - 1 - yy)] = mask[yy * w + xx]
+		mask = rmask
+	shape_mask_cache[key] = mask
+	return mask
+
 func item_cells(item: Dictionary, ox: int = -1, oy: int = -1) -> Array:
 	var s := item_shape(item)
 	var x: int = int(item["x"]) if ox < 0 else ox
 	var y: int = int(item["y"]) if oy < 0 else oy
+	var mask := item_mask_cells(item)
 	var out: Array = []
 	for dy in range(s[1]):
 		for dx in range(s[0]):
-			out.append(Vector2i(x + dx, y + dy))
+			if bool(mask[dy * int(s[0]) + dx]):
+				out.append(Vector2i(x + dx, y + dy))
 	return out
 
 func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int = -1, page: int = 0) -> bool:
@@ -1306,10 +1421,12 @@ func can_place(item: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int 
 	var dims := page_size(page)
 	if x < 0 or y < 0 or x + w > int(dims[0]) or y + h > int(dims[1]):
 		return false
+	var mask := item_mask_cells(item, 1 if rotated else 0)
 	var test := {}
 	for dy in range(h):
 		for dx in range(w):
-			test[Vector2i(x + dx, y + dy)] = true
+			if bool(mask[dy * w + dx]):
+				test[Vector2i(x + dx, y + dy)] = true
 	for other in inventory:
 		if other["uid"] == item["uid"] or other["uid"] == ignore_uid:
 			continue
@@ -1338,7 +1455,16 @@ func auto_place(item: Dictionary, page: int = -1) -> bool:
 						return true
 	return false
 
+func is_stackable_item(it: Dictionary) -> bool:
+	var did := String(it.get("def_id", ""))
+	return did.contains("_ammo") and not is_container_item(it)
+
 func add_item(item: Dictionary) -> bool:
+	if is_stackable_item(item):
+		for existing in inventory:
+			if String(existing.get("def_id", "")) == String(item.get("def_id", "")) and int(existing.get("unit_count", 1)) < 99 and int(existing.get("condition", 100)) == int(item.get("condition", 100)) and bool(existing.get("authentic", true)) == bool(item.get("authentic", true)) and bool(existing.get("stolen", false)) == bool(item.get("stolen", false)) and existing.get("children", []).is_empty():
+				existing["unit_count"] = int(existing.get("unit_count", 1)) + int(item.get("unit_count", 1))
+				return true
 	var ok := auto_place(item)
 	if not ok:
 		item["location"] = "overflow"
@@ -1416,17 +1542,43 @@ func _tag_match(tags: Array, wanted: Array) -> bool:
 			return true
 	return false
 
+func is_water_filter_item(it: Dictionary) -> bool:
+	var def := get_item_def(String(it.get("def_id", "")))
+	return def.get("tags", []).has("WATER_FILTER")
+
+func container_filter_slots(spec: Dictionary) -> int:
+	return int(spec.get("filter_slots", 0))
+
+func container_filter_at(parent: Dictionary, slot_index: int = 0) -> Dictionary:
+	var sid := "filter%d" % (slot_index + 1)
+	for ch in parent.get("children", []):
+		if String(ch.get("slot_id", "")) == sid:
+			return ch
+	return {}
+
 func container_can_accept(parent: Dictionary, child: Dictionary) -> bool:
 	var spec := container_spec(parent)
 	if spec.is_empty() or not is_container_item(parent):
 		return false
 	if int(child.get("uid", -1)) == int(parent.get("uid", -2)):
 		return false
+	var fslots := container_filter_slots(spec)
+	var is_filter := is_water_filter_item(child)
+	if String(spec.get("kind", "")) == "liquid":
+		if fslots <= 0 or not is_filter:
+			return false
+		return _filter_slots_used(parent) < fslots
+	if fslots > 0 and is_filter:
+		if spec.has("locked") and bool(parent.get("container_locked", true)):
+			return false
+		return _filter_slots_used(parent) < fslots
 	var ctags := _item_tags(child)
 	var cspec := container_spec(child)
 	var is_container_child := (String(cspec.get("kind", "")) == "grid" and bool(cspec.get("storage", true))) or String(get_item_def(String(child.get("def_id", ""))).get("category", "")) == "container"
 	if is_container_child:
-		if bool(cspec.get("nestable_device", false)):
+		if bool(spec.get("accept_containers", false)):
+			pass
+		elif bool(cspec.get("nestable_device", false)):
 			pass
 		elif bool(cspec.get("storable", false)) and bool(spec.get("storage", false)):
 			pass
@@ -1440,7 +1592,8 @@ func container_can_accept(parent: Dictionary, child: Dictionary) -> bool:
 	if String(spec.get("kind", "")) == "slots":
 		var ok := false
 		for slot in spec.get("slots", []):
-			if _tag_match(ctags, slot.get("accept", [])):
+			var accept: Array = slot.get("accept", [])
+			if accept.is_empty() or _tag_match(ctags, accept):
 				ok = true
 				break
 		return ok
@@ -1448,21 +1601,30 @@ func container_can_accept(parent: Dictionary, child: Dictionary) -> bool:
 		return false
 	return true
 
+func _filter_slots_used(parent: Dictionary) -> int:
+	var used := 0
+	for ch in parent.get("children", []):
+		if String(ch.get("slot_id", "")).begins_with("filter"):
+			used += 1
+	return used
+
 func _container_cells_used(parent: Dictionary, ignore_uid: int = -1) -> Dictionary:
 	var used := {}
 	for ch in parent.get("children", []):
 		if int(ch.get("uid", -1)) == ignore_uid:
 			continue
-		var shape := item_shape(ch)
-		for dy in range(int(shape[1])):
-			for dx in range(int(shape[0])):
-				used[Vector2i(int(ch.get("x", 0)) + dx, int(ch.get("y", 0)) + dy)] = true
+		if String(ch.get("slot_id", "")) != "":
+			continue
+		for c in item_cells(ch, int(ch.get("x", 0)), int(ch.get("y", 0))):
+			used[c] = true
 	return used
 
 func container_can_place(parent: Dictionary, child: Dictionary, x: int, y: int, rotated: bool = false, ignore_uid: int = -1) -> bool:
 	var spec := container_spec(parent)
 	if spec.is_empty():
 		return false
+	if String(spec.get("kind", "")) == "liquid":
+		return container_can_accept(parent, child)
 	if String(spec.get("kind", "")) == "slots":
 		return container_can_accept(parent, child)
 	var s: Array = get_item_def(String(child.get("def_id", ""))).get("shape", [1, 1])
@@ -1470,10 +1632,18 @@ func container_can_place(parent: Dictionary, child: Dictionary, x: int, y: int, 
 	var h: int = int(s[0]) if rotated else int(s[1])
 	if x < 0 or y < 0 or x + w > int(spec.get("width", 1)) or y + h > int(spec.get("height", 1)):
 		return false
+	var zones := container_zones(spec)
+	if not zones.is_empty():
+		var zone := container_zone_at(spec, x)
+		if zone.is_empty() or x + w > int(zone.get("x", 0)) + int(zone.get("width", 0)):
+			return false
+		if not zone_accepts_item(zone, child):
+			return false
 	var used := _container_cells_used(parent, ignore_uid)
+	var mask := item_mask_cells(child, 1 if rotated else 0)
 	for dy in range(h):
 		for dx in range(w):
-			if used.has(Vector2i(x + dx, y + dy)):
+			if bool(mask[dy * w + dx]) and used.has(Vector2i(x + dx, y + dy)):
 				return false
 	return container_can_accept(parent, child)
 
@@ -1481,9 +1651,24 @@ func container_auto_add(parent: Dictionary, child: Dictionary) -> bool:
 	if not container_can_accept(parent, child):
 		return false
 	var spec := container_spec(parent)
+	if is_water_filter_item(child) and container_filter_slots(spec) > 0:
+		for i in range(container_filter_slots(spec)):
+			if container_filter_at(parent, i).is_empty():
+				child["slot_id"] = "filter%d" % (i + 1)
+				child["x"] = 0
+				child["y"] = 0
+				parent["children"].append(child)
+				return true
+		return false
+	if is_stackable_item(child):
+		for existing in parent.get("children", []):
+			if String(existing.get("def_id", "")) == String(child.get("def_id", "")) and int(existing.get("unit_count", 1)) < 99:
+				existing["unit_count"] = int(existing.get("unit_count", 1)) + int(child.get("unit_count", 1))
+				return true
 	if String(spec.get("kind", "")) == "slots":
 		for slot in spec.get("slots", []):
-			if not _tag_match(_item_tags(child), slot.get("accept", [])):
+			var accept: Array = slot.get("accept", [])
+			if not accept.is_empty() and not _tag_match(_item_tags(child), accept):
 				continue
 			var sid := String(slot.get("id", ""))
 			var occupied := false
@@ -1524,6 +1709,22 @@ func lock_key_matches(container: Dictionary, key: Dictionary) -> bool:
 		"LOCK_ID_SUP": return did == "sup_keycard"
 	return false
 
+func split_liquid(item: Dictionary) -> Dictionary:
+	if not is_liquid_container(item):
+		return {"ok": false, "text": "不是液体容器。"}
+	var ml := int(item.get("liquid_ml", 0))
+	if ml < 2:
+		return {"ok": false, "text": "液体太少，无法分瓶。"}
+	var half: int = ml / 2
+	var copy := make_item(String(item.get("def_id", "")), int(item.get("condition", 100)), bool(item.get("authentic", true)), bool(item.get("stolen", false)))
+	copy["liquid_ml"] = ml - half
+	copy["liquid_purity"] = int(item.get("liquid_purity", 0))
+	copy["location"] = "backpack"
+	item["liquid_ml"] = half
+	add_item(copy)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已分瓶：%d ml。" % (ml - half)}
+
 func transfer_liquid(from_item: Dictionary, to_item: Dictionary) -> Dictionary:
 	if not is_liquid_container(from_item) or not is_liquid_container(to_item):
 		return {"ok": false, "text": "两边都必须是液体容器。"}
@@ -1537,11 +1738,46 @@ func transfer_liquid(from_item: Dictionary, to_item: Dictionary) -> Dictionary:
 	var p1 := int(from_item.get("liquid_purity", 0))
 	var p2 := int(to_item.get("liquid_purity", 0))
 	var new_p := int(round((float(p1) * move + float(p2) * to_ml) / float(move + to_ml)))
+	var filter_note := ""
+	var filter := container_filter_at(to_item)
+	if not filter.is_empty() and int(filter.get("condition", 0)) > 0:
+		var fid := String(filter.get("def_id", ""))
+		var floor_p := 8500
+		if fid == "uv_filter":
+			floor_p = 9800
+		elif fid == "water_filter_adv":
+			floor_p = 9500
+		new_p = maxi(new_p, floor_p)
+		filter["condition"] = maxi(0, int(filter.get("condition", 100)) - maxi(1, int(ceil(float(move) / 500.0))))
+		filter_note = "（滤芯过滤，剩余耐久 %d%%）" % int(filter.get("condition", 0))
+		if int(filter.get("condition", 0)) <= 0:
+			var children: Array = to_item.get("children", [])
+			children.erase(filter)
+			to_item["children"] = children
+			filter_note = "（滤芯已耗尽）"
 	from_item["liquid_ml"] = from_ml - move
 	to_item["liquid_ml"] = to_ml + move
 	to_item["liquid_purity"] = new_p
 	emit_signal("state_changed")
-	return {"ok": true, "text": "倒入 %d ml，纯度约 %d%%。" % [move, new_p / 100]}
+	return {"ok": true, "text": "倒入 %d ml，纯度约 %d%%%s。" % [move, new_p / 100, filter_note]}
+
+func split_stack(uid: int) -> Dictionary:
+	var it := find_item(uid)
+	if it.is_empty():
+		return {"ok": false, "text": "找不到这叠物品。"}
+	var total := int(it.get("unit_count", 1))
+	if total < 2 or not is_stackable_item(it):
+		return {"ok": false, "text": "这件物品不能分堆。"}
+	var move: int = total / 2
+	var copy := make_item(String(it.get("def_id", "")), int(it.get("condition", 100)), bool(it.get("authentic", true)), bool(it.get("stolen", false)))
+	copy["unit_count"] = move
+	copy["features"] = it.get("features", []).duplicate(true)
+	it["unit_count"] = total - move
+	if not auto_place(copy):
+		copy["location"] = "overflow"
+	inventory.append(copy)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已分出 %d 发。" % move}
 
 func unlock_container(container: Dictionary, key: Dictionary) -> Dictionary:
 	if not bool(container.get("container_locked", false)):
@@ -1549,9 +1785,43 @@ func unlock_container(container: Dictionary, key: Dictionary) -> Dictionary:
 	if not lock_key_matches(container, key):
 		return {"ok": false, "text": "这张卡打不开这个容器。"}
 	container["container_locked"] = false
+	container["custom_base_value"] = 15
+	container["stolen"] = false
+	container["contraband_cleared"] = true
+	if container.get("children", []).is_empty():
+		_generate_loot(container)
 	remove_inventory(String(key.get("def_id", "")), 1)
 	emit_signal("state_changed")
 	return {"ok": true, "text": "容器已解锁。"}
+
+func _generate_loot(crate: Dictionary) -> void:
+	var did := String(crate.get("def_id", ""))
+	if not loot_tables.has(did):
+		return
+	var rolls: Array = loot_tables[did].get("rolls", [])
+	for roll in rolls:
+		var chance := float(roll.get("chance", 100))
+		if rng.randf() * 100.0 >= chance:
+			continue
+		var it: Dictionary
+		if roll.has("container"):
+			it = make_item(String(roll.get("container", "")), 100, true, false)
+			for fill in roll.get("fill", []):
+				var fid := String(fill[0])
+				for n in range(int(fill[1])):
+					container_auto_add(it, make_item(fid, 100, true, false))
+		else:
+			var rid := String(roll.get("id", ""))
+			if rid == "" or not items_def.has(rid):
+				continue
+			it = make_item(rid, int(roll.get("cond", 100)), true, false)
+		if roll.has("credits"):
+			var cr: Array = roll.get("credits", [0, 0])
+			var amount := rng.randi_range(int(cr[0]), int(cr[1]))
+			it["custom_base_value"] = amount
+			it["credit_value"] = amount
+		if not container_auto_add(crate, it):
+			continue
 
 func container_remove_child(parent: Dictionary, child_uid: int) -> Dictionary:
 	var children: Array = parent.get("children", [])
@@ -1613,6 +1883,43 @@ func detach_item(uid: int) -> Dictionary:
 	if not nestedc.is_empty():
 		return nestedc
 	return {}
+
+func place_item_in_player(uid: int, page: int, x: int, y: int) -> bool:
+	var child := detach_item(uid)
+	if child.is_empty():
+		return false
+	if can_place(child, x, y, bool(child.get("rotated", false)), uid, page):
+		child["location"] = "backpack"
+		child["page"] = page
+		child["x"] = x
+		child["y"] = y
+		inventory.append(child)
+		return true
+	add_item(child)
+	return false
+
+func place_item_in_showcase(uid: int, x: int, y: int) -> bool:
+	var child := detach_item(uid)
+	if child.is_empty():
+		return false
+	if display_can_place(child, x, y, bool(child.get("rotated", false)), uid):
+		child["location"] = "display"
+		child["x"] = x
+		child["y"] = y
+		display.append(child)
+		return true
+	add_item(child)
+	return false
+
+func move_display_item(uid: int, x: int, y: int) -> bool:
+	for it in display:
+		if int(it.get("uid", -1)) == uid:
+			if display_can_place(it, x, y, bool(it.get("rotated", false)), uid):
+				it["x"] = x
+				it["y"] = y
+				return true
+			return false
+	return false
 
 func move_item_to_container(uid: int, parent_uid: int, x: int = -1, y: int = -1) -> bool:
 	var child := find_item(uid)
@@ -1732,6 +2039,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	machine_active = {}
 	machine_stock = {}
 	machine_container_items = {}
+	machine_io = {}
 	machine_cash = {}
 	machine_upgrades = {}
 	machine_state = {}
@@ -1878,6 +2186,14 @@ func item_icon_path(def: Dictionary) -> String:
 			return p
 	return _public_item_icon(def)
 
+func item_weight(it: Dictionary) -> int:
+	var def := get_item_def(String(it.get("def_id", "")))
+	var unit := int(it.get("weight_g", def.get("weight_g", 0)))
+	var total := unit * int(it.get("unit_count", 1))
+	for ch in it.get("children", []):
+		total += item_weight(ch)
+	return total
+
 func effective_value(item: Dictionary) -> int:
 	if item.is_empty():
 		return 0
@@ -1888,7 +2204,9 @@ func effective_value(item: Dictionary) -> int:
 	var cond := clampf(float(item.get("condition", 100)) / 100.0, 0.2, 1.0)
 	var auth := 1.0 if item.get("authentic", true) else 0.35
 	var stolen := 0.9 if item.get("stolen", false) else 1.0
-	var contra := 1.0 + float(def.get("contraband", 0)) * 0.12
+	var contra := 1.0
+	if not bool(item.get("contraband_cleared", false)):
+		contra = 1.0 + float(def.get("contraband", 0)) * 0.12
 	var feat_mod := 0
 	var final_mult := 1.0
 	for f in item.get("features", []):
@@ -1951,12 +2269,18 @@ func display_can_place(it: Dictionary, x: int, y: int, rotated: bool, ignore_uid
 	var h: int = int(shape[0]) if rotated else int(shape[1])
 	if x < 0 or y < 0 or x + w > SHOWCASE_W or y + h > SHOWCASE_H:
 		return false
+	var mask := item_mask_cells(it, 1 if rotated else 0)
+	var test := {}
+	for dy in range(h):
+		for dx in range(w):
+			if bool(mask[dy * w + dx]):
+				test[Vector2i(x + dx, y + dy)] = true
 	for other in display:
 		if int(other.get("uid", -1)) == ignore_uid:
 			continue
-		var os := item_shape(other)
-		if x < int(other.get("x", 0)) + int(os[0]) and int(other.get("x", 0)) < x + w and y < int(other.get("y", 0)) + int(os[1]) and int(other.get("y", 0)) < y + h:
-			return false
+		for c in item_cells(other):
+			if test.has(c):
+				return false
 	return true
 
 func display_auto_place(it: Dictionary) -> bool:
@@ -2802,7 +3126,7 @@ func machine_def(id: String) -> Dictionary:
 	return {}
 
 func _count_item_tree(it: Dictionary, def_id: String) -> int:
-	var n := 1 if String(it.get("def_id", "")) == def_id else 0
+	var n := int(it.get("unit_count", 1)) if String(it.get("def_id", "")) == def_id else 0
 	for ch in it.get("children", []):
 		n += _count_item_tree(ch, def_id)
 	return n
@@ -2818,8 +3142,13 @@ func _remove_from_tree(items: Array, def_id: String, need: int) -> int:
 	while i < items.size() and need > 0:
 		var it: Dictionary = items[i]
 		if String(it.get("def_id", "")) == def_id:
-			items.remove_at(i)
-			need -= 1
+			var have := int(it.get("unit_count", 1))
+			if have > need:
+				it["unit_count"] = have - need
+				need = 0
+			else:
+				need -= have
+				items.remove_at(i)
 			continue
 		var children: Array = it.get("children", [])
 		need = _remove_from_tree(children, def_id, need)
@@ -3031,7 +3360,9 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 	if bool(recipe.get("melee", false)) and installed.has("printer_module_melee_batch"):
 		for o in active_outputs:
 			o["count"] = int(o.get("count", 1)) + 1
-	var avg_cond := _avg_input_condition(active_inputs)
+	var io := machine_io_spec(machine_id)
+	var use_io_input := io.get("input", {}) is Dictionary and not (io.get("input", {}) as Dictionary).is_empty()
+	var avg_cond := machine_io_avg_condition(machine_id, "input", active_inputs) if use_io_input else _avg_input_condition(active_inputs)
 	if bool(recipe.get("count_from_input_condition", false)) and not active_outputs.is_empty():
 		var count := 2
 		if avg_cond >= 95:
@@ -3046,14 +3377,32 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 	var use_power := machine_recipe_power(machine_id, recipe)
 	if power < use_power:
 		return {"ok": false, "text": "电力不足：需要 %d，当前 %d。" % [use_power, power]}
-	for inp in active_inputs:
-		if inventory_count(String(inp.get("id", ""))) < int(inp.get("count", 1)):
-			var d := get_item_def(String(inp.get("id", "")))
-			return {"ok": false, "text": "缺少原料：%s x%d。" % [d.get("name", inp.get("id", "")), int(inp.get("count", 1))]}
+	if use_io_input:
+		for inp in active_inputs:
+			var iid := String(inp.get("id", ""))
+			var need0 := int(inp.get("count", 1))
+			var have0 := machine_io_count(machine_id, "input", iid)
+			if have0 < need0:
+				_io_pull_from_inventory(machine_id, iid, need0 - have0)
+		for inp in active_inputs:
+			var need := int(inp.get("count", 1))
+			var have := machine_io_count(machine_id, "input", String(inp.get("id", "")))
+			if have < need:
+				var d := get_item_def(String(inp.get("id", "")))
+				return {"ok": false, "text": "输入端缺少原料：%s x%d。" % [d.get("name", inp.get("id", "")), need]}
+	else:
+		for inp in active_inputs:
+			var need2 := int(inp.get("count", 1))
+			if inventory_count(String(inp.get("id", ""))) < need2:
+				var d2 := get_item_def(String(inp.get("id", "")))
+				return {"ok": false, "text": "缺少原料：%s x%d。" % [d2.get("name", inp.get("id", "")), need2]}
 	if dry_run:
 		return {"ok": true, "text": "%s 可以启动（%d 夜 / %d 电力）。" % [m.get("name", machine_id), use_cycles, use_power]}
 	for inp in active_inputs:
-		remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
+		if use_io_input:
+			machine_io_remove(machine_id, "input", String(inp.get("id", "")), int(inp.get("count", 1)))
+		else:
+			remove_inventory(String(inp.get("id", "")), int(inp.get("count", 1)))
 	power -= use_power
 	var sums := machine_module_sums(machine_id)
 	var quality_mod := int(sums["quality"]) + int(round(clampf(quality, 0.0, 1.0) * 20.0)) + quality_delta
@@ -3081,6 +3430,7 @@ func start_machine(machine_id: String, quality: float = 0.0, dry_run: bool = fal
 		"remaining": use_cycles, "total": use_cycles,
 		"outputs": active_outputs.duplicate(true), "recipe": String(recipe.get("id", "")),
 		"quality_mod": quality_mod, "features": features, "out_cond": out_cond,
+		"io_input": use_io_input,
 	}
 	if machine_id == "plant_dna_manipulator":
 		var dna_sp: Dictionary = m.get("special", {})
@@ -3153,13 +3503,25 @@ func _grant_job_outputs(job: Dictionary) -> Array:
 	var got: Array = []
 	var cond := int(job.get("out_cond", 100))
 	var features: Array = job.get("features", [])
+	var mid := String(job.get("machine_id", ""))
+	var io := machine_io_spec(mid)
+	var out_conf = io.get("output", {})
+	var out_container: Dictionary = {}
+	if out_conf is Dictionary and not out_conf.is_empty():
+		out_container = machine_io_container(mid, "output")
 	for out in job.get("outputs", []):
 		var oid := String(out.get("id", ""))
 		if not items_def.has(oid):
 			continue
 		for n in range(int(out.get("count", 1))):
 			var it := _make_output_item(oid, cond, features)
-			add_item(it)
+			var placed := false
+			if not out_container.is_empty():
+				placed = container_auto_add(out_container, it)
+				if placed:
+					it["location"] = "machine"
+			if not placed:
+				add_item(it)
 			got.append(String(get_item_def(oid).get("name", oid)))
 	return got
 
@@ -3333,12 +3695,142 @@ func _run_reactor(mid: String, sp: Dictionary) -> void:
 		next_day_power_bonus += charge
 	_add_night_log("反应堆完整度 %d/%d，充能 %d。" % [integrity, max_int, mini(int(sp.get("max_charge", 4)), int(sp.get("base_charge", 1)) + upgrades / maxi(1, int(sp.get("upgrades_per_charge", 5))))])
 
+func machine_io_spec(mid: String) -> Dictionary:
+	var io = machine_def(mid).get("io", {})
+	return io if io is Dictionary else {}
+
+func _io_side_items(mid: String, side: String) -> Array:
+	if not machine_io.has(mid):
+		machine_io[mid] = {"input": [], "output": []}
+	var sides: Dictionary = machine_io[mid]
+	if not sides.has(side) or not (sides[side] is Array):
+		sides[side] = []
+	return sides[side]
+
+func machine_io_container(mid: String, side: String) -> Dictionary:
+	var key := mid + "::" + side
+	if machine_container_items.has(key):
+		return machine_container_items[key]
+	var io := machine_io_spec(mid)
+	var conf = io.get(side, {})
+	if not (conf is Dictionary):
+		return {}
+	var spec := {}
+	if conf.has("slots"):
+		var slot_list: Array = []
+		for i in range(int(conf.get("slots", 1))):
+			slot_list.append({"id": "slot%d" % (i + 1), "accept": []})
+		spec = {"kind": "slots", "slots": slot_list}
+	else:
+		var grid: Array = conf.get("grid", [3, 3])
+		spec = {"kind": "grid", "width": int(grid[0]), "height": int(grid[1]), "storage": true}
+		if bool(conf.get("accept_containers", false)):
+			spec["accept_containers"] = true
+	var m := machine_def(mid)
+	var side_name := "输入" if side == "input" else "输出"
+	var item := {
+		"uid": -2000 - machine_container_items.size(),
+		"def_id": mid,
+		"custom_name": "%s · %s" % [String(m.get("name", mid)), side_name],
+		"custom_base_value": 0,
+		"condition": 100,
+		"authentic": true,
+		"children": _io_side_items(mid, side),
+		"container_spec": spec,
+		"container_locked": false,
+		"location": "machine",
+		"_window_key": key,
+	}
+	machine_container_items[key] = item
+	return item
+
+func machine_io_count(mid: String, side: String, def_id: String) -> int:
+	var total := 0
+	for it in _io_side_items(mid, side):
+		if String(it.get("def_id", "")) == def_id:
+			total += int(it.get("unit_count", 1))
+	return total
+
+func machine_io_remove(mid: String, side: String, def_id: String, count: int) -> bool:
+	var items := _io_side_items(mid, side)
+	var need := count
+	var i := 0
+	while i < items.size() and need > 0:
+		var it: Dictionary = items[i]
+		if String(it.get("def_id", "")) == def_id:
+			var have := int(it.get("unit_count", 1))
+			if have > need:
+				it["unit_count"] = have - need
+				need = 0
+			else:
+				need -= have
+				items.remove_at(i)
+				continue
+		i += 1
+	return need == 0
+
+func _io_pull_from_inventory(mid: String, def_id: String, count: int) -> void:
+	var box := machine_io_container(mid, "input")
+	if box.is_empty() or count <= 0:
+		return
+	var need := count
+	var i := 0
+	while i < inventory.size() and need > 0:
+		var it: Dictionary = inventory[i]
+		if String(it.get("def_id", "")) != def_id or not it.get("children", []).is_empty():
+			i += 1
+			continue
+		var have := int(it.get("unit_count", 1))
+		var take := mini(need, have)
+		if take >= have:
+			inventory.remove_at(i)
+			it["location"] = "machine"
+			if container_auto_add(box, it):
+				need -= take
+			else:
+				it["location"] = "backpack"
+				inventory.append(it)
+				break
+		else:
+			var copy := make_item(def_id, int(it.get("condition", 100)), bool(it.get("authentic", true)), bool(it.get("stolen", false)))
+			copy["unit_count"] = take
+			copy["location"] = "machine"
+			it["unit_count"] = have - take
+			if container_auto_add(box, copy):
+				need -= take
+			else:
+				it["unit_count"] = have
+				break
+
+func machine_io_avg_condition(mid: String, side: String, inputs: Array) -> int:
+	var total := 0
+	var count := 0
+	for spec in inputs:
+		var did := String(spec.get("id", ""))
+		var want := int(spec.get("count", 1))
+		for it in _io_side_items(mid, side):
+			if want <= 0:
+				break
+			if String(it.get("def_id", "")) != did:
+				continue
+			var take := mini(want, int(it.get("unit_count", 1)))
+			total += int(it.get("condition", 100)) * take
+			count += take
+			want -= take
+	return 50 if count <= 0 else int(round(float(total) / float(count)))
+
 func machine_container(mid: String) -> Dictionary:
 	if machine_container_items.has(mid):
 		return machine_container_items[mid]
-	var spec := container_def(mid)
+	var spec := container_def(mid).duplicate(true)
 	if spec.is_empty():
 		return {}
+	if mid == "fridge":
+		spec["height"] = 2 + mini(7, int(machine_upgrades.get(mid, 0)))
+	elif mid == "vending_machine":
+		spec["height"] = 2 + mini(10, int(machine_upgrades.get(mid, 0)))
+	elif mid == "animal_cage":
+		spec["height"] = 3 + mini(8, int(machine_upgrades.get(mid, 0)))
 	var m := machine_def(mid)
 	var item := {
 		"uid": -1000 - machine_container_items.size(),
@@ -3383,7 +3875,9 @@ func _eligible_for_stock(mid: String, it: Dictionary) -> bool:
 			var did := String(it.get("def_id", ""))
 			return cat == "food" and (did.contains("wine") or did == "red_beer" or did == "wine_bottle")
 		"fridge":
-			return cat in ["food", "organ", "medical"]
+			if String(it.get("def_id", "")) == "wine_bottle":
+				return false
+			return is_liquid_container(it) or is_chillable_item(it) or is_freezable_item(it) or is_spirit_item(it)
 		"cage":
 			var did2 := String(it.get("def_id", ""))
 			if did2.begins_with("feces"):
@@ -3400,9 +3894,9 @@ func _eligible_for_stock(mid: String, it: Dictionary) -> bool:
 	return false
 
 func machine_stock_limit(machine_id: String) -> int:
-	var cspec := container_def(machine_id)
+	var cspec := container_spec(machine_container(machine_id))
 	if not cspec.is_empty() and String(cspec.get("kind", "")) == "grid":
-		return int(cspec.get("width", 1)) * int(cspec.get("height", 1))
+		return container_effective_width(cspec) * int(cspec.get("height", 1))
 	var sp: Dictionary = machine_def(machine_id).get("special", {})
 	var kind := String(sp.get("kind", ""))
 	match kind:
@@ -3517,15 +4011,35 @@ func _run_wine_rack(mid: String, sp: Dictionary) -> void:
 func _run_fridge(mid: String, sp: Dictionary) -> void:
 	if not _aux_can_draw(mid, int(sp.get("power", 2))):
 		return
+	var spec := container_spec(machine_container(mid))
 	for it in _stock_items(mid):
-		var found := false
-		for f in it.get("features", []):
-			if String(f.get("id", "")) == "chilled":
-				f["mod"] = int(sp.get("chill_bonus", 20))
-				found = true
-				break
-		if not found:
-			it["features"].append({"id": "chilled", "name": "冷藏", "mod": int(sp.get("chill_bonus", 20))})
+		var zone := container_zone_at(spec, int(it.get("x", 0)))
+		var zid := String(zone.get("id", ""))
+		if zid == "chill":
+			if is_chillable_item(it):
+				_apply_feature(it, "chilled", "冷藏", int(sp.get("chill_bonus", 20)))
+			elif is_spirit_item(it):
+				_apply_feature(it, "chilled", "冷藏", int(sp.get("chill_bonus", 20)))
+		elif zid == "freeze":
+			if is_freezable_item(it):
+				_apply_feature(it, "frozen", "冷冻", int(sp.get("freeze_bonus", 25)))
+			elif is_spirit_item(it):
+				_remove_feature(it, "chilled")
+				_apply_feature(it, "iceCold", "冰镇", int(sp.get("freeze_bonus", 25)))
+
+func _apply_feature(it: Dictionary, fid: String, fname: String, mod: int) -> void:
+	for f in it.get("features", []):
+		if String(f.get("id", "")) == fid:
+			f["mod"] = mod
+			return
+	it["features"].append({"id": fid, "name": fname, "mod": mod})
+
+func _remove_feature(it: Dictionary, fid: String) -> void:
+	var list: Array = it.get("features", [])
+	for i in range(list.size() - 1, -1, -1):
+		if String(list[i].get("id", "")) == fid:
+			list.remove_at(i)
+	it["features"] = list
 
 func _run_cage(mid: String, sp: Dictionary, feed_kcal: int) -> void:
 	var stock := _stock_items(mid)
@@ -3613,6 +4127,7 @@ func _run_moisture(mid: String, sp: Dictionary, active_count: int) -> void:
 	while int(st["ml"]) >= 1000 and items_def.has("water_jug"):
 		st["ml"] = int(st["ml"]) - 1000
 		var it := make_item("water_jug", 100, true, false)
+		it["liquid_ml"] = 1000
 		var quality := int(sums["quality"])
 		it["features"].append({"id": "water_quality", "name": "纯净水" if quality >= 50 else ("基础水" if quality >= 0 else "锈水"), "mod": quality})
 		add_item(it)
@@ -3810,6 +4325,7 @@ func _upgrade_action(mid: String, sp: Dictionary) -> Dictionary:
 		return {"ok": false, "text": "缺少升级材料：%s。" % String(get_item_def(material).get("name", material))}
 	remove_inventory(material, 1)
 	machine_upgrades[mid] = level + 1
+	machine_container_items.erase(mid)
 	emit_signal("state_changed")
 	return {"ok": true, "text": "%s 升级到 %d 级。" % [machine_def(mid).get("name", mid), level + 1]}
 
@@ -3917,9 +4433,13 @@ func apply_item_service(machine_id: String, uid: int) -> Dictionary:
 			for f in it.get("features", []):
 				if int(f.get("mod", 0)) < 0:
 					f["mod"] = 0
+			if is_liquid_container(it):
+				it["liquid_purity"] = maxi(int(it.get("liquid_purity", 0)), 9900)
 			it["features"].append({"id": "purified", "name": "已净化", "mod": 15})
 		elif kind == "distill":
 			it["features"].append({"id": "distilled", "name": "蒸馏", "mod": 20})
+			if is_liquid_container(it):
+				it["liquid_purity"] = 9990
 			if machine_module_ids(machine_id).has(String(sp.get("solvent_module", ""))):
 				it["features"].append({"id": "solvent", "name": "溶剂回收", "mod": 10})
 		else:
@@ -4027,7 +4547,7 @@ func save_game(slot: int = 1) -> bool:
 		"loan": loan, "loan_due": loan_due, "rep": rep, "inventory": inventory,
 		"display": display, "uid_counter": uid_counter, "pages_unlocked": max_pages_unlocked,
 		"power": power, "machine_jobs": machine_jobs, "machine_modules": machine_modules, "machine_temps": machine_temps, "machine_durability": machine_durability, "machine_faults": machine_faults, "machine_recipes": machine_recipes,
-		"machine_active": machine_active, "machine_stock": machine_stock, "machine_cash": machine_cash, "machine_upgrades": machine_upgrades, "machine_state": machine_state,
+		"machine_active": machine_active, "machine_stock": machine_stock, "machine_cash": machine_cash, "machine_upgrades": machine_upgrades, "machine_state": machine_state, "machine_io": machine_io,
 		"night_log": night_log, "next_day_power_bonus": next_day_power_bonus, "attraction_bonus": attraction_bonus, "security_alarm_active": security_alarm_active, "security_stop_rate": security_stop_rate,
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
@@ -4107,6 +4627,8 @@ func load_game(slot: int = 1) -> bool:
 	machine_cash = data.get("machine_cash", {}).duplicate(true)
 	machine_upgrades = data.get("machine_upgrades", {}).duplicate(true)
 	machine_state = data.get("machine_state", {}).duplicate(true)
+	machine_io = data.get("machine_io", {}).duplicate(true)
+	machine_container_items = {}
 	night_log = data.get("night_log", []).duplicate(true)
 	next_day_power_bonus = int(data.get("next_day_power_bonus", 0))
 	attraction_bonus = int(data.get("attraction_bonus", 100))

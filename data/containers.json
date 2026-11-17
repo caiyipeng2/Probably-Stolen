@@ -141,11 +141,9 @@
     "nestable_device": true
   },
   "water_pitcher": {
-    "kind": "grid",
-    "width": 1,
-    "height": 1,
-    "filter_slots": 1,
-    "liquid_capacity_ml": 3000
+    "kind": "liquid",
+    "capacity_ml": 3000,
+    "filter_slots": 1
   },
   "water_jug": {
     "kind": "liquid",
@@ -495,9 +493,13 @@
   },
   "fridge": {
     "kind": "grid",
-    "width": 8,
+    "width": 9,
     "height": 2,
-    "storage": true
+    "storage": true,
+    "zones": [
+      {"id": "chill", "label": "冷藏", "x": 0, "width": 5},
+      {"id": "freeze", "label": "冷冻", "x": 6, "width": 3}
+    ]
   },
   "vending_machine": {
     "kind": "grid",
@@ -527,6 +529,7 @@
     "kind": "grid",
     "width": 8,
     "height": 4,
-    "storage": true
+    "storage": true,
+    "filter_slots": 4
   }
 }
