@@ -302,6 +302,7 @@ func _ready() -> void:
 	_testpresentationui_if_requested()
 	_testp0ui_if_requested()
 	_testp1ui_if_requested()
+	_testspaceui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -2202,8 +2203,7 @@ func _gun_order_repair_ui() -> void:
 	_show_modal("维修", String(res.get("text", "")), [{"label": "返回订单", "cb": _open_gun_order}])
 
 func _gun_order_leave() -> void:
-	GameState.complete_customer(false)
-	GameState.gun_order = {}
+	GameState.release_gun_order()
 	_refresh()
 
 func _open_expedition() -> void:
@@ -4036,7 +4036,7 @@ func _build_select_layer() -> void:
 	select_layer = Control.new()
 	select_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	select_layer.visible = false
-	select_layer.z_index = 160
+	select_layer.z_index = 178
 	select_layer.mouse_filter = Control.MOUSE_FILTER_STOP
 	add_child(select_layer)
 	var dim := ColorRect.new()
@@ -4059,6 +4059,7 @@ func _build_select_layer() -> void:
 	scroll.add_child(select_list)
 
 func _open_select(title: String, items: Array, cb: Callable) -> void:
+	move_child(select_layer, get_child_count() - 1)
 	select_title.text = title
 	select_cb = cb
 	_clear_children(select_list)
@@ -5289,6 +5290,20 @@ func _on_combat_finished(victory: bool, message: String) -> void:
 	var was_expedition := GameState.combat_context == "expedition"
 	var was_wanted_visit := GameState.combat_context == "wanted_visit"
 	_refresh()
+	if GameState.combat_context == "space_encounter":
+		var reward := int(GameState.space_pending_reward.get("cash", 0))
+		if victory:
+			GameState.cash += reward
+			GameState.space_log.append("击退海盗，获得 %d₵。" % reward)
+		GameState.space_pending_reward = {}
+		_show_modal("太空战斗", "战斗结束。" if victory else "你被击退了。", [{"label": "返回舰船", "cb": _open_space}])
+		return
+	if GameState.combat_context == "space_station":
+		if victory and GameState.advance_space_raid():
+			_show_modal("站点战斗", "房间清理完毕，进入下一层。", [{"label": "继续", "cb": _close_modal}])
+			return
+		_show_modal("站点", "站点已清理。" if victory else "你被击退了。", [{"label": "返回舰船", "cb": _open_space}])
+		return
 	if victory and was_expedition:
 		var loot_text := "
 ".join(GameState.expedition_loot_log)
@@ -5466,6 +5481,22 @@ func _show_news(title: String, text: String, actions: Array) -> void:
 			b.add_theme_color_override("font_color", Color("#2b2a24"))
 			b.add_theme_color_override("font_hover_color", Color("#4a3423"))
 			b.add_theme_color_override("font_pressed_color", Color("#4a3423"))
+
+func _testspaceui_if_requested() -> void:
+	if not "--testspaceui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.6).timeout
+	print("SPUI menu=", newgame_layer.visible)
+	_space_pick_ship("cargo_ship")
+	await get_tree().process_frame
+	print("SPUI space title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_space_scan_ui()
+	await get_tree().process_frame
+	print("SPUI scan rows=", select_list.get_child_count(), " select=", select_layer.visible)
+	_close_select()
+	_close_modal()
+	await get_tree().process_frame
+	get_tree().quit(0)
 
 func _testp1ui_if_requested() -> void:
 	if not "--testp1ui" in OS.get_cmdline_args():
@@ -5701,6 +5732,7 @@ func _ng_render() -> void:
 		cont.disabled = not GameState.has_save(1)
 		_button(panel, "设置", Vector2(80, 500), Vector2(420, 90), C_MUTED, _ng_settings)
 		_button(panel, "制作人员", Vector2(80, 620), Vector2(420, 90), C_MUTED, _ng_credits)
+		_button(panel, "舰船层（遗留）", Vector2(560, 620), Vector2(420, 70), C_CYAN, _space_entry)
 		var info := "原版活跃流程：选择开局 → 分配天赋 → 选择难度 → 开店。\n首局不开放开局天赋（原版规则）。"
 		_label(panel, info, Vector2(560, 280), Vector2(1080, 160), 24, C_MUTED)
 		_label(panel, "当前存档：%s" % ("槽位 1 · 第 %d 天" % GameState.day if GameState.has_save(1) else "无"), Vector2(560, 470), Vector2(900, 40), 22, C_MUTED)
@@ -5774,6 +5806,92 @@ func _ng_render() -> void:
 		_button(panel, "返回", Vector2(44, 912), Vector2(220, 64), C_MUTED, _ng_goto.bind("perks"))
 		_button(panel, "开始营业", Vector2(1400, 900), Vector2(300, 76), C_GREEN, _ng_start)
 	_button(panel, "关闭", Vector2(1570, 20), Vector2(120, 48), C_MUTED, _ng_close)
+
+func _space_entry() -> void:
+	var items: Array = []
+	for sh in GameState.space_ships:
+		items.append({"id": String(sh.get("id", "")), "label": "%s · %s · 船体 %d · 燃料 %d" % [String(sh.get("name", "")), String(sh.get("class", "")), int(sh.get("hull", 0)), int(sh.get("fuel", 0))]})
+	if items.is_empty():
+		_toast("没有可用舰船。")
+		return
+	_open_select("选择舰船 · 遗留模式", items, _space_pick_ship)
+
+func _space_pick_ship(id: String) -> void:
+	var res := GameState.space_start(id)
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
+		return
+	_open_space()
+
+func _open_space() -> void:
+	if not GameState.space_mode:
+		_space_entry()
+		return
+	var actions: Array = [
+		{"label": "扫描航线", "cb": _space_scan_ui, "color": C_CYAN},
+		{"label": "停靠" if GameState.space_at_station else "无站点", "cb": _space_dock_ui, "color": C_AMBER},
+		{"label": "等待一天", "cb": _space_wait_ui},
+		{"label": "返回店铺", "cb": _space_leave_ui, "color": C_RUST},
+	]
+	_show_modal("舰船 · LEGACY SPACE LAYER", GameState.space_state_text(), actions)
+
+func _space_scan_ui() -> void:
+	var pois := GameState.space_scan()
+	var items: Array = []
+	for poi in pois:
+		items.append({"id": String(poi.get("id", "")), "label": "%s · %d 距离 · %s" % [String(poi.get("name", "")), int(poi.get("distance", 0)), String(poi.get("desc", ""))]})
+	if items.is_empty():
+		_toast("没有可扫描的航线。")
+		return
+	_open_select("扫描结果（4 条航线）", items, _space_travel_ui)
+
+func _space_travel_ui(id: String) -> void:
+	var poi: Dictionary = {}
+	for p in GameState.space_scanned:
+		if String(p.get("id", "")) == id:
+			poi = p
+			break
+	if poi.is_empty():
+		return
+	var res := GameState.space_travel(poi)
+	if not bool(res.get("ok", false)):
+		_open_space()
+		_toast(String(res.get("text", "")))
+		return
+	if res.get("encounter", null) != null:
+		var enc: Dictionary = res["encounter"]
+		var actions: Array = []
+		for opt in enc.get("options", []):
+			actions.append({"label": String(opt.get("label", "")), "cb": _space_option.bind(String(opt.get("id", "")))})
+		_show_modal(String(enc.get("title", "太空遭遇")), String(enc.get("text", "")), actions)
+		return
+	_show_modal("抵达", String(res.get("text", "")), [
+		{"label": "停靠" if GameState.space_at_station else "继续", "cb": _space_dock_ui if GameState.space_at_station else _open_space, "color": C_AMBER},
+		{"label": "扫描航线", "cb": _space_scan_ui},
+	])
+
+func _space_option(id: String) -> void:
+	var res := GameState.space_resolve(id)
+	if bool(res.get("combat", false)):
+		_close_modal()
+		return
+	_show_modal("太空遭遇", String(res.get("text", "")), [{"label": "继续", "cb": _open_space}])
+
+func _space_dock_ui() -> void:
+	var res := GameState.space_dock()
+	if not bool(res.get("ok", false)):
+		_open_space()
+		_toast(String(res.get("text", "")))
+		return
+	_close_modal()
+
+func _space_wait_ui() -> void:
+	GameState.space_wait()
+	_open_space()
+
+func _space_leave_ui() -> void:
+	GameState.space_leave()
+	_close_modal()
 
 func _ng_goto(page: String) -> void:
 	ng_page = page

@@ -56,6 +56,21 @@ var operation_cooldowns: Dictionary = {}
 var active_operations: Array = []
 var afterhour_mods: Dictionary = {}
 var afterhour_today := ""
+var space_mode := false
+var space_ships: Array = []
+var space_pois: Array = []
+var space_ship: Dictionary = {}
+var space_fuel := 0
+var space_hull := 0
+var space_max_hull := 100
+var space_day := 1
+var space_poi: Dictionary = {}
+var space_scanned: Array = []
+var space_log: Array = []
+var space_at_station := false
+var space_raid_rooms: Array = []
+var space_raid_index := 0
+var space_pending_reward: Dictionary = {}
 var store_water_ml := 20000
 var next_combat_accuracy_bonus := 0
 var combat_buff_accuracy := 0
@@ -380,6 +395,16 @@ func _load_defs() -> void:
 		var ahdata = JSON.parse_string(ah_file.get_as_text())
 		if ahdata is Array:
 			afterhour_defs = ahdata
+	var sh_file := FileAccess.open("res://data/space_ships.json", FileAccess.READ)
+	if sh_file:
+		var shdata = JSON.parse_string(sh_file.get_as_text())
+		if shdata is Array:
+			space_ships = shdata
+	var sp_file := FileAccess.open("res://data/space_pois.json", FileAccess.READ)
+	if sp_file:
+		var spdata = JSON.parse_string(sp_file.get_as_text())
+		if spdata is Array:
+			space_pois = spdata
 	var ach_file := FileAccess.open("res://data/achievements.json", FileAccess.READ)
 	if ach_file:
 		var adata = JSON.parse_string(ach_file.get_as_text())
@@ -2374,6 +2399,18 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 	active_operations = []
 	afterhour_mods = {}
 	afterhour_today = ""
+	space_mode = false
+	space_ship = {}
+	space_fuel = 0
+	space_hull = 0
+	space_max_hull = 100
+	space_day = 1
+	space_poi = {}
+	space_scanned = []
+	space_log = []
+	space_at_station = false
+	space_raid_rooms = []
+	space_raid_index = 0
 	store_water_ml = 20000
 	next_combat_accuracy_bonus = 0
 	run_stats = _new_run_stats()
@@ -5908,6 +5945,223 @@ func gun_order_candidates() -> Array:
 			out.append(it)
 	return out
 
+func space_start(ship_id: String = "cargo_ship") -> Dictionary:
+	var def := {}
+	for sh in space_ships:
+		if String(sh.get("id", "")) == ship_id:
+			def = sh
+			break
+	if def.is_empty():
+		return {"ok": false, "text": "没有这艘船。"}
+	space_mode = true
+	space_ship = def.duplicate(true)
+	space_max_hull = int(def.get("hull", 100))
+	space_hull = space_max_hull
+	space_fuel = int(def.get("fuel", 50))
+	space_day = 1
+	space_poi = {}
+	space_scanned = []
+	space_log = ["登舰：%s（%s）" % [String(def.get("name", "")), String(def.get("class", ""))]]
+	space_at_station = false
+	space_raid_rooms = []
+	space_raid_index = 0
+	space_pending_reward = {}
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已登舰：%s。" % String(def.get("name", ""))}
+
+func space_leave() -> void:
+	space_mode = false
+	space_poi = {}
+	space_scanned = []
+	space_at_station = false
+	emit_signal("state_changed")
+
+func space_scan() -> Array:
+	if space_pois.is_empty():
+		return []
+	var pool: Array = space_pois.duplicate(true)
+	var out: Array = []
+	while out.size() < 4 and not pool.is_empty():
+		var idx2 := rng.randi_range(0, pool.size() - 1)
+		out.append(pool[idx2])
+		pool.remove_at(idx2)
+	space_scanned = out
+	return out
+
+func space_travel(poi: Dictionary) -> Dictionary:
+	if not space_mode:
+		return {"ok": false, "text": "尚未登舰。"}
+	var dist := int(poi.get("distance", 20))
+	var speed := maxi(1, int(space_ship.get("speed", 10)))
+	var fuel_cost := int(ceil(float(dist) / float(maxi(1, int(space_ship.get("speed", 10))))))
+	if space_fuel < fuel_cost:
+		return {"ok": false, "text": "燃料不足：需要 %d，当前 %d。" % [fuel_cost, space_fuel]}
+	space_fuel -= fuel_cost
+	space_day += maxi(1, int(ceil(float(dist) / float(speed))))
+	space_poi = poi.duplicate(true)
+	space_at_station = String(poi.get("kind", "")) == "station"
+	space_log.append("抵达 %s（消耗燃料 %d）。" % [String(poi.get("name", "")), fuel_cost])
+	emit_signal("state_changed")
+	if space_at_station:
+		return {"ok": true, "text": "抵达 %s，可以停靠。" % String(poi.get("name", "")), "station": true}
+	if rng.randi_range(1, 100) <= 65:
+		return {"ok": true, "encounter": _space_encounter(), "text": "途中遭遇事件。"}
+	return {"ok": true, "text": "抵达 %s，航道上暂时没有异常。" % String(poi.get("name", ""))}
+
+func _space_encounter() -> Dictionary:
+	var kind := String(space_poi.get("kind", "empty"))
+	var name := String(space_poi.get("name", "太空遭遇"))
+	var options: Array = []
+	match kind:
+		"mining":
+			options = [{"id": "mine", "label": "开采矿石"}, {"id": "leave", "label": "离开"}]
+		"loot", "wreck":
+			options = [{"id": "salvage", "label": "打捞"}, {"id": "leave", "label": "离开"}]
+		"combat":
+			options = [{"id": "fight", "label": "交战"}, {"id": "flee", "label": "逃离"}]
+		"distress", "refugee":
+			options = [{"id": "aid", "label": "援助"}, {"id": "rob", "label": "抢劫"}, {"id": "leave", "label": "离开"}]
+		"fuel":
+			options = [{"id": "fuel", "label": "抽取燃料"}, {"id": "leave", "label": "离开"}]
+		"heal":
+			options = [{"id": "heal", "label": "接受治疗"}, {"id": "leave", "label": "离开"}]
+		"repair":
+			options = [{"id": "repair", "label": "付费维修（30₵）"}, {"id": "leave", "label": "离开"}]
+		"trade":
+			options = [{"id": "trade", "label": "交易"}, {"id": "leave", "label": "离开"}]
+		_:
+			options = [{"id": "leave", "label": "继续航行"}]
+	return {"title": name, "text": String(space_poi.get("desc", "")), "options": options}
+
+func space_resolve(option_id: String) -> Dictionary:
+	var kind := String(space_poi.get("kind", "empty"))
+	var msg := "继续航行。"
+	match option_id:
+		"mine":
+			var got: Array = []
+			for i in range(2):
+				var did: String = ["scrap_metal", "metal_ingot", "printer_plastic", "common_electronic"][rng.randi_range(0, 3)]
+				var it := make_item(did, rng.randi_range(60, 100), true, false)
+				it["known"] = true
+				add_item(it)
+				got.append(item_display_name(it))
+			msg = "开采获得：%s。" % "、".join(got)
+		"salvage":
+			var did2: String = str(tradable_pool[rng.randi_range(0, maxi(0, tradable_pool.size() - 1))]) if not tradable_pool.is_empty() else "scrap_metal"
+			var loot := make_item(did2, rng.randi_range(60, 100), true, false)
+			loot["known"] = true
+			add_item(loot)
+			var credits := rng.randi_range(20, 90)
+			cash += credits
+			msg = "打捞获得：%s，%d₵。" % [item_display_name(loot), credits]
+		"fight":
+			var party := "pirateRookieTriple" if rng.randi_range(1, 100) <= 70 else "pirateVeteranLeaderTriple"
+			space_pending_reward = {"cash": rng.randi_range(60, 180)}
+			start_combat("pirate_rookie", "lower", "", "space_encounter", party)
+			space_log.append("与海盗交战。")
+			emit_signal("state_changed")
+			return {"ok": true, "combat": true, "text": "战斗开始。"}
+		"flee":
+			var dmg := rng.randi_range(5, 15)
+			space_hull = maxi(0, space_hull - dmg)
+			msg = "逃离时船体受损 %d。" % dmg
+		"aid":
+			space_fuel = maxi(0, space_fuel - 5)
+			add_rep("lower", 2)
+			msg = "你伸出援手，消耗 5 燃料，下层声望 +2。"
+		"rob":
+			cash += 80
+			add_rep("lower", -5)
+			msg = "你抢走了他们的物资，获得 80₵，下层声望 -5。"
+		"fuel":
+			var gain := rng.randi_range(10, 25)
+			space_fuel += gain
+			var dmg2 := rng.randi_range(0, 8)
+			space_hull = maxi(0, space_hull - dmg2)
+			msg = "抽取燃料 +%d，船体受损 %d。" % [gain, dmg2]
+		"heal":
+			space_hull = mini(space_max_hull, space_hull + 25)
+			wounds = maxi(0, wounds - 2)
+			msg = "接受治疗：船体 +25，伤口 -2。"
+		"repair":
+			if cash >= 30:
+				cash -= 30
+				space_hull = mini(space_max_hull, space_hull + 40)
+				msg = "支付 30₵，船体 +40。"
+			else:
+				msg = "现金不足，无法维修。"
+		"trade":
+			var profit := rng.randi_range(40, 140)
+			cash += profit
+			msg = "做成一笔买卖，获得 %d₵。" % profit
+		"leave":
+			msg = "你离开了。"
+	if space_hull <= 0:
+		msg += " 船体破裂，你漂回了当铺。"
+		space_leave()
+	emit_signal("state_changed")
+	return {"ok": true, "text": msg}
+
+func space_wait() -> Dictionary:
+	if not space_mode:
+		return {"ok": false, "text": "尚未登舰。"}
+	space_day += 1
+	space_hull = mini(space_max_hull, space_hull + 5)
+	space_log.append("在轨道上等待一天，船体 +5。")
+	emit_signal("state_changed")
+	return {"ok": true, "text": "等待一天，船体 +5。"}
+
+func space_dock() -> Dictionary:
+	if not space_at_station:
+		return {"ok": false, "text": "当前没有可停靠的站点。"}
+	space_raid_rooms = [
+		{"name": "码头", "party": "pirateRookieTriple", "loot": true},
+		{"name": "货舱", "party": "pirateVeteranLeaderTriple", "loot": true},
+	]
+	space_raid_index = 0
+	var first := "pirate_rookie"
+	var party: Dictionary = combat_parties.get("pirateRookieTriple", {})
+	if not party.is_empty() and not party.get("enemies", []).is_empty():
+		first = String(party["enemies"][0])
+	start_combat(first, "lower", "", "space_station", "pirateRookieTriple")
+	return {"ok": true, "text": "停靠并进入站点。"}
+
+func _space_raid_loot() -> void:
+	var room: Dictionary = space_raid_rooms[space_raid_index] if space_raid_index < space_raid_rooms.size() else {}
+	var credits := rng.randi_range(40, 120)
+	cash += credits
+	space_log.append("%s：%d₵" % [String(room.get("name", "房间")), credits])
+
+func advance_space_raid() -> bool:
+	_space_raid_loot()
+	space_raid_index += 1
+	if space_raid_index >= space_raid_rooms.size():
+		space_at_station = true
+		return false
+	var room: Dictionary = space_raid_rooms[space_raid_index]
+	var party_id := String(room.get("party", "pirateRookieTriple"))
+	var party: Dictionary = combat_parties.get(party_id, {})
+	if party.is_empty():
+		return false
+	var first := String(party.get("enemies", ["pirate_rookie"])[0])
+	start_combat(first, "lower", "", "space_station", party_id)
+	return true
+
+func space_state_text() -> String:
+	if not space_mode:
+		return "未登舰。"
+	var lines: Array = []
+	lines.append("舰船：%s（%s）" % [String(space_ship.get("name", "")), String(space_ship.get("class", ""))])
+	lines.append("船体 %d/%d · 燃料 %d · 航日 %d" % [space_hull, space_max_hull, space_fuel, space_day])
+	if not space_poi.is_empty():
+		lines.append("当前：%s" % String(space_poi.get("name", "")))
+	lines.append("现金：%d₵" % cash)
+	if not space_log.is_empty():
+		lines.append("")
+		for i in range(maxi(0, space_log.size() - 4), space_log.size()):
+			lines.append(String(space_log[i]))
+	return "\n".join(lines)
+
 func _gen_gun_followup_customer(ammo_id: String, melee_id: String, tier: int, bonuses: int) -> Dictionary:
 	var faction := String(current_customer.get("arche", {}).get("faction", "lower"))
 	var name := String(current_customer.get("arche", {}).get("name", "顾客"))
@@ -5964,6 +6218,7 @@ func deliver_gun_order(uid: int) -> Dictionary:
 	if not bool(ev.get("met", false)):
 		return {"ok": false, "text": "订单要求未满足。"}
 	var reward := int(ev.get("reward", 0))
+	var return_parts := int(it.get("service_parts_value", 0)) / 25 if bool(gun_order.get("service", false)) else 0
 	var loc := String(it.get("location", ""))
 	if loc == "display":
 		for i in range(display.size()):
@@ -5973,6 +6228,8 @@ func deliver_gun_order(uid: int) -> Dictionary:
 	else:
 		inventory.remove_at(_find_root_index(inventory, uid))
 	cash += reward
+	for pi in range(return_parts):
+		add_item(make_item("gun_part", 100, true, false))
 	daily["sales"] = int(daily.get("sales", 0)) + reward
 	run_stats["total_sales"] = int(run_stats.get("total_sales", 0)) + reward
 	add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), 3)
@@ -5997,6 +6254,22 @@ func deliver_gun_order(uid: int) -> Dictionary:
 	gun_order = {}
 	emit_signal("state_changed")
 	return {"ok": true, "text": "交付完成，收到 %d₵。" % reward}
+
+func release_gun_order() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "gun_order":
+		return {"ok": false, "text": "当前没有枪械订单。"}
+	if bool(current_customer.get("service", false)):
+		var gid := String(current_customer.get("gun_id", ""))
+		for i in range(inventory.size() - 1, -1, -1):
+			if String(inventory[i].get("def_id", "")) == gid and bool(inventory[i].get("service_order", false)):
+				var parts := int(inventory[i].get("service_parts_value", 0)) / 25
+				inventory.remove_at(i)
+				for pi in range(parts):
+					add_item(make_item("gun_part", 100, true, false))
+				break
+	gun_order = {}
+	complete_customer(false)
+	return {"ok": true, "text": "已结束订单。"}
 
 func gun_order_repair() -> Dictionary:
 	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "gun_order":
@@ -8826,6 +9099,9 @@ func save_game(slot: int = 1) -> bool:
 		"hireling": hireling, "hireling_expedition": hireling_expedition, "gun_order": gun_order,
 		"store_water_ml": store_water_ml, "next_combat_accuracy_bonus": next_combat_accuracy_bonus,
 		"faction_power": faction_power, "operation_cooldowns": operation_cooldowns, "active_operations": active_operations,
+		"space_mode": space_mode, "space_ship": space_ship, "space_fuel": space_fuel, "space_hull": space_hull,
+		"space_max_hull": space_max_hull, "space_day": space_day, "space_poi": space_poi, "space_log": space_log,
+		"space_at_station": space_at_station,
 		"raid_action_points": raid_action_points, "raid_turn": raid_turn, "expedition_loot_log": expedition_loot_log,
 	}
 	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.WRITE)
@@ -8929,6 +9205,15 @@ func load_game(slot: int = 1) -> bool:
 	gun_order = data.get("gun_order", {}).duplicate(true)
 	store_water_ml = int(data.get("store_water_ml", 20000))
 	next_combat_accuracy_bonus = int(data.get("next_combat_accuracy_bonus", 0))
+	space_mode = bool(data.get("space_mode", false))
+	space_ship = data.get("space_ship", {}).duplicate(true)
+	space_fuel = int(data.get("space_fuel", 0))
+	space_hull = int(data.get("space_hull", 0))
+	space_max_hull = int(data.get("space_max_hull", 100))
+	space_day = int(data.get("space_day", 1))
+	space_poi = data.get("space_poi", {}).duplicate(true)
+	space_log = data.get("space_log", []).duplicate()
+	space_at_station = bool(data.get("space_at_station", false))
 	faction_power = data.get("faction_power", {"rev": 0, "bm": 0, "sec": 0, "civil_unrest": 0}).duplicate()
 	operation_cooldowns = data.get("operation_cooldowns", {}).duplicate()
 	active_operations = data.get("active_operations", []).duplicate(true)

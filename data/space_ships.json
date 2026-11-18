@@ -1,0 +1,6 @@
+[
+  {"id": "cargo_ship", "name": "Sok-27C", "class": "货船", "hull": 100, "fuel": 50, "cargo": 14, "speed": 10, "desc": "Sokolov 重工的入门货船，货舱大，适合跑商。"},
+  {"id": "military_transport_ship", "name": "A-101 信天翁", "class": "军用运输船", "hull": 150, "fuel": 50, "cargo": 9, "speed": 10, "desc": "共和国海军退役运输船，装甲厚，运营成本高。"},
+  {"id": "utility_ship", "name": "54 型 边缘", "class": "多用途船", "hull": 125, "fuel": 50, "cargo": 9, "speed": 10, "desc": "中船重工的多用途船，带采矿与打捞系统。"},
+  {"id": "refugee_ship", "name": "巴士号", "class": "改装运输船", "hull": 50, "fuel": 25, "cargo": 9, "speed": 10, "desc": "难民改装的旧船，便宜、脆弱、省油。"}
+]
