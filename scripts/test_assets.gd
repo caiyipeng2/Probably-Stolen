@@ -24,6 +24,13 @@ func _init() -> void:
 		if FileAccess.file_exists("res://assets/customers/" + p):
 			pfound += 1
 	check(pfound == portraits.size(), "original character portraits present", "%d/%d" % [pfound, portraits.size()])
+	var custdir := DirAccess.open("res://assets/customers")
+	var cust_count := 0
+	if custdir:
+		for f in custdir.get_files():
+			if f.ends_with(".png"):
+				cust_count += 1
+	check(cust_count >= 130, "full original client sprite bank", str(cust_count))
 	check(FileAccess.file_exists("res://assets_private/items/glock_receiver.png"), "original item sprite present")
 	var audio_count := 0
 	var dir := DirAccess.open("res://assets_private/audio_original")
@@ -54,6 +61,14 @@ func _init() -> void:
 		if FileAccess.file_exists("res://assets_private/walkers/walker1_%d.png" % i):
 			walker_found += 1
 	check(walker_found == 8, "original walker frames present", "%d/8" % walker_found)
+	var shot_found := 0
+	for i in range(8):
+		if FileAccess.file_exists("res://assets_private/shot_anim/shot_animation_body_%d.png" % i):
+			shot_found += 1
+	for i in range(6):
+		if FileAccess.file_exists("res://assets_private/shot_anim/shot_animation_wound_%d.png" % i):
+			shot_found += 1
+	check(shot_found >= 12, "original shot animation frames present", str(shot_found))
 	var public_audio := load("res://assets_public/audio/music_main.ogg")
 	check(public_audio != null, "public audio fallback present")
 	print("FAILS=", fails)

@@ -1,0 +1,19 @@
+[
+  {"id": "bm_gang_war", "faction": "blackmarket", "name": "黑市火并", "duration": 3, "cooldown": 10, "bm": -50, "unrest": 20, "text": "黑市帮派在站内开火，黑市势力受挫，民怨上升。"},
+  {"id": "bm_illegal_weapon_shipment", "faction": "blackmarket", "name": "非法军火船", "duration": 2, "cooldown": 8, "bm": 20, "unrest": 10, "text": "一批非法军火流入站内，黑市势力增强。"},
+  {"id": "ll_riot", "faction": "lower", "name": "下层暴动", "duration": 1, "cooldown": 8, "rev": 10, "unrest": -40, "text": "下层区爆发暴动，革命军声望上升。"},
+  {"id": "ll_worker_strike", "faction": "lower", "name": "工人罢工", "duration": 3, "cooldown": 5, "rev": 5, "unrest": 20, "text": "工人罢工让站内物流停摆，民怨上升。"},
+  {"id": "rev_mobilization_secret", "faction": "rev", "name": "秘密动员", "duration": 3, "cooldown": 2, "rev": 15, "unrest": 0, "text": "革命军在暗中集结。"},
+  {"id": "rev_mobilization", "faction": "rev", "name": "总动员", "duration": 2, "cooldown": 12, "rev": 40, "unrest": 0, "text": "革命军公开动员，声势大涨。"},
+  {"id": "rev_raid_upper_level", "faction": "rev", "name": "突袭上层区", "duration": 1, "cooldown": 5, "rev": 15, "unrest": 0, "text": "革命军突袭上层区，治安部疲于应对。"},
+  {"id": "raid_security", "faction": "rev", "name": "袭击治安部", "duration": 1, "cooldown": 5, "rev": -25, "sec": -35, "unrest": 15, "text": "革命军袭击治安部，双方都损失惨重。"},
+  {"id": "sec_increase_patrols", "faction": "security", "name": "增派巡逻", "duration": 4, "cooldown": 6, "rev": -15, "bm": -15, "sec": -20, "unrest": -40, "text": "治安部增派巡逻，站内气氛紧张但治安改善。"},
+  {"id": "crackdown", "faction": "security", "name": "严打", "duration": 2, "cooldown": 3, "bm": -40, "sec": -20, "unrest": -20, "text": "治安部展开严打，黑市受到重创。"},
+  {"id": "sec_raid_black_market", "faction": "security", "name": "突袭黑市", "duration": 2, "cooldown": 5, "sec": -15, "bm": -40, "unrest": -10, "text": "治安部突袭黑市仓库。"},
+  {"id": "sec_raid_revolution", "faction": "security", "name": "突袭革命军", "duration": 1, "cooldown": 8, "sec": -20, "rev": -40, "unrest": 0, "text": "治安部突袭革命军据点。"},
+  {"id": "sec_martial_law", "faction": "security", "name": "戒严", "duration": 3, "cooldown": 10, "sec": -50, "rev": -50, "bm": -50, "unrest": -50, "text": "空间站进入戒严状态。"},
+  {"id": "sec_budget_increase", "faction": "security", "name": "预算增加", "duration": 1, "cooldown": 10, "sec": 50, "unrest": 0, "text": "治安部获得追加预算。"},
+  {"id": "ul_medical_aid", "faction": "upper", "name": "医疗援助", "duration": 2, "cooldown": 5, "rev": -10, "unrest": -20, "text": "上层区发放医疗援助，民怨下降。"},
+  {"id": "ul_food_drive", "faction": "upper", "name": "食品救济", "duration": 3, "cooldown": 5, "sec": 10, "rev": -5, "unrest": -15, "text": "上层区组织食品救济。"},
+  {"id": "ul_household_relief", "faction": "upper", "name": "家庭补助", "duration": 2, "cooldown": 5, "unrest": -15, "text": "上层区发放家庭补助。"}
+]

@@ -1,0 +1,9 @@
+[
+  {"id": "mon_inventor", "weekday": 1, "name": "发明家夜市", "text": "周一夜市：发明家高价收货，稀有库存增加。", "inventor_sell_price": 150, "rare_stock": 1},
+  {"id": "tue_quiet", "weekday": 2, "name": "平静的周二", "text": "站内异常平静，顾客出价略低。", "price_mod": -10},
+  {"id": "wed_junk", "weekday": 3, "name": "垃圾潮", "text": "周三垃圾潮：垃圾出现率下降，但拾荒更安全。", "junk_chance": -50, "injury_immunity": 1},
+  {"id": "thu_scav", "weekday": 4, "name": "拾荒夜", "text": "周四拾荒夜：探险队可以多搜索几次，且不易受伤。", "scav_attempts": 5, "injury_immunity": 1},
+  {"id": "fri_restock", "weekday": 5, "name": "军需补货", "text": "周五军需补货：补给站补货量提高 35%。", "commissary_restock_percent": 35},
+  {"id": "sat_market", "weekday": 6, "name": "周末集市", "text": "周末集市：顾客出价提高 10%。", "price_mod": 10},
+  {"id": "sun_rain", "weekday": 7, "name": "周日冷雨", "text": "周日冷雨：垃圾出现率上升。", "junk_chance": 25}
+]

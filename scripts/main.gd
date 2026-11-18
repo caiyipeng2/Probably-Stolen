@@ -38,6 +38,7 @@ var status_label: Label
 var paper_goals: Label
 var customer_name_label: Label
 var customer_info_label: Label
+var queue_label: Label
 var dialogue_name: Label
 var dialogue_text: Label
 var dialogue_hint: Label
@@ -168,6 +169,7 @@ var story_choices: VBoxContainer
 var story_node_id := ""
 var combat_layer: Control
 var combat_enemy_sprite: TextureRect
+var combat_impact: TextureRect
 var combat_enemy_name: Label
 var combat_enemy_bar: ProgressBar
 var combat_player_bar: ProgressBar
@@ -251,6 +253,7 @@ var ng_perks: Array = []
 var ng_difficulty := "normal"
 var ng_campaign := "original"
 var ng_skip_intro := false
+var news_archive: Array = []
 
 func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
@@ -270,6 +273,7 @@ func _ready() -> void:
 	GameState.security_officer_arrived.connect(_on_security_officer_arrived)
 	GameState.permit_revoke_arrived.connect(_on_permit_revoke_arrived)
 	GameState.achievement_unlocked.connect(_on_achievement_unlocked)
+	GameState.news_ready.connect(_on_news_ready)
 	GameState.combat_hit.connect(_on_combat_hit)
 	GameState.combat_started.connect(_on_combat_started)
 	GameState.combat_updated.connect(_on_combat_updated)
@@ -291,6 +295,7 @@ func _ready() -> void:
 	_testsecurityui_if_requested()
 	_testpresentationui_if_requested()
 	_testp0ui_if_requested()
+	_testp1ui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -1136,17 +1141,18 @@ func _build_left_rail() -> void:
 	_label(rail, "店铺", Vector2(20, 14), Vector2(170, 32), 24, C_AMBER)
 	var items := [
 		["顾客", "customers"], ["库存", "inventory"], ["网络", "network"],
-		["手机", "phone"], ["机器", "machines"], ["派系", "factions"], ["档案", "ledger"], [GameState.loc("UI", "ui_end_day", "结束营业"), "end_day"],
+		["手机", "phone"], ["机器", "machines"], ["派系", "factions"], ["档案", "ledger"],
+		["设施", "facilities"], [GameState.loc("UI", "ui_end_day", "结束营业"), "end_day"],
 	]
 	for i in range(items.size()):
 		var key: String = items[i][1]
 		var color := C_TEXT
 		if key == "end_day":
 			color = C_RUST
-		var b := _button(rail, items[i][0], Vector2(20, 50 + i * 64), Vector2(170, 56), color, _on_rail.bind(key))
+		var b := _button(rail, items[i][0], Vector2(20, 46 + i * 54), Vector2(170, 48), color, _on_rail.bind(key))
 		rail_buttons[key] = b
-	_button(rail, "电台", Vector2(20, 548), Vector2(170, 44), C_AMBER, _toggle_radio)
-	status_label = _label(rail, "营业中", Vector2(20, 606), Vector2(170, 44), 20, C_GREEN)
+	_button(rail, "电台", Vector2(20, 556), Vector2(170, 44), C_AMBER, _toggle_radio)
+	status_label = _label(rail, "营业中", Vector2(20, 612), Vector2(170, 40), 20, C_GREEN)
 
 func _build_right_rail() -> void:
 	var rail := _panel(self, Vector2(2130, 80), Vector2(210, 670), C_PANEL, C_LINE)
@@ -1178,7 +1184,8 @@ func _build_customer_card() -> void:
 	var p := _panel(game_view, Vector2(40, 372), Vector2(340, 180), C_PANEL, C_LINE)
 	_label(p, "顾客", Vector2(14, 8), Vector2(60, 26), 20, C_AMBER)
 	customer_name_label = _label(p, "", Vector2(14, 36), Vector2(312, 38), 28, C_TEXT)
-	customer_info_label = _label(p, "", Vector2(14, 82), Vector2(312, 88), 20, C_MUTED)
+	customer_info_label = _label(p, "", Vector2(14, 82), Vector2(312, 70), 20, C_MUTED)
+	queue_label = _label(p, "", Vector2(14, 150), Vector2(312, 24), 16, C_CYAN)
 
 func _build_dialogue() -> void:
 	var p := _panel(game_view, Vector2(1280, 170), Vector2(560, 220), C_PANEL, C_CYAN, 2)
@@ -2615,9 +2622,9 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"], ["新闻", "news"]]
 	for i in range(tabs.size()):
-		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 132, 70), Vector2(124, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
+		var tb := _button(panel, tabs[i][0], Vector2(20 + i * 118, 70), Vector2(112, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(24, 130)
@@ -2689,6 +2696,9 @@ func _build_combat_layer() -> void:
 	var panel := _panel(combat_layer, Vector2(300, 140), Vector2(1740, 800), C_PANEL, C_RUST, 3)
 	_label(panel, "战斗 · COMBAT", Vector2(30, 18), Vector2(600, 48), 34, C_RUST)
 	combat_enemy_sprite = _texture_rect(panel, Vector2(30, 80), Vector2(360, 360), "")
+	combat_impact = _texture_rect(panel, Vector2(30, 80), Vector2(360, 360), "")
+	combat_impact.visible = false
+	combat_impact.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_enemy_name = _label(panel, "", Vector2(420, 80), Vector2(700, 40), 30, C_TEXT)
 	combat_enemy_bar = ProgressBar.new()
 	combat_enemy_bar.position = Vector2(420, 130)
@@ -2995,6 +3005,7 @@ func _update_customer() -> void:
 		customer_rect.modulate = Color.WHITE
 		customer_shown_key = ""
 		customer_name_label.text = "—"
+		queue_label.text = ""
 		customer_info_label.text = "当前没有顾客。\n可以整理物品、查看档案，或结束营业。"
 		dialogue_name.text = "店铺"
 		dialogue_text.text = "点「结束营业」进入下一天。"
@@ -3570,6 +3581,8 @@ func _on_rail(key: String) -> void:
 			_open_machines()
 		"ledger":
 			_show_ledger_modal()
+		"facilities":
+			_open_facilities()
 		"end_day":
 			_on_end_day_pressed()
 
@@ -3605,11 +3618,22 @@ func _open_save_menu(mode: String) -> void:
 	var actions: Array = []
 	for i in range(1, 4):
 		var label := "槽位 %d%s" % [i, "" if GameState.has_save(i) else "（空）"]
+		if mode == "load" and GameState.has_save(i):
+			var prev := _save_preview(i)
+			label += " · 第 %d 天 · %d₵" % [int(prev.get("day", 0)), int(prev.get("cash", 0))]
 		if mode == "save":
 			actions.append({"label": label, "cb": _save_slot.bind(i)})
 		else:
 			actions.append({"label": label, "cb": _load_slot.bind(i)})
 	_show_modal("存档" if mode == "save" else "读档", "选择要保存/读取的槽位。", actions)
+
+func _save_preview(slot: int) -> Dictionary:
+	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.READ)
+	if f == null:
+		return {}
+	var data = JSON.parse_string(f.get_as_text())
+	f.close()
+	return data if data is Dictionary else {}
 
 func _save_slot(slot: int) -> void:
 	if GameState.save_game(slot):
@@ -4370,6 +4394,10 @@ func _rebuild_info_list() -> void:
 				var aid := String(a.get("id", ""))
 				var got := GameState.achievements_unlocked.has(aid)
 				_add_info_button("%s %s" % ["●" if got else "○", String(a.get("name", aid))], aid)
+		"news":
+			for i in range(news_archive.size() - 1, -1, -1):
+				var ni: Dictionary = news_archive[i]
+				_add_info_button("%s · %s" % [String(ni.get("title", "新闻")), String(ni.get("day", ""))], str(i))
 		"stats":
 			for key in GameState.run_stats.keys():
 				var val = GameState.run_stats[key]
@@ -4507,6 +4535,18 @@ func _refresh_info_detail() -> void:
 				var unlocked := v >= int(perk.get("threshold", 999))
 				body += "%s %d · %s — %s
 " % ["[已解锁]" if unlocked else "[未解锁]", int(perk.get("threshold", 0)), perk.get("name", ""), perk.get("desc", "")]
+			var pkeys := {"security": "sec", "blackmarket": "bm", "rev": "rev"}
+			if pkeys.has(info_selected_id):
+				body += "
+势力值：%+d" % int(GameState.faction_power.get(String(pkeys[info_selected_id]), 0))
+			body += "
+内乱：%+d" % int(GameState.faction_power.get("civil_unrest", 0))
+			if not GameState.active_operations.is_empty():
+				var opnames: Array = []
+				for op in GameState.active_operations:
+					opnames.append(String(op.get("name", "")))
+				body += "
+进行中：" + "、".join(opnames)
 			info_body.text = body
 		"perks":
 			var p := GameState.starting_perk_def(info_selected_id)
@@ -4638,6 +4678,16 @@ func _refresh_info_detail() -> void:
 				if bool(GameState.perk_flags.get("addiction_" + k, false)):
 					add_lines.append("%s 第 %d 天" % [addiction_names[k], int(GameState.addiction_days.get(k, 0))])
 			lines.append("成瘾：" + ("、".join(add_lines) if not add_lines.is_empty() else "无"))
+			lines.append("日历：第 %d 天 · 周%s · 房租 %d 天后 · 欠款 %d 天后" % [GameState.day, _weekday(GameState.day), GameState.rent_due, GameState.loan_due])
+			if not GameState.afterhour_today.is_empty():
+				lines.append("今日夜间事件：" + String(GameState.afterhour_mods.get("name", GameState.afterhour_today)))
+			if not GameState.active_operations.is_empty():
+				var opn: Array = []
+				for op in GameState.active_operations:
+					opn.append(String(op.get("name", "")))
+				lines.append("派系行动：" + "、".join(opn))
+			if not GameState.night_log.is_empty():
+				lines.append("日志：" + String(GameState.night_log[-1]))
 			if bool(GameState.perk_flags.get("sentinel", false)):
 				lines.append("哨兵注射剂：%d 天 · 负荷 %d/20" % [GameState.sentinel_days, GameState.sentinel_pool])
 			info_name.text = "身体状态"
@@ -4665,6 +4715,14 @@ func _refresh_info_detail() -> void:
 			info_meta.text = "● 已解锁 · 第 %d 天" % int(GameState.achievements_unlocked.get(info_selected_id, 0)) if got else "○ 未解锁"
 			info_body.text = String(adef.get("desc", ""))
 			info_status.text = "已解锁 %d/%d" % [GameState.achievements_unlocked.size(), GameState.achievement_defs.size()]
+		"news":
+			var nidx := int(info_selected_id)
+			if nidx < 0 or nidx >= news_archive.size():
+				return
+			var news: Dictionary = news_archive[nidx]
+			info_name.text = String(news.get("title", "新闻"))
+			info_meta.text = "第 %s 天 · 站内新闻" % String(news.get("day", ""))
+			info_body.text = String(news.get("text", ""))
 		"stats":
 			info_name.text = _stat_label(info_selected_id)
 			info_meta.text = "本局运行统计"
@@ -4783,6 +4841,52 @@ func _info_action() -> void:
 
 func _open_network() -> void:
 	_open_info_tab("network")
+
+func _open_facilities() -> void:
+	var text := "水龙头剩余 %d ml。
+
+设施：水龙头/排水槽、床铺、卷帘门、录音机。
+床铺可以直接结束营业；水龙头可灌满液体容器。" % GameState.store_water_ml
+	_show_modal("店铺设施", text, [
+		{"label": "水龙头灌满", "cb": _facility_fill_select, "color": C_CYAN},
+		{"label": "排水槽倒空", "cb": _facility_drain_select, "color": C_CYAN},
+		{"label": "床铺：结束营业", "cb": _facility_sleep, "color": C_RUST},
+		{"label": "关闭", "cb": _close_modal},
+	])
+
+func _facility_fill_select() -> void:
+	var items: Array = []
+	for it in GameState.inventory:
+		if GameState.is_liquid_container(it):
+			items.append({"id": str(int(it.get("uid", -1))), "label": "%s · %d ml" % [GameState.item_display_name(it), int(it.get("liquid_ml", 0))]})
+	if items.is_empty():
+		_toast("没有液体容器。")
+		return
+	_open_select("水龙头：选择容器", items, _facility_fill_uid)
+
+func _facility_fill_uid(id: String) -> void:
+	var res := GameState.fill_liquid_from_faucet(int(id))
+	_open_facilities()
+	_toast(String(res.get("text", "")))
+
+func _facility_drain_select() -> void:
+	var items: Array = []
+	for it in GameState.inventory:
+		if GameState.is_liquid_container(it) and int(it.get("liquid_ml", 0)) > 0:
+			items.append({"id": str(int(it.get("uid", -1))), "label": "%s · %d ml" % [GameState.item_display_name(it), int(it.get("liquid_ml", 0))]})
+	if items.is_empty():
+		_toast("没有可倒空的容器。")
+		return
+	_open_select("排水槽：选择容器", items, _facility_drain_uid)
+
+func _facility_drain_uid(id: String) -> void:
+	var res := GameState.drain_liquid_container(int(id))
+	_open_facilities()
+	_toast(String(res.get("text", "")))
+
+func _facility_sleep() -> void:
+	_close_modal()
+	_on_end_day_pressed()
 
 func _open_factions() -> void:
 	_open_info_tab("factions")
@@ -4989,6 +5093,7 @@ func _permit_revoke_confirm() -> void:
 
 func _on_combat_hit(uid: int, amount: int) -> void:
 	_play_sfx("hit")
+	_play_combat_impact(uid == 0)
 	if combat_enemy_sprite == null:
 		return
 	var is_player := uid == 0
@@ -5017,6 +5122,21 @@ func _on_combat_hit(uid: int, amount: int) -> void:
 		shake.tween_property(combat_enemy_sprite, "position:x", base_pos.x - 8.0, 0.05)
 		shake.tween_property(combat_enemy_sprite, "position:x", base_pos.x, 0.05)
 
+func _play_combat_impact(is_player: bool) -> void:
+	if combat_impact == null:
+		return
+	combat_impact.visible = true
+	var prefix := "wound" if is_player else "body"
+	var count := 6 if is_player else 8
+	for i in range(count):
+		var path := "res://assets_private/shot_anim/shot_animation_%s_%d.png" % [prefix, i]
+		if ResourceLoader.exists(path):
+			combat_impact.texture = load(path)
+		await get_tree().create_timer(0.05).timeout
+		if not is_instance_valid(combat_impact):
+			return
+	combat_impact.visible = false
+
 func _on_combat_started() -> void:
 	combat_layer.visible = true
 	_update_combat_ui()
@@ -5031,9 +5151,14 @@ func _on_combat_finished(victory: bool, message: String) -> void:
 	var was_wanted_visit := GameState.combat_context == "wanted_visit"
 	_refresh()
 	if victory and was_expedition:
+		var loot_text := "
+".join(GameState.expedition_loot_log)
 		if GameState.advance_expedition():
-			_show_modal("探险", "进入下一层。", [{"label": "继续", "cb": _close_modal}])
+			_show_modal("探险 · 房间清理", loot_text + "
+
+进入下一层（行动点 %d）。" % GameState.raid_action_points, [{"label": "继续", "cb": _close_modal}])
 			return
+		_show_modal("探险完成", loot_text if loot_text != "" else "没有额外战利品。", [{"label": "离开", "cb": _close_modal}])
 		GameState.next_customer()
 	elif victory and was_wanted_visit:
 		GameState.next_customer()
@@ -5180,7 +5305,11 @@ func _show_modal(title: String, text: String, actions: Array) -> void:
 	modal_layer.visible = true
 
 func _show_receipt(title: String, text: String) -> void:
-	_show_modal(title, text, [{"label": "收起", "cb": _close_modal}])
+	var body := "— — — — — — — — — —
+" + text + "
+— — — — — — — — — —
+盖章：治安部查抄专用章"
+	_show_modal(title, body, [{"label": "收起", "cb": _close_modal}])
 	modal_panel.add_theme_stylebox_override("panel", _tex_style("inspection_receipt.png", 14, Color("#efe6cf"), Color("#8a7a5a"), 3))
 	modal_title.add_theme_color_override("font_color", Color("#4a3423"))
 	modal_text.add_theme_color_override("font_color", Color("#2b241b"))
@@ -5198,6 +5327,41 @@ func _show_news(title: String, text: String, actions: Array) -> void:
 			b.add_theme_color_override("font_color", Color("#2b2a24"))
 			b.add_theme_color_override("font_hover_color", Color("#4a3423"))
 			b.add_theme_color_override("font_pressed_color", Color("#4a3423"))
+
+func _testp1ui_if_requested() -> void:
+	if not "--testp1ui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.6).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.2).timeout
+	if modal_layer.visible:
+		_close_modal()
+	_open_facilities()
+	await get_tree().process_frame
+	print("P1UI facilities title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	_open_info_tab("news")
+	print("P1UI news tab=", info_tab, " rows=", info_list_buttons.size())
+	_close_info()
+	GameState.current_customer = {"intent": "sell", "arche": {"faction": "lower", "name": "卖家"}, "item": {"uid": 999, "def_id": "handmade_pistol", "asking_price": 100, "min_price": 70, "known": true, "condition": 80}, "patience": 3, "done": false}
+	GameState.counter_item = GameState.current_customer["item"]
+	GameState.current_index = 0
+	GameState.phase = "customer"
+	_refresh()
+	print("P1UI queue=", queue_label.text)
+	_open_bargain()
+	await get_tree().process_frame
+	bargain_price = 80
+	_refresh_bargain_modal()
+	await get_tree().process_frame
+	print("P1UI bargain preview=", "成功" in modal_text.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	_open_save_menu("load")
+	await get_tree().process_frame
+	print("P1UI load slots=", modal_actions.get_child_count())
+	_close_modal()
+	await get_tree().process_frame
+	get_tree().quit(0)
 
 func _testp0ui_if_requested() -> void:
 	if not "--testp0ui" in OS.get_cmdline_args():
@@ -5799,6 +5963,7 @@ func _refresh_bargain_modal() -> void:
 		{"label": "+5%", "cb": _bargain_adjust.bind(1.05)},
 		{"label": "+10%", "cb": _bargain_adjust.bind(1.1)},
 		{"label": "报价", "cb": _bargain_confirm, "color": C_AMBER},
+		{"label": "勒索", "cb": _do_blackmail, "color": C_RUST},
 		{"label": "威胁", "cb": _do_threaten, "color": C_RUST},
 	]
 	if GameState.aug_introduced and not bool(c.get("aug_scanned", false)) and GameState.inventory_count("aug_scanner") > 0:
@@ -5808,6 +5973,12 @@ func _refresh_bargain_modal() -> void:
 	if bool(c.get("aug_scanned", false)) and bool(c.get("is_aug", false)):
 		actions.append({"label": "举报义体", "cb": _do_report_aug, "color": C_GREEN})
 	_show_modal("议价 · " + GameState.item_display_name(it), text, actions)
+
+func _on_news_ready(title: String, text: String) -> void:
+	news_archive.append({"title": title, "text": text, "day": str(GameState.day)})
+	if news_archive.size() > 40:
+		news_archive.pop_front()
+	_show_news(title, text, [{"label": "关闭", "cb": _close_modal}])
 
 func _on_achievement_unlocked(aid: String) -> void:
 	var aname := aid
@@ -5848,6 +6019,12 @@ func _bargain_confirm() -> void:
 		bargain_price = int(res["counter"])
 		actions.append({"label": "继续议价", "cb": _refresh_bargain_modal, "color": C_AMBER})
 	_show_modal("议价结果", String(res.get("text", "")), actions)
+
+func _do_blackmail() -> void:
+	_play_sfx("hit")
+	var res := GameState.blackmail_bargain()
+	_refresh()
+	_show_modal("勒索", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
 func _do_threaten() -> void:
 	_play_sfx("hit")
