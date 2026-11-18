@@ -36,6 +36,16 @@ func _init() -> void:
 		if String(c.get("special_id", "")) == "retired_gunsmith":
 			found_gun = true
 	check(found_gun, "retired gunsmith weekday 4 scheduled")
+	var info_t: Dictionary = {}
+	for u in gs.special_customers.get("unique", []):
+		if String(u.get("id", "")) == "information_dealer":
+			info_t = u
+	var info_c: Dictionary = gs._gen_special_customer(info_t)
+	gs.current_customer = info_c
+	gs.cash = 500
+	var before_notes: int = gs.inventory_count("handnote")
+	var info_res: Dictionary = gs.buy_information()
+	check(bool(info_res.get("ok", false)) and gs.cash == 450 and gs.inventory_count("handnote") == before_notes + 1, "information dealer sells tip", str(info_res))
 	gs.owned_upgrades.erase("RETIRED_GUNSMITH")
 	gs.day = 4
 	gs.customers_today = []

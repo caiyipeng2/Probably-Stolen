@@ -359,5 +359,57 @@
         "result": "维修工耸耸肩，背着工具箱走了。"
       }
     ]
+  },
+  {
+    "id": "market_food_shortage",
+    "title": "食品短缺",
+    "text": "站内营养果供应骤减，居民开始囤积食物。",
+    "choices": [
+      {
+        "text": "记下行情。",
+        "market": {
+          "FOOD": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "market_food_surplus",
+    "title": "食品过剩",
+    "text": "一批营养果涌入市场，价格走低。",
+    "choices": [
+      {
+        "text": "记下行情。",
+        "market": {
+          "FOOD": -20
+        }
+      }
+    ]
+  },
+  {
+    "id": "market_medical_shortage",
+    "title": "医疗短缺",
+    "text": "医疗物资供应中断，诊所开始抢购。",
+    "choices": [
+      {
+        "text": "记下行情。",
+        "market": {
+          "MEDICAL": 50
+        }
+      }
+    ]
+  },
+  {
+    "id": "market_material_surplus",
+    "title": "材料过剩",
+    "text": "废料场清仓，建筑材料价格下跌。",
+    "choices": [
+      {
+        "text": "记下行情。",
+        "market": {
+          "MATERIAL": -25
+        }
+      }
+    ]
   }
 ]

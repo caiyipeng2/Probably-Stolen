@@ -363,6 +363,15 @@
         "MEDICAL"
       ],
       "chance": 100
+    },
+    {
+      "id": "information_dealer",
+      "name_key": "name_shady_customer",
+      "dialogue": "info_shady",
+      "intent": "information",
+      "min_day": 13,
+      "chance": 15,
+      "service_cost": 50
     }
   ]
 }

@@ -10,7 +10,7 @@ TESTS=(
   test_containers test_inspection test_inv test_aux_machines test_balance
   test_growth test_machines_durability test_machine_faults test_recipes_modules
   test_meta test_endings test_archive test_story_graphs
-  test_barter test_wholesale test_phone test_phone_services test_combat test_combat_parties test_security test_customer_pools test_procurement test_special_customers test_perks test_localization test_assets
+  test_barter test_wholesale test_phone test_phone_services test_combat test_combat_parties test_security test_customer_pools test_procurement test_special_customers test_market test_perks test_localization test_assets
 )
 OVERALL=0
 echo "Regression $STAMP" > "$OUT/summary.txt"

@@ -1,0 +1,10 @@
+{
+  "types": {
+    "FOOD": {"shortage_name": "name_lower_level_citizen", "shortage_dialogue": "shortage_food_sev1", "shortage_budget": [100, 25, 75], "surplus_name": "name_lower_levels_trader", "surplus_dialogue": "surplus_food_oversupply"},
+    "MEDICAL": {"shortage_name": "name_worried_resident", "shortage_dialogue": "shortage_medical_sev1", "shortage_budget": [120, 30, 80], "surplus_name": "name_lower_levels_vendor", "surplus_dialogue": "surplus_medical_oversupply"},
+    "SUBSTANCE": {"shortage_name": "name_shady_addict", "shortage_dialogue": "shortage_substance_sev1", "shortage_budget": [80, 20, 50], "surplus_name": "name_shifty_dealer", "surplus_dialogue": "surplus_substance_oversupply"},
+    "MATERIAL": {"shortage_name": "name_scrap_dealer", "shortage_dialogue": "shortage_material_sev1", "shortage_budget": [150, 40, 90], "surplus_name": "name_lower_levels_trader", "surplus_dialogue": "surplus_material_oversupply"},
+    "WEAPON": {"shortage_name": "name_tense_local", "shortage_dialogue": "shortage_weapon_sev1", "shortage_budget": [200, 50, 100], "surplus_name": "name_lower_level_weapon_trader", "surplus_dialogue": "surplus_weapon_oversupply"},
+    "ARMOR": {"shortage_name": "name_tense_local", "shortage_dialogue": "shortage_weapon_sev1", "shortage_budget": [200, 50, 100], "surplus_name": "name_lower_level_weapon_trader", "surplus_dialogue": "surplus_weapon_oversupply"}
+  }
+}

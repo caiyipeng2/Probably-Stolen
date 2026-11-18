@@ -103,6 +103,8 @@ var combat_pending_victory := false
 var combat_armor_defs: Dictionary = {}
 var combat_parties: Dictionary = {}
 var combat_allies: Array = []
+var market_modifiers: Dictionary = {"FOOD": 0, "MEDICAL": 0, "SUBSTANCE": 0, "MATERIAL": 0, "WEAPON": 0, "ARMOR": 0, "WATER": 0}
+var market_customers: Dictionary = {}
 var equipped_armor_uid := -1
 var security_defs: Dictionary = {}
 var locale_text: Dictionary = {}
@@ -310,6 +312,11 @@ func _load_defs() -> void:
 		var rpdata = JSON.parse_string(rep_file.get_as_text())
 		if rpdata is Array:
 			rep_perk_defs = rpdata
+	f = FileAccess.open("res://data/market_customers.json", FileAccess.READ)
+	if f:
+		var mcdata = JSON.parse_string(f.get_as_text())
+		if mcdata is Dictionary:
+			market_customers = mcdata
 	f = FileAccess.open("res://data/difficulty_rules.json", FileAccess.READ)
 	if f:
 		var drdata = JSON.parse_string(f.get_as_text())
@@ -2228,6 +2235,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	wanted_defeated = []
 	combat_active = false
 	combat_allies = []
+	market_modifiers = {"FOOD": 0, "MEDICAL": 0, "SUBSTANCE": 0, "MATERIAL": 0, "WEAPON": 0, "ARMOR": 0, "WATER": 0}
 	ending_id = ""
 	_refresh_upgrades()
 	machine_jobs = []
@@ -2913,6 +2921,12 @@ func start_day() -> void:
 	if not _suppress_sec_tick:
 		for cid in client_cooldowns.keys():
 			client_cooldowns[cid] = maxi(0, int(client_cooldowns[cid]) - 1)
+		for type_id in market_modifiers.keys():
+			var mv := int(market_modifiers[type_id])
+			if mv > 0:
+				market_modifiers[type_id] = maxi(0, mv - 10)
+			elif mv < 0:
+				market_modifiers[type_id] = mini(0, mv + 10)
 	_gen_commissions()
 	var due: Array = []
 	var remain_future: Array = []
@@ -2947,6 +2961,12 @@ func start_day() -> void:
 		if req != "" and not bool(owned_upgrades.get(req, false)):
 			continue
 		customers_today.append(_gen_special_customer(u))
+	for type_id in market_modifiers.keys():
+		var mod := int(market_modifiers[type_id])
+		if absi(mod) >= 30:
+			var market_c := _market_customer(String(type_id), mod > 0)
+			if not market_c.is_empty():
+				customers_today.append(market_c)
 	for order in procurement_orders:
 		if int(order.get("due_day", 0)) <= day:
 			customers_today.append(_gen_procurement_collect_customer(order))
@@ -3177,6 +3197,10 @@ func _gen_pool_customer(entry: Dictionary, pool_faction: String) -> Dictionary:
 		"line": line,
 		"cooldown": int(entry.get("cooldown", 0)),
 	}
+	if intent == "information":
+		base["intent"] = "information"
+		base["service_cost"] = int(entry.get("service_cost", 50))
+		return base
 	if intent == "buy":
 		base["intent"] = "buy"
 		base["want_tags"] = entry.get("buy_tags", []).duplicate()
@@ -3934,9 +3958,20 @@ func effective_value(item: Dictionary) -> int:
 		total += float(effective_value(ch))
 	return int(round(total))
 
+func market_modifier_for_item(item: Dictionary) -> int:
+	var total := 0
+	var seen := {}
+	for t in _item_tags(item):
+		var key := String(t).to_upper()
+		if market_modifiers.has(key) and not seen.has(key):
+			seen[key] = true
+			total += int(market_modifiers[key])
+	return total
+
 func market_value(item: Dictionary, for_sale: bool = false, faction: String = "") -> int:
 	var v := float(effective_value(item))
 	var def2 := get_item_def(item.get("def_id", ""))
+	v *= 1.0 + float(market_modifier_for_item(item)) / 100.0
 	if for_sale:
 		v *= 1.0 + (float(diff_rule("retail_markup", RETAIL_MARKUP)) + float(upgrade_total("retail"))) / 100.0
 	if int(def2.get("contraband", 0)) > 0:
@@ -4290,6 +4325,9 @@ func apply_event(choice_index: int) -> void:
 	var changes: Dictionary = ch.get("rep", {})
 	for k in changes.keys():
 		add_rep(k, int(changes[k]))
+	var market_changes: Dictionary = ch.get("market", {})
+	for k in market_changes.keys():
+		market_modifiers[String(k)] = int(market_modifiers.get(String(k), 0)) + int(market_changes[k])
 	if bool(ch.get("repair_all", false)):
 		machine_durability = {}
 		machine_faults = {}
@@ -4355,6 +4393,39 @@ func apply_profession(pid: String) -> Dictionary:
 	emit_signal("state_changed")
 	return {"ok": true, "text": "已选择专精：%s。" % p.get("name", pid)}
 
+func _market_customer(type_id: String, shortage: bool) -> Dictionary:
+	var cfg: Dictionary = market_customers.get("types", {}).get(type_id, {})
+	if cfg.is_empty():
+		return {}
+	if shortage:
+		var budget_cfg: Array = cfg.get("shortage_budget", [100, 20, 50])
+		var name := loc("ClientName", String(cfg.get("shortage_name", "")), "顾客")
+		var line := _pool_dialogue_line({"dialogue": String(cfg.get("shortage_dialogue", ""))})
+		var b := int(budget_cfg[0]) + rng.randi_range(0, int(budget_cfg[1])) + int(budget_cfg[2])
+		return {
+			"arche": {"faction": "lower", "name": name},
+			"intent": "buy", "patience": 3, "done": false, "line": line,
+			"want_tags": [type_id], "exclude_contraband": false,
+			"budget": _pool_budget({"budget_base": b}), "offer": 0, "max_price": 0,
+			"market_type": type_id, "market_kind": "shortage",
+		}
+	var name2 := loc("ClientName", String(cfg.get("surplus_name", "")), "商人")
+	var line2 := _pool_dialogue_line({"dialogue": String(cfg.get("surplus_dialogue", ""))})
+	var stock: Array = []
+	for iid in tradable_pool:
+		if _buy_tag_match(make_item(String(iid), 100, true, false), [type_id]):
+			var it := make_item(String(iid), rng.randi_range(70, 100), true, false)
+			stock.append(it)
+		if stock.size() >= 4:
+			break
+	return {
+		"arche": {"faction": "lower", "name": name2},
+		"intent": "wholesale", "patience": 3, "done": false, "line": line2,
+		"wholesale_name": name2, "wholesale_supplier": "", "wholesale_discount": -20,
+		"wholesale_stock": stock, "wholesale_free": false, "wholesale_done_key": "",
+		"market_type": type_id, "market_kind": "surplus",
+	}
+
 func _gen_special_customer(t: Dictionary) -> Dictionary:
 	var name := String(t.get("name", ""))
 	if name == "":
@@ -4367,6 +4438,10 @@ func _gen_special_customer(t: Dictionary) -> Dictionary:
 		"done": false,
 		"line": line,
 	}
+	if String(t.get("intent", "sell")) == "information":
+		base["intent"] = "information"
+		base["service_cost"] = int(t.get("service_cost", 50))
+		return base
 	if String(t.get("intent", "sell")) == "buy":
 		base["intent"] = "buy"
 		base["want_tags"] = t.get("buy_tags", []).duplicate()
@@ -4385,6 +4460,32 @@ func _gen_special_customer(t: Dictionary) -> Dictionary:
 	base["wholesale_free"] = false
 	base["wholesale_done_key"] = ""
 	return base
+
+func buy_information() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "information":
+		return {"ok": false, "text": "当前没有情报商人。"}
+	var cost := int(current_customer.get("service_cost", 50))
+	if cash < cost:
+		return {"ok": false, "text": "现金不足，需要 %d₵。" % cost}
+	cash -= cost
+	var tips: Array = []
+	for w in wanted:
+		if not wanted_defeated.has(String(w.get("id", ""))):
+			tips.append("通缉目标：%s。悬赏 %d₵。" % [String(w.get("name", "")), int(w.get("reward", 0))])
+	for type_id in market_modifiers.keys():
+		var mv := int(market_modifiers[type_id])
+		if absi(mv) >= 30:
+			tips.append("%s 市场%s %d%%。" % [String(type_id), "短缺" if mv > 0 else "过剩", absi(mv)])
+	if tips.is_empty():
+		tips.append("治安部近期没有大动作。")
+	var note := make_item("handnote", 100, true, false)
+	note["custom_name"] = "情报便条"
+	note["custom_desc"] = String(tips[rng.randi_range(0, tips.size() - 1)])
+	note["known"] = true
+	add_item(note)
+	complete_customer(true)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "你花了 %d₵，得到一张情报便条。" % cost}
 
 func starting_perk_def(pid: String) -> Dictionary:
 	for p in starting_perks:
@@ -7182,7 +7283,7 @@ func save_game(slot: int = 1) -> bool:
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
 		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
-		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "combat_allies": combat_allies, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "combat_allies": combat_allies, "market_modifiers": market_modifiers, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
 		"commissions": commissions, "procurement_orders": procurement_orders, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
@@ -7245,6 +7346,7 @@ func load_game(slot: int = 1) -> bool:
 	for lv in data.get("sec_permit_revoke_levels", []):
 		sec_permit_revoke_levels.append(int(lv))
 	combat_allies = data.get("combat_allies", []).duplicate(true)
+	market_modifiers = data.get("market_modifiers", market_modifiers).duplicate(true)
 	starting_perk_id = String(data.get("starting_perk_id", ""))
 	starting_perk_chosen = bool(data.get("starting_perk_chosen", false))
 	active_permits = []

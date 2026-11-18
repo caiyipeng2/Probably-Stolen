@@ -1946,6 +1946,24 @@ func _wholesale_buy() -> void:
 		return
 	_rebuild_wholesale()
 
+func _open_information_dealer() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "information":
+		return
+	var cost := int(c.get("service_cost", 50))
+	var body := String(c.get("line", "")) + "
+
+情报价格：%d₵" % cost
+	_show_modal("情报商人 · %s" % String(c.get("arche", {}).get("name", "线人")), body, [
+		{"label": "购买情报 %d₵" % cost, "cb": _buy_information_ui, "color": C_GREEN},
+		{"label": "离开", "cb": _decline_procurement, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _buy_information_ui() -> void:
+	var res := GameState.buy_information()
+	_show_modal("情报商人", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
 func _open_procurement_offer() -> void:
 	var c := GameState.current_customer
 	if c.is_empty() or String(c.get("intent", "")) != "procurement_offer":
@@ -3171,6 +3189,12 @@ func _on_customer_changed() -> void:
 		if wholesale_layer:
 			wholesale_layer.visible = false
 		_open_procurement_collect()
+	elif intent == "information":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_information_dealer()
 	else:
 		if barter_layer:
 			barter_layer.visible = false
