@@ -79,6 +79,29 @@ func _init() -> void:
 	check(gs.raid_action_points == 100, "raid action points reset", str(gs.raid_action_points))
 
 	gs.new_game("normal", "original", "apprentice", [])
+	var labelable: Dictionary = gs.make_item("handmade_pistol", 100, true, false)
+	gs.add_item(labelable)
+	var relabel: Dictionary = gs.relabel_item(int(labelable.get("uid", -1)), "下层特供")
+	check(bool(relabel.get("ok", false)) and gs.achievements_unlocked.has("ACH_LOWER_LEVELS_SPECIAL"), "labeler achievement", str(relabel.get("text", "")))
+
+	gs.new_game("normal", "original", "apprentice", [])
+	gs.current_customer = {"intent": "gun_order", "arche": {"faction": "lower", "name": "买家"}, "service": true, "gun_id": "handmade_pistol", "fee": 30, "base": 40, "require": {}, "bonuses": [], "tier": 1, "done": false}
+	gs.gun_order = gs.current_customer
+	var svc: Dictionary = gs.make_item("handmade_pistol", 100, true, false)
+	svc["condition"] = "fair"
+	svc["service_order"] = true
+	gs.add_item(svc)
+	gs.add_item(gs.make_item("gun_part", 100, true, false))
+	var repaired: Dictionary = gs.gun_order_repair()
+	var svc_after: Dictionary = gs.find_item(int(svc.get("uid", -1)))
+	check(bool(repaired.get("ok", false)) and String(svc_after.get("condition", "")) == "good", "service repair uses gun_part", str(repaired.get("text", "")))
+	check(int(svc_after.get("service_parts_value", 0)) == 25, "service parts value tracked", str(svc_after.get("service_parts_value", 0)))
+	var eval_svc: Dictionary = gs.gun_order_eval(svc_after)
+	check(int(eval_svc.get("reward", 0)) >= 65, "service reward includes parts", str(eval_svc.get("reward", 0)))
+	var follow: Dictionary = gs._gen_gun_followup_customer("small_pistol_ammo", "combat_knife", 1, 2)
+	check(follow.get("want_ids", []).has("small_pistol_ammo"), "gun follow-up wants ammo", str(follow.get("want_ids", [])))
+
+	gs.new_game("normal", "original", "apprentice", [])
 	gs.faction_power = {"rev": 5, "bm": -10, "sec": 20, "civil_unrest": -15}
 	var saved: bool = gs.save_game(2)
 	gs.faction_power = {}

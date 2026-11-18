@@ -254,6 +254,11 @@ var ng_difficulty := "normal"
 var ng_campaign := "original"
 var ng_skip_intro := false
 var news_archive: Array = []
+var input_layer: Control
+var input_title: Label
+var input_field: LineEdit
+var input_cb: Callable
+var queue_portrait_rects: Array = []
 
 func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
@@ -280,6 +285,7 @@ func _ready() -> void:
 	GameState.combat_finished.connect(_on_combat_finished)
 	_refresh()
 	_build_newgame_layer()
+	_build_input_layer()
 	_show_new_game_menu()
 	_capture_if_requested()
 	_autotest_if_requested()
@@ -1091,6 +1097,11 @@ func _build_ui() -> void:
 	game_view.add_child(walker_layer)
 	customer_rect = _texture_rect(game_view, Vector2(635, 5), Vector2(677, 496), _customer_path("maleUpper_0.png"))
 	fg = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_fg.png"))
+	for i in range(2):
+		var qp := _texture_rect(game_view, Vector2(1200, 130 + i * 190), Vector2(100, 170), "")
+		qp.visible = false
+		qp.modulate = Color(0.62, 0.62, 0.72, 0.85)
+		queue_portrait_rects.append(qp)
 	var glass := ColorRect.new()
 	glass.position = Vector2(650, 5)
 	glass.size = Vector2(630, 515)
@@ -2622,9 +2633,9 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"], ["新闻", "news"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"], ["新闻", "news"], ["地图", "map"], ["笔记", "notebook"]]
 	for i in range(tabs.size()):
-		var tb := _button(panel, tabs[i][0], Vector2(20 + i * 118, 70), Vector2(112, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
+		var tb := _button(panel, tabs[i][0], Vector2(20 + i * 106, 70), Vector2(100, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(24, 130)
@@ -3006,6 +3017,8 @@ func _update_customer() -> void:
 		customer_shown_key = ""
 		customer_name_label.text = "—"
 		queue_label.text = ""
+		for qp in queue_portrait_rects:
+			qp.visible = false
 		customer_info_label.text = "当前没有顾客。\n可以整理物品、查看档案，或结束营业。"
 		dialogue_name.text = "店铺"
 		dialogue_text.text = "点「结束营业」进入下一天。"
@@ -3021,6 +3034,16 @@ func _update_customer() -> void:
 		var nc: Dictionary = GameState.customers_today[i]
 		next_names.append(String(nc.get("arche", {}).get("name", "顾客")))
 	queue_label.text = "排队 %d 位%s" % [waiting, ("：" + "、".join(next_names)) if not next_names.is_empty() else ""]
+	for qi in range(queue_portrait_rects.size()):
+		var qp: TextureRect = queue_portrait_rects[qi]
+		var qidx := GameState.current_index + 1 + qi
+		if qidx < GameState.customers_today.size():
+			var qarche: Dictionary = GameState.customers_today[qidx].get("arche", {})
+			var qpath := _customer_path(String(qarche.get("sprite", "maleUpper_0.png")))
+			qp.texture = load(qpath) if ResourceLoader.exists(qpath) else null
+			qp.visible = qp.texture != null
+		else:
+			qp.visible = false
 	var sprite := String(arche.get("sprite", "maleUpper_0.png"))
 	var path := _customer_path(sprite)
 	if ResourceLoader.exists(path):
@@ -4309,6 +4332,85 @@ func _update_walkers(delta: float) -> void:
 			alive.append(w)
 	walkers = alive
 
+func _open_labeler_select() -> void:
+	var items: Array = []
+	for it in GameState.inventory:
+		var did := String(it.get("def_id", ""))
+		if did in ["labeler", "labeler_blue"]:
+			continue
+		items.append({"id": str(int(it.get("uid", -1))), "label": GameState.item_display_name(it)})
+	if items.is_empty():
+		_toast("没有可贴标的物品。")
+		return
+	_open_select("贴标：选择物品", items, _labeler_pick)
+
+func _labeler_pick(id: String) -> void:
+	var uid := int(id)
+	_open_input("贴标签", "输入新的物品标签（最多 24 字）", func(text: String) -> void:
+		var res := GameState.relabel_item(uid, text)
+		_refresh()
+		_toast(String(res.get("text", "")))
+	)
+
+func _map_locations() -> Array:
+	return [
+		{"id": "shop", "name": "当铺", "tag": "当前位置", "body": "你的店铺。顾客在门口排队，展示柜与机器都在这里。"},
+		{"id": "blackmarket", "name": "黑市", "tag": "声望 %+d" % int(GameState.rep.get("blackmarket", 0)), "body": "销赃、违禁品与黑市联系人。势力值 %+d。" % int(GameState.faction_power.get("bm", 0))},
+		{"id": "security", "name": "治安部", "tag": "声望 %+d" % int(GameState.rep.get("security", 0)), "body": "检查、许可证与通缉。势力值 %+d，内乱 %+d。" % [int(GameState.faction_power.get("sec", 0)), int(GameState.faction_power.get("civil_unrest", 0))]},
+		{"id": "clinic", "name": "医疗站", "tag": "生命服务", "body": "治疗伤口、购买注射剂与器官。"},
+		{"id": "commissary", "name": "补给站", "tag": "兑换券 %d" % int(GameState.commissary_credit), "body": "用食品券兑换生活物资。"},
+		{"id": "dump", "name": "垃圾场", "tag": "拾荒地点", "body": "Juan 的探险目的地，也是夜间的拾荒区域。"},
+	]
+
+func _notebook_entries() -> Array:
+	var notes: Array = []
+	var sold := int(GameState.daily.get("sold", 0))
+	var inspected := int(GameState.daily.get("inspected", 0))
+	notes.append({"id": "daily", "title": "每日目标", "body": "卖出 3 件商品：%d/3
+鉴定 1 件物品：%d/1
+房租 %d₵，%d 天后到期
+欠款 %d₵，%d 天后到期" % [sold, inspected, GameState.rent, GameState.rent_due, GameState.loan, GameState.loan_due]})
+	if not GameState.commissions.is_empty():
+		var lines: Array = []
+		for c in GameState.commissions:
+			lines.append("%s ×%d → %d₵" % [GameState.get_item_def(String(c.get("item_id", ""))).get("name", c.get("item_id", "")), int(c.get("count", 1)), int(c.get("reward", 0))])
+		notes.append({"id": "requests", "title": "派系委托", "body": "
+".join(lines)})
+	if not GameState.procurement_orders.is_empty():
+		var plines: Array = []
+		for o in GameState.procurement_orders:
+			plines.append("%s ×%d，第 %d 天前交货" % [GameState.get_item_def(String(o.get("item_id", ""))).get("name", ""), int(o.get("count", 0)), int(o.get("due_day", 0))])
+		notes.append({"id": "procurement", "title": "采购订单", "body": "
+".join(plines)})
+	if not GameState.active_operations.is_empty():
+		var olines: Array = []
+		for op in GameState.active_operations:
+			olines.append("%s（至第 %d 天）" % [String(op.get("name", "")), int(op.get("until", 0))])
+		notes.append({"id": "operations", "title": "派系行动", "body": "
+".join(olines)})
+	if not GameState.pending_story.is_empty():
+		notes.append({"id": "story", "title": "剧情线索", "body": "当前剧情：%s" % GameState.pending_story})
+	notes.append({"id": "tips", "title": "生存提示", "body": "口渴 %d/1000，伤口 %d/10。
+今日夜间事件：%s" % [GameState.thirst, GameState.wounds, String(GameState.afterhour_mods.get("name", "无"))]})
+	return notes
+
+func _open_options() -> void:
+	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	_show_modal("选项", "音效：%s
+全屏：%s
+语言：简体中文（原版 12 语种未移植）
+存档槽位：3 个" % ["开启" if audio_enabled else "关闭", "是" if fs else "否"], [
+		{"label": "切换音效", "cb": _on_audio_toggle},
+		{"label": "切换全屏", "cb": _toggle_fullscreen},
+		{"label": "存档", "cb": _on_save},
+		{"label": "读档", "cb": _on_load},
+	])
+
+func _toggle_fullscreen() -> void:
+	var fs := DisplayServer.window_get_mode() == DisplayServer.WINDOW_MODE_FULLSCREEN
+	DisplayServer.window_set_mode(DisplayServer.WINDOW_MODE_WINDOWED if fs else DisplayServer.WINDOW_MODE_FULLSCREEN)
+	_open_options()
+
 func _open_status() -> void:
 	_open_info_tab("status")
 
@@ -4400,6 +4502,12 @@ func _rebuild_info_list() -> void:
 				var aid := String(a.get("id", ""))
 				var got := GameState.achievements_unlocked.has(aid)
 				_add_info_button("%s %s" % ["●" if got else "○", String(a.get("name", aid))], aid)
+		"map":
+			for loc in _map_locations():
+				_add_info_button("%s · %s" % [String(loc.get("name", "")), String(loc.get("tag", ""))], String(loc.get("id", "")))
+		"notebook":
+			for note in _notebook_entries():
+				_add_info_button(String(note.get("title", "")), String(note.get("id", "")))
 		"news":
 			for i in range(news_archive.size() - 1, -1, -1):
 				var ni: Dictionary = news_archive[i]
@@ -4721,6 +4829,24 @@ func _refresh_info_detail() -> void:
 			info_meta.text = "● 已解锁 · 第 %d 天" % int(GameState.achievements_unlocked.get(info_selected_id, 0)) if got else "○ 未解锁"
 			info_body.text = String(adef.get("desc", ""))
 			info_status.text = "已解锁 %d/%d" % [GameState.achievements_unlocked.size(), GameState.achievement_defs.size()]
+		"map":
+			var loc := {}
+			for l in _map_locations():
+				if String(l.get("id", "")) == info_selected_id:
+					loc = l
+					break
+			info_name.text = String(loc.get("name", ""))
+			info_meta.text = String(loc.get("tag", ""))
+			info_body.text = String(loc.get("body", ""))
+		"notebook":
+			var note := {}
+			for n in _notebook_entries():
+				if String(n.get("id", "")) == info_selected_id:
+					note = n
+					break
+			info_name.text = String(note.get("title", ""))
+			info_meta.text = "本局笔记 · 第 %d 天" % GameState.day
+			info_body.text = String(note.get("body", ""))
 		"news":
 			var nidx := int(info_selected_id)
 			if nidx < 0 or nidx >= news_archive.size():
@@ -4775,6 +4901,10 @@ func _info_action() -> void:
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
 		"status":
+			var uit := GameState.find_item(int(info_selected_id))
+			if not uit.is_empty() and String(uit.get("def_id", "")) in ["labeler", "labeler_blue"]:
+				_open_labeler_select()
+				return
 			var res := GameState.use_consumable(int(info_selected_id))
 			_refresh()
 			_rebuild_info_list()
@@ -4857,6 +4987,7 @@ func _open_facilities() -> void:
 		{"label": "水龙头灌满", "cb": _facility_fill_select, "color": C_CYAN},
 		{"label": "排水槽倒空", "cb": _facility_drain_select, "color": C_CYAN},
 		{"label": "床铺：结束营业", "cb": _facility_sleep, "color": C_RUST},
+		{"label": "选项", "cb": _open_options},
 		{"label": "关闭", "cb": _close_modal},
 	])
 
@@ -5364,6 +5495,20 @@ func _testp1ui_if_requested() -> void:
 	await get_tree().process_frame
 	print("P1UI bargain preview=", "成功" in modal_text.text, " actions=", modal_actions.get_child_count())
 	_close_modal()
+	_switch_info_tab("map")
+	print("P1UI map rows=", info_list_buttons.size())
+	_switch_info_tab("notebook")
+	print("P1UI notebook rows=", info_list_buttons.size())
+	_close_info()
+	var vis_qp := 0
+	for qp in queue_portrait_rects:
+		if qp.visible:
+			vis_qp += 1
+	print("P1UI queue portraits=", vis_qp)
+	_open_options()
+	await get_tree().process_frame
+	print("P1UI options actions=", modal_actions.get_child_count())
+	_close_modal()
 	_open_save_menu("load")
 	await get_tree().process_frame
 	print("P1UI load slots=", modal_actions.get_child_count())
@@ -5484,6 +5629,47 @@ func _faction_short(k: String) -> String:
 		"church": return "教会"
 		"cartel": return "卡特尔"
 	return k
+
+func _build_input_layer() -> void:
+	input_layer = Control.new()
+	input_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	input_layer.z_index = 170
+	input_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	input_layer.visible = false
+	add_child(input_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.7)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	input_layer.add_child(dim)
+	var panel := _panel(input_layer, Vector2(620, 390), Vector2(1100, 300), C_PANEL, C_CYAN, 3)
+	input_title = _label(panel, "输入", Vector2(30, 20), Vector2(1000, 42), 30, C_AMBER)
+	input_field = LineEdit.new()
+	input_field.position = Vector2(30, 90)
+	input_field.size = Vector2(1040, 64)
+	input_field.add_theme_font_size_override("font_size", 26)
+	input_field.add_theme_stylebox_override("normal", _style(C_PANEL2, C_LINE, 2))
+	input_field.add_theme_stylebox_override("focus", _style(Color("#252c38"), C_CYAN, 2))
+	panel.add_child(input_field)
+	_button(panel, "取消", Vector2(780, 200), Vector2(140, 64), C_MUTED, _input_cancel)
+	_button(panel, "确定", Vector2(940, 200), Vector2(140, 64), C_CYAN, _input_confirm)
+
+func _open_input(title: String, placeholder: String, cb: Callable) -> void:
+	input_title.text = title
+	input_field.text = ""
+	input_field.placeholder_text = placeholder
+	input_cb = cb
+	input_layer.visible = true
+	move_child(input_layer, get_child_count() - 1)
+	input_field.grab_focus()
+
+func _input_confirm() -> void:
+	var text := input_field.text
+	input_layer.visible = false
+	if input_cb.is_valid():
+		input_cb.call(text)
+
+func _input_cancel() -> void:
+	input_layer.visible = false
 
 func _build_newgame_layer() -> void:
 	newgame_layer = Control.new()

@@ -3600,6 +3600,8 @@ func _gen_pool_customer(entry: Dictionary, pool_faction: String) -> Dictionary:
 	return base
 
 func _buy_tag_match(it: Dictionary, wanted: Array) -> bool:
+	if current_customer.get("want_ids", []).has(String(it.get("def_id", ""))):
+		return true
 	if wanted.is_empty():
 		return true
 	var tags := _item_tags(it)
@@ -5462,12 +5464,25 @@ func drain_liquid_container(uid: int) -> Dictionary:
 
 func can_use_consumable(it: Dictionary) -> bool:
 	var did := String(it.get("def_id", ""))
-	if did in ["black_injector", "large_purple_injector", "packet_red_cigarette", "cig_red", "cig_black", "cigarette", "fanta_pill", "dream_dust", "pink_injector", "pink_alt_injector"]:
+	if did in ["black_injector", "large_purple_injector", "packet_red_cigarette", "cig_red", "cig_black", "cigarette", "fanta_pill", "dream_dust", "pink_injector", "pink_alt_injector", "labeler", "labeler_blue"]:
 		return true
 	var cat := String(get_item_def(did).get("category", ""))
 	if _water_ml_for(did) > 0:
 		return true
 	return cat in ["food", "medical"] and not did.contains("container")
+
+func relabel_item(uid: int, label: String) -> Dictionary:
+	var it := find_item(uid)
+	if it.is_empty():
+		return {"ok": false, "text": "物品不存在。"}
+	if label.strip_edges() == "":
+		return {"ok": false, "text": "标签不能为空。"}
+	if label.length() > 24:
+		label = label.substr(0, 24)
+	it["custom_name"] = label.strip_edges()
+	unlock_achievement("ACH_LOWER_LEVELS_SPECIAL")
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已贴标：%s。" % it["custom_name"]}
 
 func use_consumable(uid: int) -> Dictionary:
 	var it := find_item(uid)
@@ -5845,6 +5860,7 @@ func _gen_gun_order_customer() -> Dictionary:
 		gun["condition"] = cond
 		gun["custom_name"] = "待修：" + item_display_name(gun)
 		gun["service_order"] = true
+		gun["service_parts_value"] = 0
 		gun["known"] = true
 		add_item(gun)
 		var base_stats := gun_def_stats(gun_id, cond)
@@ -5860,7 +5876,7 @@ func _gen_gun_order_customer() -> Dictionary:
 			"intent": "gun_order", "done": false, "patience": 3,
 			"order_id": "svc_%d_%d" % [day, rng.randi_range(100, 999)],
 			"tier": tier, "service": true, "gun_id": gun_id,
-			"require": req, "bonuses": [], "base": 0, "fee": fee,
+			"require": req, "bonuses": [], "base": fee + rng.randi_range(0, 9), "fee": fee,
 			"line": "我这把枪要按规格整备好。",
 		}
 	var pool: Array = []
@@ -5892,6 +5908,26 @@ func gun_order_candidates() -> Array:
 			out.append(it)
 	return out
 
+func _gen_gun_followup_customer(ammo_id: String, melee_id: String, tier: int, bonuses: int) -> Dictionary:
+	var faction := String(current_customer.get("arche", {}).get("faction", "lower"))
+	var name := String(current_customer.get("arche", {}).get("name", "顾客"))
+	var want_ids: Array = []
+	if ammo_id != "":
+		want_ids.append(ammo_id)
+	if melee_id != "":
+		want_ids.append(melee_id)
+	var budget := int(round(float(current_customer.get("gun_value", 100)) * 0.33)) + 60 * tier
+	if melee_id != "":
+		budget = maxi(budget, [0, 60, 120, 250][clampi(tier, 0, 3)])
+	return {
+		"arche": {"faction": faction, "name": name, "sprite": _random_client_sprite(faction)},
+		"intent": "buy", "want_tags": [], "want_ids": want_ids,
+		"exclude_contraband": false, "budget": budget, "offer": 0, "max_price": 0,
+		"done": false, "patience": 3,
+		"line": "顺便，你这里有没有%s？" % ("弹药" if ammo_id != "" and melee_id == "" else "近战武器" if melee_id != "" and ammo_id == "" else "弹药或近战武器"),
+		"followup_bonuses": bonuses,
+	}
+
 func gun_order_eval(it: Dictionary) -> Dictionary:
 	if gun_order.is_empty():
 		return {"ok": false, "met": false, "reward": 0, "text": "没有订单。"}
@@ -5914,7 +5950,7 @@ func gun_order_eval(it: Dictionary) -> Dictionary:
 	var weapon_mod := 1.0 + float(market_modifiers.get("WEAPON", 0)) / 100.0
 	reward = int(round(float(reward) * weapon_mod))
 	if bool(gun_order.get("service", false)):
-		reward += int(gun_order.get("fee", 0)) + effective_value(it) / 3
+		reward += int(it.get("service_parts_value", 0))
 	return {"ok": true, "met": met, "reward": reward, "missing": missing, "bonuses": met_bonus, "text": "符合订单" if met else "缺少：" + "、".join(missing)}
 
 func deliver_gun_order(uid: int) -> Dictionary:
@@ -5940,6 +5976,22 @@ func deliver_gun_order(uid: int) -> Dictionary:
 	daily["sales"] = int(daily.get("sales", 0)) + reward
 	run_stats["total_sales"] = int(run_stats.get("total_sales", 0)) + reward
 	add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), 3)
+	var bonuses_met := int(ev.get("bonuses", 0))
+	var tier := int(current_customer.get("tier", 1))
+	current_customer["gun_value"] = effective_value(it)
+	var ammo_id := ""
+	var caliber := int(gun_def_stats(String(it.get("def_id", "")), str(it.get("condition", ""))).get("caliber", 0))
+	if rng.randi_range(1, 100) <= 50 + 5 * bonuses_met:
+		if caliber == 22:
+			ammo_id = "small_pistol_ammo"
+		elif caliber == 10:
+			ammo_id = "heavy_pistol_ammo"
+	var melee_id := ""
+	if tier >= 2 and rng.randi_range(1, 100) <= 40 + 5 * bonuses_met:
+		melee_id = "combat_knife" if rng.randi_range(1, 100) <= 50 else "stun_baton"
+	if ammo_id != "" or melee_id != "":
+		var follow := _gen_gun_followup_customer(ammo_id, melee_id, tier, bonuses_met)
+		customers_today.insert(mini(customers_today.size(), current_index + 1), follow)
 	_add_night_log("枪械订单交付：%s，报酬 %d₵。" % [item_display_name(it), reward])
 	complete_customer(true)
 	gun_order = {}
@@ -5951,17 +6003,23 @@ func gun_order_repair() -> Dictionary:
 		return {"ok": false, "text": "当前没有枪械订单。"}
 	if not bool(current_customer.get("service", false)):
 		return {"ok": false, "text": "这不是维修订单。"}
-	var fee := int(current_customer.get("fee", 0))
-	if cash < fee:
-		return {"ok": false, "text": "现金不足，维修费 %d₵。" % fee}
-	cash -= fee
+	var part_value := 25
+	if inventory_count("gun_part") <= 0:
+		if cash < part_value:
+			return {"ok": false, "text": "缺少枪械零件（gun_part），现金也不足 %d₵。" % part_value}
+		cash -= part_value
+		run_stats["stock_spent"] = int(run_stats.get("stock_spent", 0)) + part_value
+	else:
+		remove_inventory("gun_part", 1)
 	var gid := String(current_customer.get("gun_id", ""))
 	for it in inventory:
 		if String(it.get("def_id", "")) == gid and bool(it.get("service_order", false)):
-			it["condition"] = "good"
+			var order := ["poor", "fair", "good", "excellent", "new"]
+			var ci := order.find(String(it.get("condition", "fair")))
+			it["condition"] = order[clampi(ci + 1, 0, 4)]
+			it["service_parts_value"] = int(it.get("service_parts_value", 0)) + part_value
 			break
-	run_stats["stock_spent"] = int(run_stats.get("stock_spent", 0)) + fee
-	return {"ok": true, "text": "支付维修费 %d₵，枪支已整备。" % fee}
+	return {"ok": true, "text": "使用枪械零件整备完毕（零件价值 %d₵）。" % part_value}
 
 func _find_root_index(arr: Array, uid: int) -> int:
 	for i in range(arr.size()):
