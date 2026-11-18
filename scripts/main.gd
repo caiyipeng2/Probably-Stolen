@@ -5843,6 +5843,7 @@ func _space_scan_ui() -> void:
 	if items.is_empty():
 		_toast("没有可扫描的航线。")
 		return
+	_close_modal()
 	_open_select("扫描结果（4 条航线）", items, _space_travel_ui)
 
 func _space_travel_ui(id: String) -> void:
