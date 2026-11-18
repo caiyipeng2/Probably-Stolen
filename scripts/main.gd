@@ -692,6 +692,22 @@ func _testsecurityui_if_requested() -> void:
 	_refresh_info_detail()
 	await get_tree().process_frame
 	print("SUI rep perk title=", info_name.text, " meta=", info_meta.text)
+	for u in GameState.special_customers.get("unique", []):
+		if String(u.get("id", "")) == "information_dealer":
+			GameState.current_customer = GameState._gen_special_customer(u)
+			_open_information_dealer()
+			await get_tree().process_frame
+			print("SUI info title=", modal_title.text, " actions=", modal_actions.get_child_count())
+			_close_modal()
+			break
+	for u in GameState.special_customers.get("unique", []):
+		if String(u.get("id", "")) == "expedition_organizer":
+			GameState.current_customer = GameState._gen_special_customer(u)
+			_open_expedition()
+			await get_tree().process_frame
+			print("SUI expedition title=", modal_title.text, " actions=", modal_actions.get_child_count())
+			_close_modal()
+			break
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -1946,6 +1962,26 @@ func _wholesale_buy() -> void:
 		return
 	_rebuild_wholesale()
 
+func _open_expedition() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "expedition":
+		return
+	var party: Dictionary = GameState.combat_parties.get(String(c.get("party", "")), {})
+	var body := String(c.get("line", "")) + "
+
+目标：%s" % String(party.get("name", "未知区域"))
+	_show_modal("探险 · %s" % String(c.get("arche", {}).get("name", "组织者")), body, [
+		{"label": "出发", "cb": _start_expedition_ui, "color": C_RUST},
+		{"label": "拒绝", "cb": _decline_procurement, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _start_expedition_ui() -> void:
+	var res := GameState.start_expedition()
+	_close_modal()
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
+
 func _open_information_dealer() -> void:
 	var c := GameState.current_customer
 	if c.is_empty() or String(c.get("intent", "")) != "information":
@@ -3195,6 +3231,12 @@ func _on_customer_changed() -> void:
 		if wholesale_layer:
 			wholesale_layer.visible = false
 		_open_information_dealer()
+	elif intent == "expedition":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_expedition()
 	else:
 		if barter_layer:
 			barter_layer.visible = false
@@ -4471,7 +4513,10 @@ func _on_combat_updated() -> void:
 func _on_combat_finished(victory: bool, message: String) -> void:
 	_play_sfx("cash" if victory else "fail")
 	combat_layer.visible = false
+	var was_expedition := GameState.combat_context == "expedition"
 	_refresh()
+	if was_expedition and victory:
+		GameState.next_customer()
 	if not victory and GameState.phase == "gameover" and GameState.ending_id != "":
 		var e := GameState.ending_def(GameState.ending_id)
 		var body := message

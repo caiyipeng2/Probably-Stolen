@@ -372,6 +372,50 @@
       "min_day": 13,
       "chance": 15,
       "service_cost": 50
+    },
+    {
+      "id": "sec_surplus_vendor",
+      "name": "治安部盈余物资商",
+      "dialogue": "retired_generic",
+      "intent": "sell",
+      "day_mod": [
+        3
+      ],
+      "requires_perk": "SEC_SURPLUS",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        10,
+        10
+      ],
+      "chance": 100,
+      "stock": [
+        {
+          "id": "armor_lining",
+          "count": 1
+        },
+        {
+          "id": "handmade_pistol",
+          "count": 1
+        },
+        {
+          "id": "mag_22",
+          "count": 2
+        },
+        {
+          "id": "flashbang_grenade",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "expedition_organizer",
+      "name": "探险组织者",
+      "dialogue": "expedition_intro",
+      "intent": "expedition",
+      "min_day": 20,
+      "chance": 8,
+      "party": "pirateRookieTriple",
+      "service_cost": 0
     }
   ]
 }

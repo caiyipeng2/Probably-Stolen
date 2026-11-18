@@ -2555,6 +2555,13 @@ func _sec_decay_all_stolen() -> void:
 func _sec_on_new_day() -> void:
 	if _suppress_sec_tick:
 		return
+	var evidence_mult := 1.0
+	if rep_perk_unlocked("LL_TIGHTLIPS"):
+		evidence_mult *= 0.5
+	if starting_perk_id == "perk_blabbermouth":
+		evidence_mult *= 1.25
+	if starting_perk_id == "perk_intimidating":
+		evidence_mult *= 0.67
 	var th: Dictionary = security_defs.get("thresholds", {})
 	var decay := int(th.get("decay_per_day", 20))
 	if sec_evidence < int(th.get("decay_evidence_cutoff", 80)):
@@ -2570,7 +2577,7 @@ func _sec_on_new_day() -> void:
 				gain = int(row.get("gain", 0))
 	if gain > 0:
 		gain = maxi(1, int(round(float(gain) * sec_investigation_multiplier())))
-	sec_evidence = mini(100, sec_evidence + gain)
+	sec_evidence = mini(100, sec_evidence + int(round(float(gain) * evidence_mult)))
 	if sec_evidence >= 100 and total > 0 and not sec_officer_pending:
 		sec_officer_pending = true
 		sec_state = 1
@@ -2711,6 +2718,8 @@ func _sec_inspection_level(flagged: Array) -> int:
 			has_stolen = true
 	if highest == 0 and has_stolen:
 		return -1
+	if rep_perk_unlocked("SEC_CONTRABAND_TOLERANCE") and highest == 1:
+		return 0
 	return highest
 
 func _sec_seize_flagged(flagged: Array) -> Array:
@@ -2941,6 +2950,9 @@ func start_day() -> void:
 	if day > 1:
 		commissary_restock()
 	_grant_dividends()
+	if starting_perk_id == "perk_welfare_program" and rng.randf() < 0.25:
+		add_item(make_item("food_stamp", 100, true, false))
+		_add_night_log("福利计划发放了 1 张食品券。")
 	for t in special_customers.get("tier", []):
 		if day == int(t.get("day", -1)):
 			customers_today.append(_gen_special_customer(t))
@@ -2959,6 +2971,9 @@ func start_day() -> void:
 			continue
 		var req := String(u.get("requires", ""))
 		if req != "" and not bool(owned_upgrades.get(req, false)):
+			continue
+		var req_perk := String(u.get("requires_perk", ""))
+		if req_perk != "" and not rep_perk_unlocked(req_perk):
 			continue
 		customers_today.append(_gen_special_customer(u))
 	for type_id in market_modifiers.keys():
@@ -3125,6 +3140,8 @@ func _pool_budget(entry: Dictionary) -> int:
 	amount += day * int(entry.get("budget_day", 0))
 	if amount <= 0:
 		return 0
+	if rep_perk_unlocked("SEC_RELIABLE_VENDOR"):
+		amount += 50
 	var mult := (1.0 + float(upgrade_total("budget")) / 100.0) * float(DIFFICULTY[difficulty]["budget"])
 	mult *= float(attraction_bonus) / 100.0
 	return maxi(1, int(round(float(amount) * mult)))
@@ -3210,6 +3227,8 @@ func _gen_pool_customer(entry: Dictionary, pool_faction: String) -> Dictionary:
 		base["discount_buy"] = int(entry.get("discount_buy", 0))
 		base["variety"] = bool(entry.get("variety", false))
 		base["budget"] = _pool_budget(entry)
+		if faction == "upper" and starting_perk_id == "perk_sycophant":
+			base["budget"] = int(round(float(base["budget"]) * 1.1))
 		base["offer"] = 0
 		base["max_price"] = 0
 		base["cooldown"] = int(entry.get("cooldown", 0))
@@ -3999,6 +4018,8 @@ func put_display_on_counter(uid: int) -> bool:
 	if bool(current_customer.get("exclude_contraband", false)) and sec_item_contraband_level(it) > 0:
 		return false
 	factor *= 1.0 - float(current_customer.get("discount_buy", 0)) / 100.0
+	if starting_perk_id == "perk_diplomatic":
+		factor *= 1.1
 	var arche: Dictionary = current_customer["arche"]
 	var val := market_value(it, true, arche.get("faction", "lower"))
 	var pm := float(arche.get("price_mod", 1.0)) * (float(attraction_bonus) / 100.0)
@@ -4249,6 +4270,8 @@ func add_rep(faction: String, amount: int) -> void:
 		final_amount = int(round(float(amount) * (1.0 + float(upgrade_total("rep")) / 100.0) * float(diff_rule("reputation_gain_mult", 1.0))))
 	elif amount < 0:
 		final_amount = int(round(float(amount) * float(diff_rule("reputation_loss_mult", 1.0))))
+		if faction == "blackmarket" and rep_perk_unlocked("BM_HONOR"):
+			final_amount = int(round(float(final_amount) * 1.5))
 		if faction == "security" and sec_perk_unlocked("UL_PETITION"):
 			final_amount = int(round(float(final_amount) * float(_sec_perk_def("UL_PETITION").get("rep_loss_mult", 2.0))))
 	rep[faction] = clampi(int(rep[faction]) + final_amount, -100, 100)
@@ -4442,6 +4465,10 @@ func _gen_special_customer(t: Dictionary) -> Dictionary:
 		base["intent"] = "information"
 		base["service_cost"] = int(t.get("service_cost", 50))
 		return base
+	if String(t.get("intent", "sell")) == "expedition":
+		base["intent"] = "expedition"
+		base["party"] = String(t.get("party", "pirateRookieTriple"))
+		return base
 	if String(t.get("intent", "sell")) == "buy":
 		base["intent"] = "buy"
 		base["want_tags"] = t.get("buy_tags", []).duplicate()
@@ -4460,6 +4487,19 @@ func _gen_special_customer(t: Dictionary) -> Dictionary:
 	base["wholesale_free"] = false
 	base["wholesale_done_key"] = ""
 	return base
+
+func start_expedition() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "expedition":
+		return {"ok": false, "text": "当前没有探险委托。"}
+	var party_id := String(current_customer.get("party", "pirateRookieTriple"))
+	var party: Dictionary = combat_parties.get(party_id, {})
+	if party.is_empty():
+		return {"ok": false, "text": "探险目标不存在。"}
+	current_customer["done"] = true
+	var first := String(party.get("enemies", ["pirate_rookie"])[0])
+	start_combat(first, "lower", "", "expedition", party_id)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "探险开始。"}
 
 func buy_information() -> Dictionary:
 	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "information":
@@ -4515,6 +4555,18 @@ func choose_starting_perk(pid: String) -> Dictionary:
 			add_rep("security", -30)
 			add_rep("blackmarket", 25)
 		"perk_revolution_sympathizer": add_rep("rev", 25)
+		"perk_colorful_character":
+			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
+				add_rep(f, 3)
+		"perk_sycophant": add_rep("upper", 15)
+		"perk_tapehead":
+			add_item(make_item("radio_on", 100, true, false))
+			add_item(make_item("cassette_player", 100, true, false))
+		"perk_handy":
+			add_item(make_item("toolbox", 100, true, false))
+			add_item(make_item("flashlight", 100, true, false))
+		"perk_vending":
+			add_item(make_item("vending_machine", 100, true, false))
 	_rebuild_starting_perk_effects()
 	_add_night_log("选择天赋：%s。" % String(p.get("name", pid)))
 	emit_signal("state_changed")

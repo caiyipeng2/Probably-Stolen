@@ -46,6 +46,14 @@ func _init() -> void:
 	var before_notes: int = gs.inventory_count("handnote")
 	var info_res: Dictionary = gs.buy_information()
 	check(bool(info_res.get("ok", false)) and gs.cash == 450 and gs.inventory_count("handnote") == before_notes + 1, "information dealer sells tip", str(info_res))
+	var exp_t: Dictionary = {}
+	for u in gs.special_customers.get("unique", []):
+		if String(u.get("id", "")) == "expedition_organizer":
+			exp_t = u
+	var exp_c: Dictionary = gs._gen_special_customer(exp_t)
+	gs.current_customer = exp_c
+	var exp_res: Dictionary = gs.start_expedition()
+	check(bool(exp_res.get("ok", false)) and gs.combat_active, "expedition starts party combat", str(exp_res))
 	gs.owned_upgrades.erase("RETIRED_GUNSMITH")
 	gs.day = 4
 	gs.customers_today = []
