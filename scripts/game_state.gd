@@ -3004,6 +3004,8 @@ func start_day() -> void:
 	var count := rng.randi_range(3, 5)
 	if attraction_bonus >= 110:
 		count += 1
+	if starting_perk_id == "perk_speedy":
+		count += 1
 	for i in range(count):
 		customers_today.append(_gen_customer())
 	var regular_count := customers_today.size() - regular_start
@@ -4601,6 +4603,7 @@ func choose_starting_perk(pid: String) -> Dictionary:
 			add_item(make_item("flashlight", 100, true, false))
 		"perk_vending":
 			add_item(make_item("vending_machine", 100, true, false))
+		"perk_known_snitch": add_rep("security", -10)
 	_rebuild_starting_perk_effects()
 	_add_night_log("选择天赋：%s。" % String(p.get("name", pid)))
 	emit_signal("state_changed")
@@ -5151,6 +5154,11 @@ func _combat_hit_chance(caster: Dictionary, target: Dictionary, ability: Diction
 	if bonus >= 1000:
 		return 100
 	var chance := int(caster.get("accuracy", 70)) + bonus - int(target.get("dodge", 0))
+	if bool(caster.get("is_player", false)):
+		if starting_perk_id == "perk_lucky":
+			chance += 5
+		elif starting_perk_id == "perk_unlucky":
+			chance -= 5
 	return clampi(chance, 0, 100)
 
 func _combat_ability_has_offense(ability: Dictionary) -> bool:
@@ -6305,6 +6313,8 @@ func repair_machine(machine_id: String) -> Dictionary:
 	if int(machine_durability.get(machine_id, 100)) >= 100 and not has_fault:
 		return {"ok": false, "text": "%s 状态良好，不需要维修。" % m.get("name", machine_id)}
 	var cost := machine_repair_cost(machine_id)
+	if starting_perk_id == "perk_handy":
+		cost = maxi(1, cost / 2)
 	if cash < cost:
 		return {"ok": false, "text": "维修需要 %d₵，现金不足。" % cost}
 	cash -= cost
