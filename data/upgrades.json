@@ -478,5 +478,13 @@
     "desc": "机器耗时 -10%",
     "effect": "machine",
     "value": 10
+  },
+  {
+    "id": "INSURANCE",
+    "name": "店铺保险",
+    "desc": "每晚扣除 15₵ 保费。展示柜商品被盗时按估值赔付，连续无保险会提高被盗概率。",
+    "cost": 250,
+    "effect": "passive",
+    "value": 0
   }
 ]

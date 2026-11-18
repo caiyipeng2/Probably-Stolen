@@ -54,6 +54,8 @@ func _init() -> void:
 	gs.current_customer = exp_c
 	var exp_res: Dictionary = gs.start_expedition()
 	check(bool(exp_res.get("ok", false)) and gs.combat_active, "expedition starts party combat", str(exp_res))
+	check(gs.expedition_rooms.size() == 2 and gs.advance_expedition(), "expedition has next room")
+	check(gs.expedition_room_index == 1 and gs.combat_active, "expedition room 2 starts")
 	gs.owned_upgrades.erase("RETIRED_GUNSMITH")
 	gs.day = 4
 	gs.customers_today = []

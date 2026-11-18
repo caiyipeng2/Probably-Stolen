@@ -58,32 +58,42 @@
     "width": 7,
     "height": 5,
     "locked": "LOCK_ID_SEC",
-    "contraband": 3
+    "contraband": 3,
+    "lock_type": "mechanical",
+    "lock_difficulty": 20
   },
   "eng_box": {
     "kind": "grid",
     "width": 7,
     "height": 5,
-    "locked": "LOCK_ID_ENG"
+    "locked": "LOCK_ID_ENG",
+    "lock_type": "mechanical",
+    "lock_difficulty": 15
   },
   "med_box": {
     "kind": "grid",
     "width": 7,
     "height": 5,
-    "locked": "LOCK_ID_MED"
+    "locked": "LOCK_ID_MED",
+    "lock_type": "mechanical",
+    "lock_difficulty": 15
   },
   "service_box": {
     "kind": "grid",
     "width": 7,
     "height": 5,
-    "locked": "LOCK_ID_SER"
+    "locked": "LOCK_ID_SER",
+    "lock_type": "mechanical",
+    "lock_difficulty": 20
   },
   "evidence_box": {
     "kind": "grid",
     "width": 7,
     "height": 5,
     "locked": "LOCK_ID_SEC",
-    "contraband": 2
+    "contraband": 2,
+    "lock_type": "electronic",
+    "lock_difficulty": 30
   },
   "nutrifruit_seed_packet": {
     "kind": "grid",
@@ -497,8 +507,18 @@
     "height": 2,
     "storage": true,
     "zones": [
-      {"id": "chill", "label": "冷藏", "x": 0, "width": 5},
-      {"id": "freeze", "label": "冷冻", "x": 6, "width": 3}
+      {
+        "id": "chill",
+        "label": "冷藏",
+        "x": 0,
+        "width": 5
+      },
+      {
+        "id": "freeze",
+        "label": "冷冻",
+        "x": 6,
+        "width": 3
+      }
     ]
   },
   "vending_machine": {

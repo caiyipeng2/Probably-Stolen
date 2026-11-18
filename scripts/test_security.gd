@@ -238,6 +238,15 @@ func _init() -> void:
 	gs.rep["security"] = 0
 	gs.add_rep("security", -10)
 	check(int(gs.rep.get("security", 0)) == -20, "petition doubles security rep loss", str(gs.rep.get("security", 0)))
+	# inspector countdown
+	gs.new_game()
+	gs.sec_inspection_pending = false
+	gs.sec_officer_pending = false
+	gs.sec_permit_revoke_pending = false
+	gs.sec_crimes = {"FRAUD": 400}
+	gs.sec_inspection_countdown = 1
+	check(gs._sec_tick_inspection_countdown() and gs.sec_inspection_pending and gs.sec_inspection_countdown > 0, "inspection countdown triggers", str(gs.sec_inspection_countdown))
+	gs.sec_inspection_pending = false
 	# save/load extended security fields
 	gs.new_game()
 	gs.active_permits = [{"type": "FIREARM", "level": 1}]

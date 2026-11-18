@@ -94,5 +94,165 @@
       "security": 2
     },
     "desc": "替人跑腿的小角色，知道不少不该知道的事。"
+  },
+  {
+    "id": "w_rat",
+    "name": "下水道老鼠",
+    "enemy": "scav",
+    "reward": 150,
+    "rep": {
+      "security": 5
+    },
+    "desc": "在维护通道抢劫落单居民。"
+  },
+  {
+    "id": "w_viper",
+    "name": "毒蛇",
+    "enemy": "raider",
+    "reward": 350,
+    "rep": {
+      "security": 5
+    },
+    "desc": "专门向未成年人贩卖违禁药物。"
+  },
+  {
+    "id": "w_cleaver",
+    "name": "剁肉手",
+    "enemy": "thug",
+    "reward": 300,
+    "rep": {
+      "security": 5
+    },
+    "desc": "替黑市处理尸体，随身带剁骨刀。"
+  },
+  {
+    "id": "w_ghost",
+    "name": "幽灵",
+    "enemy": "pirate_rookie",
+    "reward": 450,
+    "rep": {
+      "security": 5
+    },
+    "desc": "在货运区来去无踪的窃贼。"
+  },
+  {
+    "id": "w_mags",
+    "name": "弹匣",
+    "enemy": "raider",
+    "reward": 400,
+    "rep": {
+      "security": 5
+    },
+    "desc": "军火贩子，专偷军械库弹药。"
+  },
+  {
+    "id": "w_sister",
+    "name": "修女",
+    "enemy": "combat_medic",
+    "reward": 500,
+    "rep": {
+      "security": 5
+    },
+    "desc": "假冒教会护士，倒卖病人器官。"
+  },
+  {
+    "id": "w_brace",
+    "name": "钢架",
+    "enemy": "enforcer",
+    "reward": 700,
+    "rep": {
+      "security": 5
+    },
+    "desc": "卡特尔打手，收保护费。"
+  },
+  {
+    "id": "w_pilot",
+    "name": "飞行员",
+    "enemy": "pirate_veteran",
+    "reward": 650,
+    "rep": {
+      "security": 5
+    },
+    "desc": "走私飞船驾驶员。"
+  },
+  {
+    "id": "w_doc",
+    "name": "医生",
+    "enemy": "field_technician",
+    "reward": 600,
+    "rep": {
+      "security": 5
+    },
+    "desc": "无证行医并伪造死亡证明。"
+  },
+  {
+    "id": "w_spark",
+    "name": "火花",
+    "enemy": "junker",
+    "reward": 450,
+    "rep": {
+      "security": 5
+    },
+    "desc": "改装非法武器模块。"
+  },
+  {
+    "id": "w_brute",
+    "name": "蛮牛",
+    "enemy": "marine",
+    "reward": 800,
+    "rep": {
+      "security": 5
+    },
+    "desc": "叛逃陆战队员，携带军用武器。"
+  },
+  {
+    "id": "w_silk",
+    "name": "丝绸",
+    "enemy": "enforcer",
+    "reward": 750,
+    "rep": {
+      "security": 5
+    },
+    "desc": "上层区绑架案主犯。"
+  },
+  {
+    "id": "w_snipe",
+    "name": "鹰眼",
+    "enemy": "sharpshooter",
+    "reward": 900,
+    "rep": {
+      "security": 5
+    },
+    "desc": "远程杀手，专接灭口订单。"
+  },
+  {
+    "id": "w_boss2",
+    "name": "铁钩",
+    "enemy": "pirate_chief",
+    "reward": 1200,
+    "rep": {
+      "security": 5
+    },
+    "desc": "海盗头目，劫掠运输船。"
+  },
+  {
+    "id": "w_xeno",
+    "name": "异形之母",
+    "enemy": "xeno_hunter",
+    "reward": 1000,
+    "rep": {
+      "security": 5
+    },
+    "desc": "巢穴守护者，悬赏极高。"
+  },
+  {
+    "id": "wanted9",
+    "name": "假检查官",
+    "enemy": "field_technician",
+    "reward": 300,
+    "rep": {
+      "security": 5
+    },
+    "desc": "冒充治安部检查官，专门骗取店铺里的违禁品。"
   }
 ]

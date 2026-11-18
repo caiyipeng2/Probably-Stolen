@@ -411,5 +411,75 @@
         }
       }
     ]
+  },
+  {
+    "id": "faction_security_operation",
+    "title": "治安部行动",
+    "text": "治安部开始大规模排查，街面上的武器价格应声上涨。",
+    "choices": [
+      {
+        "text": "关门配合。",
+        "rep": {
+          "security": 3
+        },
+        "market": {
+          "WEAPON": 25,
+          "ARMOR": 25
+        }
+      },
+      {
+        "text": "趁机收货。",
+        "cash": -120,
+        "rep": {
+          "security": -3
+        },
+        "market": {
+          "WEAPON": 35
+        }
+      }
+    ]
+  },
+  {
+    "id": "faction_rev_operation",
+    "title": "革命军行动",
+    "text": "革命军正在筹备一次突袭，需要医疗物资。",
+    "choices": [
+      {
+        "text": "捐一批物资。",
+        "cash": -100,
+        "rep": {
+          "rev": 5
+        }
+      },
+      {
+        "text": "拒绝。",
+        "rep": {
+          "rev": -3
+        }
+      }
+    ]
+  },
+  {
+    "id": "faction_cartel_operation",
+    "title": "卡特尔行动",
+    "text": "卡特尔要求你这周多备一些货。",
+    "choices": [
+      {
+        "text": "照办。",
+        "cash": -150,
+        "rep": {
+          "cartel": 5
+        },
+        "market": {
+          "SUBSTANCE": 30
+        }
+      },
+      {
+        "text": "不理会。",
+        "rep": {
+          "cartel": -5
+        }
+      }
+    ]
   }
 ]

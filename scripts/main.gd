@@ -1100,12 +1100,13 @@ func _build_drawer() -> void:
 		tab_buttons[tabs[i][1]] = b
 	var page_names := ["前", "背", "隐"]
 	for i in range(3):
-		var pb := _button(p, page_names[i], Vector2(1480 + i * 52, 10), Vector2(44, 44), C_MUTED, _on_page.bind(i))
+		var pb := _button(p, page_names[i], Vector2(1380 + i * 48, 10), Vector2(42, 44), C_MUTED, _on_page_pressed.bind(i))
 		page_buttons.append(pb)
-	capacity_label = _label(p, "", Vector2(1600, 18), Vector2(140, 28), 22, C_MUTED)
-	_button(p, "垃圾桶", Vector2(1745, 8), Vector2(120, 48), C_MUTED, _open_trash)
-	_button(p, "展示柜", Vector2(1875, 8), Vector2(145, 48), C_CYAN, _open_showcase)
-	_button(p, "整理", Vector2(2035, 8), Vector2(160, 48), C_CYAN, _auto_sort)
+	capacity_label = _label(p, "", Vector2(1470, 18), Vector2(100, 28), 22, C_MUTED)
+	_button(p, "海报", Vector2(1575, 8), Vector2(95, 48), C_RUST, _toggle_poster_ui)
+	_button(p, "垃圾桶", Vector2(1675, 8), Vector2(105, 48), C_MUTED, _open_trash)
+	_button(p, "展示柜", Vector2(1785, 8), Vector2(125, 48), C_CYAN, _open_showcase)
+	_button(p, "整理", Vector2(1915, 8), Vector2(150, 48), C_CYAN, _auto_sort)
 	var ledger := _panel(p, Vector2(24, 64), Vector2(330, 250), C_PAPER, Color("#b9a98a"), 3)
 	_label(ledger, "今日流水", Vector2(16, 10), Vector2(200, 36), 26, C_INK)
 	ledger_label = _label(ledger, "", Vector2(16, 50), Vector2(298, 186), 22, C_INK)
@@ -1517,9 +1518,18 @@ func _rebuild_container_grid() -> void:
 		_container_action("全部取出", _container_take_all, C_GREEN)
 	if bool(it.get("container_locked", false)):
 		_container_action("使用门禁卡", _container_unlock_select, C_RUST)
+		_container_action("撬锁", _container_breach, C_RUST)
 	if not container_stack.is_empty():
 		_container_action("返回上层", _container_back, C_MUTED)
 	_refresh_container_actions()
+
+func _container_breach() -> void:
+	if open_container_uid < 0:
+		return
+	var res := GameState.breach_container(open_container_uid)
+	_play_sfx("machine" if bool(res.get("ok", false)) else "fail")
+	_rebuild_container_grid()
+	_refresh()
 
 func _container_select_child(uid: int) -> void:
 	container_selected_uid = uid
@@ -1650,8 +1660,9 @@ func _rebuild_showcase() -> void:
 	for it in GameState.display:
 		total += GameState.effective_value(it)
 	showcase_info.text = "展示品 %d 件 · 网格 7×5 · 总估值 %d₵" % [GameState.display.size(), total]
-	for y in range(GameState.SHOWCASE_H):
-		for x in range(GameState.SHOWCASE_W):
+	var show_size := GameState.showcase_size()
+	for y in range(int(show_size[1])):
+		for x in range(int(show_size[0])):
 			var cell := _panel(showcase_grid, Vector2(x * 56, y * 56), Vector2(52, 52), Color("#11151d"), Color("#2a3140"), 1)
 			cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	for it in GameState.display:
@@ -1961,6 +1972,32 @@ func _wholesale_buy() -> void:
 		_toast("顾客收下货物，开始看展示柜。")
 		return
 	_rebuild_wholesale()
+
+func _open_wanted_visit() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "wanted_visit":
+		return
+	var w := GameState.wanted_def(String(c.get("wanted_id", "")))
+	var body := "通缉目标：%s
+悬赏：%d₵
+
+%s" % [String(w.get("name", "")), int(w.get("reward", 0)), String(w.get("desc", ""))]
+	_show_modal("通缉目标", body, [
+		{"label": "报警举报", "cb": _report_wanted_ui, "color": C_GREEN},
+		{"label": "动手", "cb": _engage_wanted_ui, "color": C_RUST},
+		{"label": "放走", "cb": _decline_procurement, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _report_wanted_ui() -> void:
+	var res := GameState.report_wanted(String(GameState.current_customer.get("wanted_id", "")))
+	_show_modal("治安部", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _engage_wanted_ui() -> void:
+	var res := GameState.engage_wanted_visit()
+	_close_modal()
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
 
 func _open_due_customer(kind: String) -> void:
 	var c := GameState.current_customer
@@ -3020,6 +3057,17 @@ func _set_filter(cat: String) -> void:
 		tab_buttons[k].modulate = Color(1.25, 1.12, 0.72) if k == cat else Color.WHITE
 	_rebuild_grid()
 
+func _on_page_pressed(page: int) -> void:
+	if page == 2 and not GameState.poster_pulled:
+		_toast("先拉下海报，才能打开隐藏格。")
+		return
+	_on_page(page)
+
+func _toggle_poster_ui() -> void:
+	var pulled := GameState.toggle_poster()
+	_toast("海报已拉下，隐藏格开放。" if pulled else "海报已拉起，隐藏格封闭。")
+	_refresh()
+
 func _on_page(page: int) -> void:
 	current_page = clampi(page, 0, GameState.pages_unlocked - 1)
 	selected_uid = -1
@@ -3261,6 +3309,8 @@ func _on_customer_changed() -> void:
 		_open_due_customer("rent")
 	elif intent == "loan":
 		_open_due_customer("loan")
+	elif intent == "wanted_visit":
+		_open_wanted_visit()
 	else:
 		if barter_layer:
 			barter_layer.visible = false
@@ -4538,8 +4588,14 @@ func _on_combat_finished(victory: bool, message: String) -> void:
 	_play_sfx("cash" if victory else "fail")
 	combat_layer.visible = false
 	var was_expedition := GameState.combat_context == "expedition"
+	var was_wanted_visit := GameState.combat_context == "wanted_visit"
 	_refresh()
-	if was_expedition and victory:
+	if victory and was_expedition:
+		if GameState.advance_expedition():
+			_show_modal("探险", "进入下一层。", [{"label": "继续", "cb": _close_modal}])
+			return
+		GameState.next_customer()
+	elif victory and was_wanted_visit:
 		GameState.next_customer()
 	if not victory and GameState.phase == "gameover" and GameState.ending_id != "":
 		var e := GameState.ending_def(GameState.ending_id)

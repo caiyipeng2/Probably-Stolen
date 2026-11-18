@@ -22,6 +22,7 @@ const HIDDEN_W := 2
 const HIDDEN_H := 2
 const SHOWCASE_W := 7
 const SHOWCASE_H := 5
+var poster_pulled := false
 const RETAIL_MARKUP := 15.0
 const MACHINE_FAULTS := {
 	"jam": {"name": "卡料", "fee": 30},
@@ -102,6 +103,8 @@ var combat_ended := false
 var combat_pending_victory := false
 var combat_armor_defs: Dictionary = {}
 var combat_parties: Dictionary = {}
+var expedition_rooms: Array = []
+var expedition_room_index := 0
 var combat_allies: Array = []
 var market_modifiers: Dictionary = {"FOOD": 0, "MEDICAL": 0, "SUBSTANCE": 0, "MATERIAL": 0, "WEAPON": 0, "ARMOR": 0, "WATER": 0}
 var market_customers: Dictionary = {}
@@ -117,6 +120,7 @@ var sec_inspection_personality := 0
 var sec_inspection_fake := false
 var sec_last_inspection_day := -99
 var sec_bribe_tracker := 0
+var sec_inspection_countdown := 6
 var sec_permit_revoke_pending := false
 var sec_permit_revoke_levels: Array = []
 var active_permits: Array = []
@@ -1957,17 +1961,55 @@ func split_stack(uid: int) -> Dictionary:
 	emit_signal("state_changed")
 	return {"ok": true, "text": "已分出 %d 发。" % move}
 
-func unlock_container(container: Dictionary, key: Dictionary) -> Dictionary:
-	if not bool(container.get("container_locked", false)):
-		return {"ok": false, "text": "容器没有上锁。"}
-	if not lock_key_matches(container, key):
-		return {"ok": false, "text": "这张卡打不开这个容器。"}
+func _finish_unlock(container: Dictionary) -> void:
 	container["container_locked"] = false
 	container["custom_base_value"] = 15
 	container["stolen"] = false
 	container["contraband_cleared"] = true
 	if container.get("children", []).is_empty():
 		_generate_loot(container)
+
+func container_lock_type(container: Dictionary) -> String:
+	return String(container_spec(container).get("lock_type", "mechanical"))
+
+func breach_container(container_uid: int) -> Dictionary:
+	var c := find_item(container_uid)
+	if c.is_empty() or not bool(c.get("container_locked", false)):
+		return {"ok": false, "text": "容器没有上锁。"}
+	var lock_type := container_lock_type(c)
+	var tool := ""
+	for candidate in (["wire_cutter", "crowbar", "toolbox"] if lock_type == "electronic" else ["crowbar", "toolbox"]):
+		if inventory_count(candidate) > 0:
+			tool = candidate
+			break
+	if tool == "":
+		return {"ok": false, "text": "没有合适的撬锁工具（撬棍/工具箱/剪线钳）。"}
+	var difficulty := int(container_spec(c).get("lock_difficulty", 20))
+	var chance := 70 - difficulty
+	if rng.randi_range(1, 100) <= chance:
+		_finish_unlock(c)
+		remove_inventory(tool, 1)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "锁被撬开，工具损坏了。"}
+	c["lock_attempts"] = int(c.get("lock_attempts", 0)) + 1
+	var tool_item := {}
+	for it in _iter_inventory_items():
+		if String(it.get("def_id", "")) == tool:
+			tool_item = it
+			break
+	if not tool_item.is_empty():
+		tool_item["condition"] = maxi(0, int(tool_item.get("condition", 100)) - 15)
+		if int(tool_item["condition"]) <= 0:
+			remove_inventory(tool, 1)
+	emit_signal("state_changed")
+	return {"ok": false, "text": "撬锁失败（%d 次），工具磨损。" % int(c["lock_attempts"])}
+
+func unlock_container(container: Dictionary, key: Dictionary) -> Dictionary:
+	if not bool(container.get("container_locked", false)):
+		return {"ok": false, "text": "容器没有上锁。"}
+	if not lock_key_matches(container, key):
+		return {"ok": false, "text": "这张卡打不开这个容器。"}
+	_finish_unlock(container)
 	remove_inventory(String(key.get("def_id", "")), 1)
 	emit_signal("state_changed")
 	return {"ok": true, "text": "容器已解锁。"}
@@ -2187,6 +2229,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	sec_permit_revoke_pending = false
 	sec_permit_revoke_levels = []
 	active_permits = []
+	poster_pulled = false
 	starting_perk_id = ""
 	starting_perk_chosen = false
 	trash_items = []
@@ -2235,6 +2278,8 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	wanted_defeated = []
 	combat_active = false
 	combat_allies = []
+	expedition_rooms = []
+	expedition_room_index = 0
 	market_modifiers = {"FOOD": 0, "MEDICAL": 0, "SUBSTANCE": 0, "MATERIAL": 0, "WEAPON": 0, "ARMOR": 0, "WATER": 0}
 	ending_id = ""
 	_refresh_upgrades()
@@ -2289,6 +2334,11 @@ func _decay_stolen_item(it: Dictionary) -> void:
 		it["stolen_heat"] = 0
 	else:
 		it["stolen_heat"] = heat
+
+func toggle_poster() -> bool:
+	poster_pulled = not poster_pulled
+	emit_signal("state_changed")
+	return poster_pulled
 
 func sec_crime_name(cid: String) -> String:
 	return String(security_defs.get("crimes", {}).get(cid, cid))
@@ -2692,7 +2742,7 @@ func sec_inspection_candidates() -> Array:
 	for it in inventory:
 		if it.get("location", "backpack") != "backpack":
 			continue
-		_sec_scan_item(it, flagged, int(it.get("page", 0)) == 2)
+		_sec_scan_item(it, flagged, int(it.get("page", 0)) == 2 and not poster_pulled)
 	for it in display:
 		_sec_scan_item(it, flagged, false)
 	if not counter_item.is_empty():
@@ -2882,6 +2932,53 @@ func _sec_contraband_on_hand() -> bool:
 	sec_inspection_personality = saved
 	return not items.is_empty()
 
+func _sec_reset_inspection_countdown() -> void:
+	var total := sec_total_crime()
+	var min_d := 6
+	var max_d := 9
+	if total >= 150:
+		min_d = 3
+		max_d = 5
+	if total >= 300:
+		min_d = 3
+		max_d = 3
+	if total >= 450:
+		min_d = 2
+		max_d = 3
+	if total >= 600:
+		min_d = 2
+		max_d = 2
+	if total >= 750:
+		min_d = 1
+		max_d = 2
+	if sec_perk_unlocked("SEC_TRUSTED"):
+		min_d += 2
+		max_d += 4
+	if sec_perk_unlocked("SEC_THOROUGH_INSPECTION"):
+		min_d = maxi(1, min_d - 1)
+		max_d = maxi(2, max_d - 1)
+	sec_inspection_countdown = rng.randi_range(maxi(1, min_d), maxi(2, max_d))
+
+func _sec_tick_inspection_countdown() -> bool:
+	if _suppress_sec_tick:
+		return false
+	if sec_inspection_pending or sec_officer_pending or sec_permit_revoke_pending:
+		return false
+	sec_inspection_countdown -= 1
+	if sec_inspection_countdown == 1 and sec_perk_unlocked("SEC_TRUSTED"):
+		_add_night_log("治安部线人预警：盘查即将到来。")
+	if sec_inspection_countdown > 0:
+		return false
+	var total := sec_total_crime()
+	if total <= 0 and not _sec_contraband_on_hand():
+		return false
+	sec_inspection_pending = true
+	sec_inspection_personality = 0
+	sec_inspection_fake = false
+	_sec_reset_inspection_countdown()
+	emit_signal("inspection_arrived")
+	return true
+
 func _sec_maybe_start_inspection() -> void:
 	if sec_inspection_pending or sec_officer_pending or sec_permit_revoke_pending:
 		return
@@ -2899,6 +2996,7 @@ func _sec_maybe_start_inspection() -> void:
 	if rng.randi_range(1, 100) > chance:
 		return
 	sec_inspection_pending = true
+	_sec_reset_inspection_countdown()
 	sec_inspection_fake = rng.randi_range(1, 100) <= int(cfg.get("fake_chance", 8))
 	if sec_inspection_fake:
 		sec_inspection_personality = 0
@@ -3009,6 +3107,18 @@ func start_day() -> void:
 	for i in range(count):
 		customers_today.append(_gen_customer())
 	var regular_count := customers_today.size() - regular_start
+	if rng.randi_range(1, 100) <= 8:
+		var candidates: Array = []
+		for w in wanted:
+			if not wanted_defeated.has(String(w.get("id", ""))):
+				candidates.append(w)
+		if not candidates.is_empty():
+			var wv: Dictionary = candidates[rng.randi_range(0, candidates.size() - 1)]
+			customers_today.append({
+				"arche": {"faction": "lower", "name": String(wv.get("name", "可疑顾客"))},
+				"intent": "wanted_visit", "wanted_id": String(wv.get("id", "")),
+				"done": false, "line": "……你好像认错人了。",
+			})
 	if appraisal_introduced and regular_count > 0:
 		if rng.randi_range(1, 100) <= appraisal_attraction_chance():
 			var replace_index := regular_start + rng.randi_range(0, regular_count - 1)
@@ -3019,7 +3129,8 @@ func start_day() -> void:
 	if appraisal_promotion_day >= 0 and day >= appraisal_promotion_day:
 		pending_promotion = true
 	_queue_story_for_day()
-	_sec_maybe_start_inspection()
+	if not _sec_tick_inspection_countdown():
+		_sec_maybe_start_inspection()
 	emit_signal("state_changed")
 	if sec_officer_pending:
 		emit_signal("security_officer_arrived")
@@ -3871,7 +3982,8 @@ func phone_choose(sid: String, choice: String) -> Dictionary:
 			queue_future_customer("wanted", "rev", 0, 2, false)
 			return {"close": true, "toast": "奥丁会在 2 天后派人上门。"}
 		"report":
-			return {"close": true, "toast": "治安部记录在案，今晚会留意。"}
+			var report_res := report_wanted("")
+			return {"close": true, "toast": String(report_res.get("text", ""))}
 		"wild_network":
 			return {"close": true, "open": "network"}
 		"open_commissary":
@@ -4035,11 +4147,23 @@ func put_display_on_counter(uid: int) -> bool:
 	emit_signal("state_changed")
 	return true
 
+func showcase_size() -> Array:
+	var w := SHOWCASE_W
+	var h := SHOWCASE_H
+	if bool(owned_upgrades.get("SHOWCASE_I", false)):
+		w += 1
+		h += 1
+	if bool(owned_upgrades.get("SHOWCASE_II", false)):
+		w += 1
+		h += 1
+	return [w, h]
+
 func display_can_place(it: Dictionary, x: int, y: int, rotated: bool, ignore_uid: int = -1) -> bool:
 	var shape: Array = get_item_def(String(it.get("def_id", ""))).get("shape", [1, 1])
 	var w: int = int(shape[1]) if rotated else int(shape[0])
 	var h: int = int(shape[0]) if rotated else int(shape[1])
-	if x < 0 or y < 0 or x + w > SHOWCASE_W or y + h > SHOWCASE_H:
+	var size := showcase_size()
+	if x < 0 or y < 0 or x + w > int(size[0]) or y + h > int(size[1]):
 		return false
 	var mask := item_mask_cells(it, 1 if rotated else 0)
 	var test := {}
@@ -4056,8 +4180,9 @@ func display_can_place(it: Dictionary, x: int, y: int, rotated: bool, ignore_uid
 	return true
 
 func display_auto_place(it: Dictionary) -> bool:
-	for y in range(SHOWCASE_H):
-		for x in range(SHOWCASE_W):
+	var size := showcase_size()
+	for y in range(int(size[1])):
+		for x in range(int(size[0])):
 			for rot in [false, true]:
 				if display_can_place(it, x, y, rot, int(it.get("uid", -1))):
 					it["x"] = x
@@ -4306,6 +4431,12 @@ func finish_day() -> Dictionary:
 			loan_due = 12
 		else:
 			summary["gameover"] = "repo"
+	if bool(owned_upgrades.get("INSURANCE", false)) and summary["gameover"] == "":
+		cash -= 15
+		summary["fees"] = int(summary.get("fees", 0)) + 15
+		daily["fees"] = int(daily.get("fees", 0)) + 15
+		if cash < 0:
+			summary["gameover"] = "rent"
 	if summary["gameover"] == "":
 		if int(rep.get("security", 0)) <= -35:
 			summary["gameover"] = "sec"
@@ -4330,10 +4461,35 @@ func finish_day() -> Dictionary:
 	emit_signal("state_changed")
 	return summary
 
+func _night_burglary() -> void:
+	if display.is_empty():
+		return
+	if sec_perk_unlocked("SEC_VIP"):
+		return
+	var chance := 15
+	if sec_perk_unlocked("SEC_PROTECTION"):
+		chance -= 8
+	if security_alarm_active and rng.randi_range(1, 100) <= 50:
+		_add_night_log("警报响起，盗贼放弃了行动。")
+		return
+	if rng.randi_range(1, 100) > chance:
+		return
+	var idx := rng.randi_range(0, display.size() - 1)
+	var stolen: Dictionary = display[idx]
+	var value := effective_value(stolen)
+	display.remove_at(idx)
+	if bool(owned_upgrades.get("INSURANCE", false)):
+		cash += value
+		_add_night_log("夜间失窃：%s（估值 %d₵），保险已赔付。" % [item_display_name(stolen), value])
+	else:
+		_add_night_log("夜间失窃：%s（估值 %d₵），没有保险赔付。" % [item_display_name(stolen), value])
+	emit_signal("state_changed")
+
 func advance_day() -> void:
 	if phase == "gameover":
 		return
 	advance_machines_one_cycle()
+	_night_burglary()
 	if phase == "gameover":
 		emit_signal("state_changed")
 		return
@@ -4532,10 +4688,27 @@ func start_expedition() -> Dictionary:
 	if party.is_empty():
 		return {"ok": false, "text": "探险目标不存在。"}
 	current_customer["done"] = true
+	expedition_rooms = [party_id, "pirateVeteranLeaderTriple"]
+	expedition_room_index = 0
 	var first := String(party.get("enemies", ["pirate_rookie"])[0])
 	start_combat(first, "lower", "", "expedition", party_id)
 	emit_signal("state_changed")
-	return {"ok": true, "text": "探险开始。"}
+	return {"ok": true, "text": "探险开始（第 1/%d 层）。" % expedition_rooms.size()}
+
+func advance_expedition() -> bool:
+	expedition_room_index += 1
+	if expedition_room_index >= expedition_rooms.size():
+		expedition_rooms = []
+		expedition_room_index = 0
+		return false
+	var party_id := String(expedition_rooms[expedition_room_index])
+	var party: Dictionary = combat_parties.get(party_id, {})
+	if party.is_empty():
+		expedition_rooms = []
+		return false
+	var first := String(party.get("enemies", ["pirate_rookie"])[0])
+	start_combat(first, "lower", "", "expedition", party_id)
+	return true
 
 func buy_information() -> Dictionary:
 	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "information":
@@ -4774,6 +4947,43 @@ func enemy_def(id: String) -> Dictionary:
 		if String(e.get("id", "")) == id:
 			return e
 	return {}
+
+func report_wanted(wid: String) -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "wanted_visit":
+		cash -= 100
+		add_rep("security", -5)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "谎报警情，被罚款 100₵，治安声望 -5。"}
+	var current_wid := String(current_customer.get("wanted_id", ""))
+	if current_wid != wid:
+		cash -= 100
+		add_rep("security", -5)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "举报错了人，被罚款 100₵，治安声望 -5。"}
+	var w := wanted_def(wid)
+	if w.is_empty() or wanted_defeated.has(wid):
+		return {"ok": false, "text": "没有这个通缉目标。"}
+	wanted_defeated.append(wid)
+	cash += int(w.get("reward", 0))
+	add_rep("security", 5)
+	var reps: Dictionary = w.get("rep", {})
+	for k in reps.keys():
+		add_rep(String(k), int(reps[k]))
+	complete_customer(true)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "举报成功，获得 %d₵ 悬赏。" % int(w.get("reward", 0))}
+
+func engage_wanted_visit() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "wanted_visit":
+		return {"ok": false, "text": "当前没有通缉目标。"}
+	var wid := String(current_customer.get("wanted_id", ""))
+	var w := wanted_def(wid)
+	if w.is_empty():
+		return {"ok": false, "text": "目标不存在。"}
+	current_customer["done"] = true
+	start_combat(String(w.get("enemy", "thug")), "security", wid, "wanted_visit")
+	emit_signal("state_changed")
+	return {"ok": true, "text": "你向目标扑了过去。"}
 
 func wanted_def(id: String) -> Dictionary:
 	for w in wanted:
@@ -7379,7 +7589,7 @@ func save_game(slot: int = 1) -> bool:
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
 		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
-		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "combat_allies": combat_allies, "market_modifiers": market_modifiers, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_countdown": sec_inspection_countdown, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "poster_pulled": poster_pulled, "combat_allies": combat_allies, "market_modifiers": market_modifiers, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
 		"commissions": commissions, "procurement_orders": procurement_orders, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
@@ -7434,6 +7644,7 @@ func load_game(slot: int = 1) -> bool:
 	sec_officer_pending = bool(data.get("sec_officer_pending", false))
 	sec_last_inspection_day = int(data.get("sec_last_inspection_day", -99))
 	sec_bribe_tracker = int(data.get("sec_bribe_tracker", 0))
+	sec_inspection_countdown = int(data.get("sec_inspection_countdown", 6))
 	sec_inspection_pending = bool(data.get("sec_inspection_pending", false))
 	sec_inspection_personality = int(data.get("sec_inspection_personality", 0))
 	sec_inspection_fake = bool(data.get("sec_inspection_fake", false))
@@ -7443,6 +7654,7 @@ func load_game(slot: int = 1) -> bool:
 		sec_permit_revoke_levels.append(int(lv))
 	combat_allies = data.get("combat_allies", []).duplicate(true)
 	market_modifiers = data.get("market_modifiers", market_modifiers).duplicate(true)
+	poster_pulled = bool(data.get("poster_pulled", false))
 	starting_perk_id = String(data.get("starting_perk_id", ""))
 	starting_perk_chosen = bool(data.get("starting_perk_chosen", false))
 	active_permits = []
