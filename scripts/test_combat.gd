@@ -19,11 +19,12 @@ func _init() -> void:
 	gs.start_combat("thug")
 	check(gs.combat_active and gs.combat_units.size() == 2, "combat starts with two units")
 	var pl = gs._combat_unit_by_uid(0)
-	check(int(pl.get("max_hp", 0)) == 100 and int(pl.get("accuracy", 0)) == 70, "player base stats")
+	var base_acc: int = 70 + int(gs.survival_accuracy_mod())
+	check(int(pl.get("max_hp", 0)) == 100 and int(pl.get("accuracy", 0)) == base_acc, "player base stats")
 	check(int(pl.get("death_chance", 0)) == 40, "player death chance 40")
 	# hit chance
-	check(gs._combat_hit_chance(pl, gs._combat_unit_by_uid(1), gs.combat_abilities["fists"]) == 70, "unarmed hit chance")
-	check(gs._combat_hit_chance(pl, gs._combat_unit_by_uid(1), gs.combat_abilities["glock_attack"]) == 80, "glock accuracy bonus")
+	check(gs._combat_hit_chance(pl, gs._combat_unit_by_uid(1), gs.combat_abilities["fists"]) == base_acc, "unarmed hit chance")
+	check(gs._combat_hit_chance(pl, gs._combat_unit_by_uid(1), gs.combat_abilities["glock_attack"]) == base_acc + 10, "glock accuracy bonus")
 	# fight until victory
 	var guard := 0
 	while gs.combat_active and guard < 40:

@@ -2,234 +2,155 @@
   {
     "id": "apprentice",
     "name": "学徒",
-    "desc": "适合初次游玩。你精打细算，盘下店铺时省下一笔启动资金。",
-    "cash": 150,
-    "items": [],
-    "rep": {}
-  },
-  {
-    "id": "junker",
-    "name": "废料客",
-    "desc": "拾荒出身，带着废料和旧工具开始经营。",
-    "cash": 0,
-    "items": [
-      [
-        "scrap_metal",
-        4
-      ],
-      [
-        "radio_on",
-        1
-      ]
-    ],
-    "rep": {
-      "lower": 10
-    }
+    "desc": "初次经营当铺。启动资金少一点，但带着基础生活物资和一间简易仓库。",
+    "cash_delta": -50,
+    "rent_delta": 0,
+    "items": [["storage_bay", 1], ["processed_meat", 2], ["processed_juice", 1], ["toothpaste", 2], ["toilet_paper", 2]],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": false
   },
   {
     "id": "water_merchant",
     "name": "水商",
-    "desc": "懂水质检测与净水，在下层区卖水是稳赚生意。",
-    "cash": 0,
-    "items": [
-      [
-        "water_tablet",
-        3
-      ],
-      [
-        "water_jug",
-        1
-      ]
-    ],
-    "rep": {
-      "lower": 5
-    }
+    "desc": "靠净水与瓶装水起家，自带净水器和瓶装设备。",
+    "cash_delta": -200,
+    "rent_delta": 0,
+    "items": [["portable_water_purifier", 1], ["bottle_printer", 1], ["water_jug", 1], ["water_tablet", 3]],
+    "rep": {"lower": 5},
+    "upgrades": {"WATER_TRADER": 2},
+    "coming_soon": false
   },
   {
     "id": "fence",
-    "name": "销赃人",
-    "desc": "黑市出身，擅长处理来路不明的货物。",
-    "cash": 100,
-    "items": [
-      [
-        "command_keycard",
-        1
-      ]
-    ],
-    "rep": {
-      "blackmarket": 10
-    }
+    "name": "销赃商",
+    "desc": "黑市人脉广，铺面租金更高，但开局就有走私仓与一把枪。",
+    "cash_delta": -150,
+    "rent_delta": 50,
+    "items": [["smuggler_bay", 1], ["handmade_pistol", 1], ["aug_chip", 1], ["fanta_pill", 2]],
+    "rep": {"blackmarket": 30, "security": -30},
+    "upgrades": {},
+    "coming_soon": false
   },
   {
-    "id": "hydroponics",
-    "name": "水培农场主",
-    "desc": "会种营养果，能自产食物原料。",
-    "cash": 0,
-    "items": [
-      [
-        "nutrifruit_seed",
-        3
-      ],
-      [
-        "water_jug",
-        1
-      ]
-    ],
-    "rep": {
-      "lower": 5
-    }
+    "id": "rock_bottom",
+    "name": "一无所有",
+    "desc": "从零开始：没有启动资金，也没有存货，只剩一间空店。",
+    "cash_delta": -600,
+    "rent_delta": 0,
+    "items": [],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": false
   },
   {
-    "id": "chemist",
-    "name": "化学家",
-    "desc": "懂化学品与配方，能生产高价值化学制品。",
-    "cash": 0,
-    "items": [
-      [
-        "common_chemical",
-        3
-      ],
-      [
-        "chem_scanner",
-        1
-      ]
-    ],
-    "rep": {
-      "blackmarket": 5
-    }
-  },
-  {
-    "id": "organ_trader",
-    "name": "器官贩子",
-    "desc": "熟悉器官交易，利润高但风险也高。",
-    "cash": 0,
-    "items": [
-      [
-        "organ_heart",
-        1
-      ],
-      [
-        "water_tablet",
-        1
-      ]
-    ],
-    "rep": {
-      "blackmarket": 5,
-      "security": -5
-    }
-  },
-  {
-    "id": "pharma",
-    "name": "药商",
-    "desc": "经营药品与急救物资，顾客稳定。",
-    "cash": 0,
-    "items": [
-      [
-        "bandage_item",
-        3
-      ],
-      [
-        "nutrient_tablet",
-        1
-      ]
-    ],
-    "rep": {
-      "lower": 5
-    }
-  },
-  {
-    "id": "food_vendor",
-    "name": "街头小吃摊贩",
-    "desc": "懂食材与烹饪，能用加热板加工食品。",
-    "cash": 0,
-    "items": [
-      [
-        "nutrifruit",
-        3
-      ],
-      [
-        "processed_meat",
-        1
-      ]
-    ],
-    "rep": {
-      "lower": 5
-    }
-  },
-  {
-    "id": "moonshiner",
-    "name": "私酒贩子",
-    "desc": "会酿酒，私酒在下层区很受欢迎。",
-    "cash": 0,
-    "items": [
-      [
-        "red_beer",
-        3
-      ],
-      [
-        "water_jug",
-        1
-      ]
-    ],
-    "rep": {
-      "blackmarket": 5
-    }
+    "id": "hydroponic_farmer",
+    "name": "水培农夫",
+    "desc": "用自家水培系统供应食材，租金略高。",
+    "cash_delta": -150,
+    "rent_delta": 40,
+    "items": [["hydroponic", 1], ["nutrifruit_seed", 3], ["water_jug", 1]],
+    "rep": {"lower": 5},
+    "upgrades": {"PLANT_DNA": 1},
+    "coming_soon": false
   },
   {
     "id": "gunsmith",
-    "name": "枪械匠",
-    "desc": "持有武器许可证，擅长枪械与弹药。",
-    "cash": 0,
-    "items": [
-      [
-        "handmade_pistol",
-        1
-      ],
-      [
-        "scrap_metal",
-        3
-      ]
-    ],
-    "rep": {
-      "security": 5
-    }
+    "name": "枪匠",
+    "desc": "持证枪匠，自带打印设备与手枪零件，治安声望较高。",
+    "cash_delta": -450,
+    "rent_delta": 50,
+    "items": [["printer", 1], ["printer_chip_handmade_pistol_frame", 1], ["handmade_pistol", 1], ["scrap_metal", 3]],
+    "rep": {"security": 25},
+    "upgrades": {"GUN_PERMIT_I": 1},
+    "coming_soon": false
   },
   {
-    "id": "rat_farmer",
-    "name": "养鼠人",
-    "desc": "养殖肉用鼠，能稳定提供肉类原料。",
-    "cash": 0,
-    "items": [
-      [
-        "small_raw_meat",
-        3
-      ],
-      [
-        "meat_scrap",
-        2
-      ]
-    ],
-    "rep": {
-      "lower": 5
-    }
+    "id": "chemist",
+    "name": "化学师",
+    "desc": "熟悉化学品与配方，开局有扫描仪和一批原料。",
+    "cash_delta": -300,
+    "rent_delta": 0,
+    "items": [["common_chemical", 4], ["restricted_chemical", 1], ["chem_scanner", 1]],
+    "rep": {"blackmarket": 5, "security": -15},
+    "upgrades": {},
+    "coming_soon": false
+  },
+  {
+    "id": "rancher",
+    "name": "养殖户",
+    "desc": "带着动物笼和饲料起家，靠肉与副产物赚钱。",
+    "cash_delta": -200,
+    "rent_delta": 30,
+    "items": [["animal_cage", 1], ["small_raw_meat", 3], ["meat_scrap", 2], ["industrial_fish_feed", 2]],
+    "rep": {"lower": 5},
+    "upgrades": {},
+    "coming_soon": false
   },
   {
     "id": "aquafarmer",
     "name": "水产养殖户",
-    "desc": "掌握循环水养殖，能生产鱼片。",
-    "cash": 0,
-    "items": [
-      [
-        "industrial_fish_feed",
-        3
-      ],
-      [
-        "water_jug",
-        1
-      ]
-    ],
-    "rep": {
-      "lower": 5
-    }
+    "desc": "自带循环水养殖系统，租金更高，产出鱼片。",
+    "cash_delta": -450,
+    "rent_delta": 40,
+    "items": [["ras", 1], ["ras_water_tank", 1], ["industrial_fish_feed", 4], ["water_jug", 1]],
+    "rep": {"lower": 5},
+    "upgrades": {"AQUACULTURE": 1},
+    "coming_soon": false
+  },
+  {
+    "id": "junker",
+    "name": "废料客",
+    "desc": "尚未开放的开局：拾荒与废料路线。",
+    "cash_delta": 0,
+    "rent_delta": 0,
+    "items": [],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": true
+  },
+  {
+    "id": "organ_trader",
+    "name": "器官商",
+    "desc": "尚未开放的开局：器官交易路线。",
+    "cash_delta": 0,
+    "rent_delta": 0,
+    "items": [],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": true
+  },
+  {
+    "id": "pharmacy",
+    "name": "药剂师",
+    "desc": "尚未开放的开局：药品与急救物资路线。",
+    "cash_delta": 0,
+    "rent_delta": 0,
+    "items": [],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": true
+  },
+  {
+    "id": "moonshiner",
+    "name": "私酒贩",
+    "desc": "尚未开放的开局：私酒与酿酒路线。",
+    "cash_delta": 0,
+    "rent_delta": 0,
+    "items": [],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": true
+  },
+  {
+    "id": "food_vendor",
+    "name": "街头小吃摊主",
+    "desc": "尚未开放的开局：街头食品路线。",
+    "cash_delta": 0,
+    "rent_delta": 0,
+    "items": [],
+    "rep": {},
+    "upgrades": {},
+    "coming_soon": true
   }
 ]

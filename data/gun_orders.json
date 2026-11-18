@@ -1,0 +1,24 @@
+{
+  "orders": [
+    {"id": "t1_accuracy", "tier": 1, "base": 86, "require": {"firepower": 17}, "bonuses": [{"stat": "accuracy", "min": 20, "add": 46}, {"stat": "accuracy", "min": 24, "add": 46}, {"stat": "accuracy", "min": 30, "add": 46}, {"stat": "reliability", "min": 24, "add": 46}]},
+    {"id": "t1_suppressed", "tier": 1, "base": 86, "require": {"firepower": 17, "suppressed": 0}, "bonuses": [{"stat": "suppressed", "min": 1, "add": 22}, {"stat": "suppressed", "min": 2, "add": 53}]},
+    {"id": "t1_big", "tier": 1, "base": 98, "require": {"firepower": 11}, "bonuses": [{"stat": "size", "min": 10, "add": 12}, {"stat": "size", "min": 12, "add": 17}, {"stat": "size", "min": 14, "add": 23}]},
+    {"id": "t1_firepower", "tier": 1, "base": 63, "require": {"firepower": 11}, "bonuses": [{"stat": "firepower", "min": 14, "add": 34}, {"stat": "firepower", "min": 17, "add": 40}, {"stat": "firepower", "min": 20, "add": 40}, {"stat": "firepower", "min": 22, "add": 40}]},
+    {"id": "t1_style", "tier": 1, "base": 69, "require": {"style": 4}, "bonuses": [{"stat": "style", "min": 7, "add": 34}, {"stat": "style", "min": 14, "add": 63}, {"stat": "style", "min": 17, "add": 57}, {"stat": "style", "min": 20, "add": 52}, {"stat": "style", "min": 23, "add": 46}]},
+    {"id": "t1_general", "tier": 1, "base": 92, "require": {"firepower": 15, "reliability": 23, "accuracy": 23}, "bonuses": [{"stat": "accuracy", "min": 30, "add": 40}, {"stat": "reliability", "min": 40, "add": 40}, {"stat": "ergonomics", "min": 50, "add": 30}]},
+    {"id": "t1_handling", "tier": 1, "base": 100, "require": {"ergonomics": 44, "recoil": 54}, "bonuses": [{"stat": "ergonomics", "min": 60, "add": 40}, {"stat": "recoil", "min": 60, "add": 35}, {"stat": "style", "min": 30, "add": 30}]},
+    {"id": "t2_accuracy", "tier": 2, "base": 190, "require": {"firepower": 20}, "bonuses": [{"stat": "accuracy", "min": 35, "add": 60}, {"stat": "accuracy", "min": 45, "add": 70}]},
+    {"id": "t2_firepower", "tier": 2, "base": 190, "require": {"firepower": 20}, "bonuses": [{"stat": "firepower", "min": 30, "add": 60}, {"stat": "firepower", "min": 40, "add": 70}]},
+    {"id": "t2_suppressed", "tier": 2, "base": 200, "require": {"suppressed": 0}, "bonuses": [{"stat": "suppressed", "min": 1, "add": 40}, {"stat": "suppressed", "min": 2, "add": 80}]},
+    {"id": "t2_handling", "tier": 2, "base": 200, "require": {"ergonomics": 50, "recoil": 40}, "bonuses": [{"stat": "ergonomics", "min": 60, "add": 50}, {"stat": "caliber", "min": 9, "add": 50}]},
+    {"id": "t2_style", "tier": 2, "base": 190, "require": {"style": 30}, "bonuses": [{"stat": "style", "min": 50, "add": 60}, {"stat": "style", "min": 60, "add": 70}]},
+    {"id": "t3_best", "tier": 3, "base": 350, "require": {"caliber": 10}, "bonuses": []},
+    {"id": "t3_best_shotgun", "tier": 3, "base": 360, "require": {"caliber": 10}, "bonuses": []},
+    {"id": "t3_accuracy", "tier": 3, "base": 350, "require": {"accuracy": 40}, "bonuses": [{"stat": "accuracy", "min": 50, "add": 80}, {"stat": "accuracy", "min": 60, "add": 100}]},
+    {"id": "t3_firepower", "tier": 3, "base": 350, "require": {"firepower": 40}, "bonuses": [{"stat": "firepower", "min": 60, "add": 90}, {"stat": "firepower", "min": 80, "add": 120}]},
+    {"id": "t3_style", "tier": 3, "base": 350, "require": {"style": 50}, "bonuses": [{"stat": "style", "min": 65, "add": 90}, {"stat": "style", "min": 75, "add": 110}]},
+    {"id": "t3_general", "tier": 3, "base": 360, "require": {"firepower": 40, "reliability": 50, "accuracy": 40}, "bonuses": [{"stat": "accuracy", "min": 55, "add": 70}, {"stat": "reliability", "min": 65, "add": 70}, {"stat": "ergonomics", "min": 60, "add": 60}]}
+  ],
+  "tier_guns": {"1": ["printed_gun", "handmade_pistol"], "2": ["heavy_handmade_pistol", "glock_receiver", "revolver"], "3": ["smg", "shotgun"]},
+  "faction_tier": {"lower": 1, "tourist": 1, "blackmarket": 2, "rev": 2, "security": 2, "upper": 3, "church": 2, "cartel": 3}
+}

@@ -10,6 +10,7 @@ signal combat_hit(target_uid, amount)
 signal inspection_arrived
 signal security_officer_arrived
 signal permit_revoke_arrived
+signal achievement_unlocked(aid)
 signal combat_started
 signal combat_updated
 signal combat_finished(victory, message)
@@ -33,8 +34,10 @@ const GROWTH_MACHINES := ["hydroponic", "ras"]
 const GROWTH_HARVESTS := 3
 const DIFFICULTY := {
 	"easy": {"name": "简单", "cash": 800, "rent": 150, "budget": 1.15, "damage": 0.8},
+	"cozy": {"name": "舒适", "cash": 600, "rent": 200, "budget": 1.1, "damage": 0.85},
 	"normal": {"name": "普通", "cash": 600, "rent": 200, "budget": 1.0, "damage": 1.0},
-	"hard": {"name": "困难", "cash": 450, "rent": 260, "budget": 0.9, "damage": 1.25},
+	"hard": {"name": "困难", "cash": 600, "rent": 200, "budget": 0.9, "damage": 1.25},
+	"challenge": {"name": "赤字", "cash": 600, "rent": 200, "budget": 0.85, "damage": 1.5},
 }
 
 var items_def: Dictionary = {}
@@ -52,6 +55,35 @@ var owned_upgrades: Dictionary = {}
 var professions: Array = []
 var profession_id := ""
 var profession_chosen := false
+var start_type_id := ""
+var starting_perk_ids: Array = []
+var starting_perk_meta: Dictionary = {}
+var run_count := 0
+var player_max_hp := 100
+var player_accuracy := 70
+var player_reaction := 10
+var thirst := 1000
+var thirst_max := 1000
+var wounds := 0
+var wound_stable := true
+var addiction_days := {"nicotine": 0, "alcohol": 0, "narcotic": 0}
+var narcotic_relief := 999
+var sentinel_days := 0
+var sentinel_pool := 0
+var luck := 0
+var perk_flags: Dictionary = {}
+var achievements_unlocked: Dictionary = {}
+var achievement_defs: Array = []
+var ach_stats: Dictionary = {}
+var run_stats: Dictionary = {}
+var aug_presence := 0
+var aug_introduced := false
+var aug_next_spawn_day := 0
+var hireling: Dictionary = {}
+var hireling_expedition: Dictionary = {}
+var gun_order: Dictionary = {}
+var gun_defs: Dictionary = {}
+var gun_order_defs: Dictionary = {}
 var commissions: Array = []
 var procurement_defs: Dictionary = {}
 var special_customers: Dictionary = {}
@@ -201,6 +233,7 @@ var tutorial_step := 0
 func _ready() -> void:
 	rng.randomize()
 	_load_defs()
+	_load_run_meta()
 	new_game()
 
 func _fmt_placeholder_name(text: String, count: int = 1) -> String:
@@ -311,6 +344,27 @@ func _load_defs() -> void:
 		var pkdata = JSON.parse_string(perk_file.get_as_text())
 		if pkdata is Array:
 			starting_perks = pkdata
+	var gun_file := FileAccess.open("res://data/gun_stats.json", FileAccess.READ)
+	if gun_file:
+		var gdata = JSON.parse_string(gun_file.get_as_text())
+		if gdata is Dictionary:
+			gun_defs = gdata
+	var go_file := FileAccess.open("res://data/gun_orders.json", FileAccess.READ)
+	if go_file:
+		var godata = JSON.parse_string(go_file.get_as_text())
+		if godata is Dictionary:
+			gun_order_defs = godata
+	var ach_file := FileAccess.open("res://data/achievements.json", FileAccess.READ)
+	if ach_file:
+		var adata = JSON.parse_string(ach_file.get_as_text())
+		if adata is Array:
+			achievement_defs = adata
+	var meta_file := FileAccess.open("res://data/starting_perks_meta.json", FileAccess.READ)
+	if meta_file:
+		var mdata = JSON.parse_string(meta_file.get_as_text())
+		if mdata is Array:
+			for m in mdata:
+				starting_perk_meta[String(m.get("id", ""))] = m
 	var rep_file := FileAccess.open("res://data_private/reputation_perks.json", FileAccess.READ)
 	if rep_file:
 		var rpdata = JSON.parse_string(rep_file.get_as_text())
@@ -1340,6 +1394,9 @@ func appraise_counter_item(value: int) -> Dictionary:
 		return _appraisal_walkout()
 	var acceptable := _appraisal_acceptable(correct, value)
 	var grade := appraisal_precision(correct, value)
+	if grade == 1:
+		ach_stats["perfect_appraisals"] = int(ach_stats.get("perfect_appraisals", 0)) + 1
+		_check_achievements()
 	if acceptable == 0 and _appraisal_fee_percent(grade) <= 0:
 		acceptable = 1 if value >= correct else -1
 	if acceptable != 0:
@@ -1625,6 +1682,8 @@ func is_stackable_item(it: Dictionary) -> bool:
 	return did.contains("_ammo") and not is_container_item(it)
 
 func add_item(item: Dictionary) -> bool:
+	if String(item.get("def_id", "")) == "business_permit":
+		unlock_achievement("ACH_AUTHORIZED")
 	if is_stackable_item(item):
 		for existing in inventory:
 			if String(existing.get("def_id", "")) == String(item.get("def_id", "")) and int(existing.get("unit_count", 1)) < 99 and int(existing.get("condition", 100)) == int(item.get("condition", 100)) and bool(existing.get("authentic", true)) == bool(item.get("authentic", true)) and bool(existing.get("stolen", false)) == bool(item.get("stolen", false)) and existing.get("children", []).is_empty():
@@ -2231,7 +2290,7 @@ func rotate_item(uid: int) -> bool:
 	emit_signal("state_changed")
 	return true
 
-func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
+func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: String = "", perk_ids: Array = []) -> void:
 	difficulty = diff_id if DIFFICULTY.has(diff_id) else "normal"
 	campaign_mode = mode if mode in ["mobile", "original"] else "mobile"
 	var dcfg: Dictionary = DIFFICULTY[difficulty]
@@ -2265,6 +2324,30 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	poster_pulled = false
 	starting_perk_id = ""
 	starting_perk_chosen = false
+	start_type_id = ""
+	starting_perk_ids = []
+	perk_flags = {}
+	player_max_hp = 100
+	player_accuracy = 70
+	player_reaction = 10
+	thirst = 1000
+	thirst_max = 1000
+	wounds = 0
+	wound_stable = true
+	addiction_days = {"nicotine": 0, "alcohol": 0, "narcotic": 0}
+	narcotic_relief = 999
+	sentinel_days = 0
+	sentinel_pool = 0
+	luck = 0
+	achievements_unlocked = {}
+	ach_stats = {}
+	run_stats = _new_run_stats()
+	aug_presence = 0
+	aug_introduced = false
+	aug_next_spawn_day = 0
+	hireling = {}
+	hireling_expedition = {}
+	gun_order = {}
 	trash_items = []
 	upgrade_cooldowns = {}
 	evidence_removal_purchases = 0
@@ -2276,28 +2359,29 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	pending_event = {}
 	tutorial_done = false
 	tutorial_step = 0
-	var start_items := [
-		["water_bottle_full", 92, true, false],
-		["cig_red", 88, true, false],
-		["hand_gold", 76, true, false],
-		["handmade_pistol", 64, true, false],
-		["nutrifruit", 95, true, false],
-		["organ_heart", 70, true, false],
-		["chem_scanner", 90, true, false],
-		["magnifier", 85, true, false],
-		["water_tablet", 100, true, false],
-		["radio_on", 80, true, false],
-	]
-	for entry in start_items:
-		var it := make_item(entry[0], entry[1], entry[2], entry[3])
-		it["known"] = true
-		add_item(it)
-	for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["flashlight", 1], ["water_test_strip", 3], ["plant_analyser", 1], ["backpack_small", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
-		if items_def.has(stock[0]):
-			for i in range(int(stock[1])):
-				var it2 := make_item(stock[0], 100, true, false)
-				it2["known"] = true
-				add_item(it2)
+	if start_type == "":
+		var start_items := [
+			["water_bottle_full", 92, true, false],
+			["cig_red", 88, true, false],
+			["hand_gold", 76, true, false],
+			["handmade_pistol", 64, true, false],
+			["nutrifruit", 95, true, false],
+			["organ_heart", 70, true, false],
+			["chem_scanner", 90, true, false],
+			["magnifier", 85, true, false],
+			["water_tablet", 100, true, false],
+			["radio_on", 80, true, false],
+		]
+		for entry in start_items:
+			var it := make_item(entry[0], entry[1], entry[2], entry[3])
+			it["known"] = true
+			add_item(it)
+		for stock in [["scrap_metal", 3], ["printer_plastic", 3], ["common_chemical", 2], ["restricted_chemical", 1], ["nutrifruit_seed", 2], ["industrial_fish_feed", 2], ["water_jug", 1], ["meat_scrap", 2], ["nutrient_tablet", 1], ["red_beer", 2], ["plastic_bag", 2], ["debris_pile1", 2], ["printer_module_metal", 1], ["printer_chip_pistol", 1], ["flashlight", 1], ["water_test_strip", 3], ["plant_analyser", 1], ["backpack_small", 1], ["organ_heart", 1], ["water_tablet", 1], ["small_raw_meat", 2], ["nutrifruit", 1]]:
+			if items_def.has(stock[0]):
+				for i in range(int(stock[1])):
+					var it2 := make_item(stock[0], 100, true, false)
+					it2["known"] = true
+					add_item(it2)
 	owned_upgrades = {}
 	profession_id = ""
 	profession_chosen = false
@@ -2346,6 +2430,10 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	appraisal_blacklist = []
 	appraisal_introduced = true
 	pending_promotion = false
+	if start_type != "":
+		apply_start_type(start_type)
+		if not perk_ids.is_empty():
+			apply_starting_perks(perk_ids)
 	start_day()
 
 func _stolen_heat_for_value(value: int) -> int:
@@ -2681,6 +2769,8 @@ func sec_commit_sale(item: Dictionary, price: int, faction: String) -> void:
 		var heat := int(item.get("stolen_heat", 50))
 		commit_crime("FENCING", int(round(float(value) * float(heat) / 100.0)))
 	var level := sec_item_contraband_level(item)
+	if bool(item.get("stolen", false)) or level > 0:
+		perk_flags["sold_dirty"] = true
 	if level > 0:
 		var def := get_item_def(String(item.get("def_id", "")))
 		var cat := String(def.get("category", ""))
@@ -3048,6 +3138,7 @@ func _sec_maybe_start_inspection() -> void:
 
 func start_day() -> void:
 	_sec_on_new_day()
+	_maybe_introduce_aug()
 	_refresh_upgrades()
 	power = max_power + next_day_power_bonus
 	next_day_power_bonus = 0
@@ -3140,6 +3231,16 @@ func start_day() -> void:
 	for i in range(count):
 		customers_today.append(_gen_customer())
 	var regular_count := customers_today.size() - regular_start
+	if not hireling.is_empty() and String(hireling.get("status", "")) in ["complete", "injured"] and not bool(hireling.get("reported", false)):
+		customers_today.append(_gen_hireling_return_customer())
+		hireling["reported"] = true
+	if regular_count > 0 and day >= 2 and rng.randf() < 0.18:
+		var gun_c := _gen_gun_order_customer()
+		if not gun_c.is_empty():
+			customers_today[regular_start + rng.randi_range(0, regular_count - 1)] = gun_c
+	if aug_introduced and day >= aug_next_spawn_day and regular_count > 0:
+		customers_today[regular_start + rng.randi_range(0, regular_count - 1)] = _gen_aug_customer()
+		aug_next_spawn_day = day + rng.randi_range(6, 7)
 	if rng.randi_range(1, 100) <= 8:
 		var candidates: Array = []
 		for w in wanted:
@@ -4175,7 +4276,8 @@ func put_display_on_counter(uid: int) -> bool:
 	var val := market_value(it, true, arche.get("faction", "lower"))
 	var pm := float(arche.get("price_mod", 1.0)) * (float(attraction_bonus) / 100.0)
 	var bargain := 1.0 + float(bargain_bonus) / 100.0
-	current_customer["offer"] = int(round(val * factor * pm * bargain * rng.randf_range(0.75, 0.95)))
+	var withdraw := 1.0 + addiction_price_mod()
+	current_customer["offer"] = int(round(val * factor * pm * bargain * withdraw * rng.randf_range(0.75, 0.95)))
 	current_customer["max_price"] = int(min(float(current_customer["budget"]), val * factor * pm * bargain * 1.05))
 	emit_signal("state_changed")
 	return true
@@ -4325,7 +4427,8 @@ func make_offer(price: int) -> Dictionary:
 	if price > cash:
 		return {"accepted": false, "text": "现金不足，你只有 %d₵。" % cash}
 	var item: Dictionary = current_customer["item"]
-	var min_price := int(round(float(item.get("min_price", 0)) * (1.0 - float(bargain_bonus) / 100.0)))
+	var aug_discount := 0.8 if int(current_customer.get("aug_threat", 0)) > 0 else 1.0
+	var min_price := int(round(float(item.get("min_price", 0)) * (1.0 - float(bargain_bonus) / 100.0) * (1.0 + addiction_price_mod()) * aug_discount))
 	if price >= min_price:
 		cash -= price
 		item["known"] = true
@@ -4333,6 +4436,8 @@ func make_offer(price: int) -> Dictionary:
 		add_item(item)
 		daily["purchases"] += price
 		daily["bought"] = int(daily.get("bought", 0)) + 1
+		run_stats["stock_spent"] = int(run_stats.get("stock_spent", 0)) + price
+		run_stats["items_bought"] = int(run_stats.get("items_bought", 0)) + 1
 		add_rep(current_customer["arche"].get("faction", "lower"), 2)
 		var advanced := _advance_sell_item()
 		var suffix := "" if advanced else ""
@@ -4348,11 +4453,18 @@ func make_offer(price: int) -> Dictionary:
 func make_sell_offer(price: int) -> Dictionary:
 	if current_customer.is_empty() or current_customer.get("intent") != "buy" or counter_item.is_empty():
 		return {"accepted": false, "text": "请先从展示柜选一件商品放到柜台。"}
-	if price <= int(current_customer.get("max_price", 0)):
+	var aug_markup := 1.2 if int(current_customer.get("aug_threat", 0)) > 0 else 1.0
+	var sell_cap := int(round(float(current_customer.get("max_price", 0)) * (1.0 - addiction_price_mod()) * aug_markup))
+	if price <= sell_cap:
 		sec_commit_sale(counter_item, price, String(current_customer.get("arche", {}).get("faction", "lower")))
 		cash += price
 		daily["sales"] += price
 		daily["sold"] = int(daily.get("sold", 0)) + 1
+		run_stats["total_sales"] = int(run_stats.get("total_sales", 0)) + price
+		run_stats["items_sold"] = int(run_stats.get("items_sold", 0)) + 1
+		if int(daily["sales"]) > int(run_stats.get("best_day_sales", 0)):
+			run_stats["best_day_sales"] = int(daily["sales"])
+			run_stats["best_day"] = day
 		_remove_counter_from_display()
 		add_rep(current_customer["arche"].get("faction", "lower"), 2)
 		complete_customer(true)
@@ -4421,6 +4533,7 @@ func _remove_counter_from_display() -> void:
 func complete_customer(success: bool) -> void:
 	if not current_customer.is_empty():
 		current_customer["done"] = true
+		run_stats["customers_served"] = int(run_stats.get("customers_served", 0)) + 1
 		if not success:
 			add_rep("lower", -1)
 	emit_signal("state_changed")
@@ -4483,6 +4596,16 @@ func finish_day() -> Dictionary:
 			summary["gameover"] = "sentinel"
 	if String(summary["gameover"]) != "":
 		ending_id = String(summary["gameover"])
+	if ending_id in ["buyout", "buyout_mortgage"]:
+		unlock_achievement("ACH_BUYOUT")
+		if not bool(perk_flags.get("sold_dirty", false)):
+			unlock_achievement("ACH_HONEST_MERCHANT")
+		if start_type_id == "rock_bottom":
+			unlock_achievement("ACH_RAG_TO_RICHES")
+			if difficulty in ["hard", "challenge"]:
+				unlock_achievement("ACH_NOTHING_TO_RICHES")
+		if day < 50:
+			unlock_achievement("ACH_PRODIGIOUS")
 	summary["cash"] = cash
 	summary["rent"] = rent
 	summary["rent_due"] = rent_due
@@ -4511,6 +4634,8 @@ func _night_burglary() -> void:
 	var stolen: Dictionary = display[idx]
 	var value := effective_value(stolen)
 	display.remove_at(idx)
+	run_stats["burglaries"] = int(run_stats.get("burglaries", 0)) + 1
+	run_stats["burglary_losses"] = int(run_stats.get("burglary_losses", 0)) + value
 	if bool(owned_upgrades.get("INSURANCE", false)):
 		cash += value
 		_add_night_log("夜间失窃：%s（估值 %d₵），保险已赔付。" % [item_display_name(stolen), value])
@@ -4521,8 +4646,17 @@ func _night_burglary() -> void:
 func advance_day() -> void:
 	if phase == "gameover":
 		return
+	_resolve_hireling_expedition()
+	if not hireling.is_empty() and String(hireling.get("status", "")) == "injured":
+		hireling["health"] = mini(int(hireling.get("max_health", 100)), int(hireling.get("health", 0)) + 10)
+		if int(hireling.get("health", 0)) > 50:
+			hireling["status"] = "available"
 	advance_machines_one_cycle()
 	_night_burglary()
+	nightly_survival()
+	run_stats["days_played"] = int(run_stats.get("days_played", day)) + 1
+	run_stats["net_worth_by_day"][str(day + 1)] = net_worth()
+	_check_achievements()
 	if phase == "gameover":
 		emit_signal("state_changed")
 		return
@@ -4585,21 +4719,32 @@ func upgrade_total(effect: String) -> int:
 	return total
 
 func apply_profession(pid: String) -> Dictionary:
+	return apply_start_type(pid)
+
+func apply_start_type(pid: String) -> Dictionary:
 	if profession_chosen:
-		return {"ok": false, "text": "本局已经选择过专精。"}
+		return {"ok": false, "text": "本局已经选择过开局。"}
 	var p := {}
 	for x in professions:
 		if String(x.get("id", "")) == pid:
 			p = x
 			break
 	if p.is_empty():
-		return {"ok": false, "text": "没有这个专精。"}
+		return {"ok": false, "text": "没有这个开局。"}
+	if bool(p.get("coming_soon", false)):
+		return {"ok": false, "text": "这个开局尚未开放。"}
 	profession_id = pid
+	start_type_id = pid
 	profession_chosen = true
-	cash += int(p.get("cash", 0))
+	if pid == "rock_bottom":
+		cash = 0
+	else:
+		cash += int(p.get("cash_delta", p.get("cash", 0)))
+	rent += int(p.get("rent_delta", 0))
 	for entry in p.get("items", []):
-		var iid := String(entry[0]); var cnt := int(entry[1])
-		if not items_def.has(iid):
+		var iid := String(entry[0])
+		var cnt := int(entry[1])
+		if iid == "" or cnt <= 0:
 			continue
 		for n in range(cnt):
 			var it := make_item(iid, 100, true, false)
@@ -4608,9 +4753,164 @@ func apply_profession(pid: String) -> Dictionary:
 	var reps: Dictionary = p.get("rep", {})
 	for k in reps.keys():
 		add_rep(String(k), int(reps[k]))
+	var ups: Dictionary = p.get("upgrades", {})
+	for uid in ups.keys():
+		owned_upgrades[String(uid)] = true
+	_refresh_upgrades()
+	if pid == "rock_bottom":
+		unlock_achievement("ACH_RATS")
 	emit_signal("state_changed")
-	return {"ok": true, "text": "已选择专精：%s。" % p.get("name", pid)}
+	return {"ok": true, "text": "已选择开局：%s。" % p.get("name", pid)}
 
+func starting_perk_meta_def(pid: String) -> Dictionary:
+	return starting_perk_meta.get(pid, {})
+
+func starting_perk_points(ids: Array) -> int:
+	var total := 0
+	for pid in ids:
+		total += int(starting_perk_meta_def(String(pid)).get("cost", 0))
+	return total
+
+func starting_perk_slots(ids: Array) -> int:
+	var slots := 4
+	for pid in ids:
+		var m := starting_perk_meta_def(String(pid))
+		slots += maxi(0, int(m.get("max_slot", 1)) - 1)
+	return slots
+
+func starting_perks_valid(ids: Array) -> Dictionary:
+	if ids.size() > starting_perk_slots(ids):
+		return {"ok": false, "text": "天赋槽位不足。"}
+	if starting_perk_points(ids) > 3:
+		return {"ok": false, "text": "天赋点数超过 3 点。"}
+	for pid in ids:
+		if starting_perk_def(String(pid)).is_empty() and starting_perk_meta_def(String(pid)).is_empty():
+			return {"ok": false, "text": "没有这个天赋。"}
+		var m := starting_perk_meta_def(String(pid))
+		var bad: Array = m.get("incompatible", [])
+		for other in ids:
+			if String(other) != String(pid) and bad.has(String(other)):
+				return {"ok": false, "text": "天赋互斥：%s 与 %s。" % [pid, other]}
+		if ids.count(pid) > maxi(1, int(m.get("max_slot", 1))):
+			return {"ok": false, "text": "这个天赋最多选 %d 次。" % maxi(1, int(m.get("max_slot", 1)))}
+	return {"ok": true, "text": "可以开始。"}
+
+func apply_starting_perks(ids: Array) -> Dictionary:
+	if starting_perk_chosen:
+		return {"ok": false, "text": "本局已经选择过天赋。"}
+	var check := starting_perks_valid(ids)
+	if not bool(check.get("ok", false)):
+		return check
+	starting_perk_ids = []
+	for pid in ids:
+		var p := starting_perk_def(String(pid))
+		if p.is_empty():
+			continue
+		starting_perk_ids.append(String(pid))
+		_apply_starting_perk_effect(String(pid))
+		perk_flags[String(pid)] = true
+	starting_perk_id = String(starting_perk_ids[0]) if not starting_perk_ids.is_empty() else ""
+	starting_perk_chosen = true
+	_rebuild_starting_perk_effects()
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已选择 %d 个天赋。" % starting_perk_ids.size()}
+
+func choose_starting_perk(pid: String) -> Dictionary:
+	return apply_starting_perks([pid])
+
+func _apply_starting_perk_effect(pid: String) -> void:
+	match pid:
+		"perk_sawyer_crew":
+			combat_allies = [{"name": "索耶船员", "enemy_id": "marine"}]
+		"perk_expedition_organizer":
+			combat_allies = [{"name": "探险助手", "enemy_id": "scav"}]
+			unlock_hireling()
+		"perk_saving": cash += 150
+		"perk_bad_lease": rent += 40
+		"perk_well_connected":
+			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
+				add_rep(f, 15)
+		"perk_public_enemy":
+			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
+				add_rep(f, -15)
+		"perk_model_citizen": add_rep("security", 30)
+		"perk_convict":
+			add_rep("security", -30)
+			add_rep("blackmarket", 25)
+		"perk_sycophant":
+			add_rep("upper", 15)
+			perk_flags["rep_gain"] = true
+		"perk_known_snitch":
+			add_rep("security", -10)
+			add_rep("blackmarket", -10)
+			add_rep("rev", -10)
+		"perk_revolution_sympathizer": add_rep("rev", 25)
+		"perk_colorful_character":
+			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
+				add_rep(f, 3)
+		"perk_tapehead":
+			add_item(make_item("radio_on", 100, true, false))
+			add_item(make_item("cassette_player", 100, true, false))
+		"perk_handy":
+			add_item(make_item("toolbox", 100, true, false))
+			add_item(make_item("flashlight", 100, true, false))
+		"perk_vending":
+			owned_upgrades["VENDING_MACHINE"] = true
+			add_item(make_item("vending_machine", 100, true, false))
+		"perk_side_street": rent = maxi(50, rent - 20)
+		"perk_prime_real_estate": rent += 75
+		"perk_nicotine_addiction":
+			perk_flags["addiction_nicotine"] = true
+			addiction_days["nicotine"] = 3
+			add_item(make_item("cig_red", 100, true, false))
+		"perk_alcohol_addiction":
+			perk_flags["addiction_alcohol"] = true
+			addiction_days["alcohol"] = 3
+			add_item(make_item("red_beer", 100, true, false))
+		"perk_narcotic_addiction":
+			perk_flags["addiction_narcotic"] = true
+			addiction_days["narcotic"] = 3
+			add_item(make_item("fanta_pill", 100, true, false))
+		"perk_gambling_addiction":
+			perk_flags["gambling"] = true
+			add_item(make_item("coin", 100, true, false))
+		"perk_sentinel":
+			perk_flags["sentinel"] = true
+		"perk_aug_menace":
+			perk_flags["aug_menace"] = true
+			aug_introduced = true
+			aug_presence = 15
+			aug_next_spawn_day = 2
+		"perk_lucky": luck += 15
+		"perk_unlucky": luck -= 15
+		"perk_working_pipes":
+			owned_upgrades["GUTTERFLOW_TAP"] = true
+			owned_upgrades["RUSTWATER_TAP"] = true
+		"perk_welfare_program": perk_flags["welfare"] = true
+		"perk_banned_commissary": perk_flags["banned_commissary"] = true
+		"perk_hoarder":
+			for i in range(3):
+				add_item(make_item("debris_pile1", 100, true, false))
+		"perk_secret_admirer": perk_flags["secret_admirer"] = true
+		"perk_short_sleeper": perk_flags["short_sleeper"] = true
+		"perk_minimalist": perk_flags["minimalist"] = true
+		"perk_ascetic": perk_flags["ascetic"] = true
+		"perk_blackmail": perk_flags["blackmail"] = true
+		"perk_blabbermouth": perk_flags["blabbermouth"] = true
+		"perk_intimidating": perk_flags["intimidating"] = true
+		"perk_diplomatic": perk_flags["diplomatic"] = true
+		"perk_alert": perk_flags["alert"] = true
+		"perk_awful_negotiator": perk_flags["awful_negotiator"] = true
+		"perk_tinkerer": perk_flags["tinkerer"] = true
+		"perk_illiterate": perk_flags["illiterate"] = true
+		"perk_agoraphobia": perk_flags["agoraphobia"] = true
+		"perk_maimed", "perk_degenerative_osteoarthritis":
+			perk_flags[pid] = true
+			wounds = mini(10, wounds + 2)
+		"perk_proficient_scavenger", "perk_careful_scavenger":
+			perk_flags[pid] = true
+		"perk_wild_favorite": add_rep("blackmarket", 10)
+		"perk_wild_bad_side": add_rep("blackmarket", -10)
 func _market_customer(type_id: String, shortage: bool) -> Dictionary:
 	var cfg: Dictionary = market_customers.get("types", {}).get(type_id, {})
 	if cfg.is_empty():
@@ -4775,48 +5075,265 @@ func starting_perk_def(pid: String) -> Dictionary:
 			return p
 	return {}
 
-func choose_starting_perk(pid: String) -> Dictionary:
-	if starting_perk_chosen:
-		return {"ok": false, "text": "本局已经选择过天赋。"}
-	var p := starting_perk_def(pid)
-	if p.is_empty():
-		return {"ok": false, "text": "没有这个天赋。"}
-	starting_perk_id = pid
-	starting_perk_chosen = true
-	match pid:
-		"perk_sawyer_crew":
-			combat_allies = [{"name": "索耶船员", "enemy_id": "marine"}]
-		"perk_expedition_organizer":
-			combat_allies = [{"name": "探险助手", "enemy_id": "scav"}]
-		"perk_saving": cash += 150
-		"perk_bad_lease": cash -= 40
-		"perk_well_connected": add_rep("upper", 15)
-		"perk_public_enemy": add_rep("security", -15)
-		"perk_model_citizen": add_rep("security", 30)
-		"perk_convict":
-			add_rep("security", -30)
-			add_rep("blackmarket", 25)
-		"perk_revolution_sympathizer": add_rep("rev", 25)
-		"perk_colorful_character":
-			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
-				add_rep(f, 3)
-		"perk_sycophant": add_rep("upper", 15)
-		"perk_tapehead":
-			add_item(make_item("radio_on", 100, true, false))
-			add_item(make_item("cassette_player", 100, true, false))
-		"perk_handy":
-			add_item(make_item("toolbox", 100, true, false))
-			add_item(make_item("flashlight", 100, true, false))
-		"perk_vending":
-			add_item(make_item("vending_machine", 100, true, false))
-		"perk_known_snitch": add_rep("security", -10)
-	_rebuild_starting_perk_effects()
-	_add_night_log("选择天赋：%s。" % String(p.get("name", pid)))
-	emit_signal("state_changed")
-	return {"ok": true, "text": "已选择天赋：%s。" % String(p.get("name", pid))}
-
 func _rebuild_starting_perk_effects() -> void:
 	pass
+
+func _load_run_meta() -> void:
+	var f := FileAccess.open("user://run_meta.json", FileAccess.READ)
+	if f == null:
+		run_count = 0
+		return
+	var data = JSON.parse_string(f.get_as_text())
+	if data is Dictionary:
+		run_count = int(data.get("run_count", 0))
+
+func record_new_game_start() -> void:
+	run_count += 1
+	var f := FileAccess.open("user://run_meta.json", FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify({"run_count": run_count}))
+		f.close()
+
+func _new_run_stats() -> Dictionary:
+	return {
+		"total_sales": 0, "items_sold": 0, "stock_spent": 0, "customers_served": 0,
+		"sales_by_day": {}, "best_day_sales": 0, "best_day": 0,
+		"rent_paid": 0, "power_spent": 0, "insurance_spent": 0, "bribes": 0,
+		"inspections": 0, "inspections_passed": 0, "goods_seized": 0,
+		"burglaries": 0, "burglary_losses": 0, "scavenge_attempts": 0,
+		"scavenged_value": 0, "injuries_minor": 0, "injuries_major": 0,
+		"criminals_reported": 0, "perfect_appraisals": 0, "augs_shot": 0,
+		"wrongful_reports": 0, "items_bought": 0, "best_flip_value": 0,
+		"best_find_value": 0, "days_played": 1, "net_worth_by_day": {},
+	}
+
+func net_worth() -> int:
+	var total := cash
+	for it in inventory:
+		total += effective_value(it)
+	for it in display:
+		total += effective_value(it)
+	return total
+
+func _check_achievements() -> void:
+	if net_worth() > 10000:
+		unlock_achievement("ACH_SETTLED")
+	if net_worth() > 100000:
+		unlock_achievement("ACH_RICH")
+	if store_attractiveness() >= 1000:
+		unlock_achievement("ACH_SHINY")
+	if int(ach_stats.get("criminals_reported", 0)) >= 10:
+		unlock_achievement("ACH_MODEL_CITIZEN")
+	if int(ach_stats.get("augs_shot", 0)) >= 10:
+		unlock_achievement("ACH_AUG_HUNTER")
+	if int(ach_stats.get("perfect_appraisals", 0)) >= 10:
+		unlock_achievement("ACH_MASTER_APPRAISER")
+	for mid in machine_modules.keys():
+		if int(machine_module_sums(String(mid)).get("quality", 0)) >= 250:
+			unlock_achievement("ACH_OVERLOAD")
+			break
+	var machine_ids := {}
+	for m in machines:
+		machine_ids[String(m.get("id", ""))] = true
+	var machines_owned := 0
+	for it in inventory:
+		if machine_ids.has(String(it.get("def_id", ""))):
+			machines_owned += 1
+	if machines_owned >= 10:
+		unlock_achievement("ACH_INDUSTRIOUS")
+	for f in rep.keys():
+		if int(rep[f]) >= 200:
+			unlock_achievement("ACH_PERFECT_MEDIATOR")
+			break
+
+func unlock_achievement(aid: String) -> bool:
+	if aid == "" or achievements_unlocked.has(aid):
+		return false
+	achievements_unlocked[aid] = day
+	emit_signal("achievement_unlocked", aid)
+	emit_signal("state_changed")
+	return true
+
+func survival_accuracy_mod() -> int:
+	if thirst <= 0:
+		return -6
+	if thirst <= 150:
+		return -4
+	if thirst <= 500:
+		return -2
+	if thirst >= 800:
+		return 5
+	return 0
+
+func addiction_active_count() -> int:
+	var n := 0
+	for k in addiction_days.keys():
+		if int(addiction_days[k]) >= 3 and bool(perk_flags.get("addiction_" + String(k), false)):
+			n += 1
+	return mini(3, n)
+
+func addiction_price_mod() -> float:
+	return float(addiction_active_count()) * 0.08
+
+func gain_wound(major: bool = false) -> void:
+	wounds = mini(10, wounds + (5 if major else 2))
+	wound_stable = false
+	ach_stats["injuries_major" if major else "injuries_minor"] = int(ach_stats.get("injuries_major" if major else "injuries_minor", 0)) + 1
+
+func nightly_survival() -> void:
+	thirst = maxi(0, thirst - 70)
+	for k in addiction_days.keys():
+		addiction_days[k] = mini(999, int(addiction_days[k]) + 1)
+		if int(addiction_days[k]) >= 20 and bool(perk_flags.get("addiction_" + String(k), false)):
+			perk_flags.erase("addiction_" + String(k))
+	if int(narcotic_relief) < 999:
+		narcotic_relief = mini(999, int(narcotic_relief) + 1)
+	if wound_stable:
+		wounds = maxi(0, wounds - 4)
+	else:
+		if rng.randi_range(1, 100) <= 10:
+			wounds = mini(10, wounds + 1)
+		elif rng.randi_range(1, 100) <= 50:
+			wound_stable = true
+	if bool(perk_flags.get("sentinel", false)):
+		sentinel_days += 1
+		var gain := 0
+		if sentinel_days >= 14:
+			gain = 3
+		elif sentinel_days >= 10:
+			gain = 2
+		elif sentinel_days >= 7:
+			gain = 1
+		sentinel_pool += gain
+		if sentinel_days >= 6 and gain == 0:
+			_add_night_log("哨兵注射剂在体内滴答作响。")
+		if sentinel_pool >= 20:
+			phase = "gameover"
+			ending_id = "sentinel"
+			_add_night_log("哨兵注射剂到期了。")
+	if aug_introduced and aug_presence >= 100:
+		phase = "gameover"
+		ending_id = "aug"
+		_add_night_log("义体人控制了空间站。")
+
+func _water_ml_for(def_id: String) -> int:
+	match def_id:
+		"bottled_water": return 750
+		"small_bottled_water": return 450
+		"mini_bottle": return 250
+		"large_bottled_water": return 2000
+		"water_jug": return 6000
+		"water_ration": return 750
+		"water_ration_small": return 375
+		"water_bottle_full": return 1000
+		"water_bottle_empty": return 0
+		"energy_drink", "galaxy_blend": return 350
+		"cup_noodle": return 375
+	return 0
+
+func _addiction_kind_for(def_id: String) -> String:
+	if def_id in ["packet_red_cigarette", "cig_red", "cig_black", "cigarette"]:
+		return "nicotine"
+	if def_id in ["red_beer", "nudka", "wine_bottle", "wine", "moonshine"]:
+		return "alcohol"
+	if def_id in ["fanta_pill", "dream_dust", "pink_injector", "pink_alt_injector"]:
+		return "narcotic"
+	return ""
+
+func _addiction_value_for(def_id: String) -> int:
+	match def_id:
+		"packet_red_cigarette", "cig_red", "cig_black", "cigarette": return 3
+		"red_beer": return 1
+		"nudka": return 4
+		"wine_bottle", "wine": return 4
+		"fanta_pill": return 3
+		"dream_dust": return 1
+		"pink_injector", "pink_alt_injector": return 1
+	return 0
+
+func can_use_consumable(it: Dictionary) -> bool:
+	var did := String(it.get("def_id", ""))
+	if did in ["black_injector", "large_purple_injector", "packet_red_cigarette", "cig_red", "cig_black", "cigarette", "fanta_pill", "dream_dust", "pink_injector", "pink_alt_injector"]:
+		return true
+	var cat := String(get_item_def(did).get("category", ""))
+	if _water_ml_for(did) > 0:
+		return true
+	return cat in ["food", "medical"] and not did.contains("container")
+
+func use_consumable(uid: int) -> Dictionary:
+	var it := find_item(uid)
+	if it.is_empty():
+		return {"ok": false, "text": "物品不存在。"}
+	var did := String(it.get("def_id", ""))
+	if did in ["scratcher", "scratcher_stack", "lottery_ticket"]:
+		var payout := 0
+		var roll := rng.randi_range(1, 100)
+		if roll > 97:
+			payout = rng.randi_range(350, 600)
+		elif roll > 85:
+			payout = rng.randi_range(80, 260)
+		elif roll > 55:
+			payout = rng.randi_range(10, 60)
+		cash += payout
+		remove_inventory(did, 1)
+		if payout >= 350:
+			unlock_achievement("ACH_LUCKY")
+		emit_signal("state_changed")
+		return {"ok": true, "text": "刮开%s：%s" % [item_display_name(it), ("中奖 %d₵！" % payout) if payout > 0 else "谢谢惠顾。"]}
+	if did == "black_injector":
+		var kinds: Array = []
+		for k in addiction_days.keys():
+			if bool(perk_flags.get("addiction_" + String(k), false)):
+				kinds.append(k)
+		if kinds.is_empty():
+			return {"ok": false, "text": "你没有需要戒断的成瘾。"}
+		var pick := String(kinds[rng.randi_range(0, kinds.size() - 1)])
+		perk_flags.erase("addiction_" + pick)
+		addiction_days[pick] = 0
+		remove_inventory(did, 1)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "Synaprest 清除了%s成瘾。" % pick}
+	if did == "large_purple_injector":
+		sentinel_days = 0
+		sentinel_pool = 0
+		remove_inventory(did, 1)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "Immunivax 重置了哨兵注射剂计时。"}
+	var ml := _water_ml_for(did)
+	if ml > 0:
+		if thirst >= thirst_max and ml < 1000:
+			return {"ok": false, "text": "你并不口渴。"}
+		var gain := mini(ml, thirst_max - thirst)
+		thirst = mini(thirst_max, thirst + gain)
+		remove_inventory(did, 1)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "喝下%s，解渴 %d ml。" % [item_display_name(it), gain]}
+	var kind := _addiction_kind_for(did)
+	if kind != "":
+		var val := _addiction_value_for(did)
+		addiction_days[kind] = -val
+		perk_flags["addiction_" + kind] = true
+		if kind == "narcotic":
+			narcotic_relief = 0
+		remove_inventory(did, 1)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "使用了%s，%s成瘾暂时缓解。" % [item_display_name(it), kind]}
+	var cat := String(get_item_def(did).get("category", ""))
+	if cat in ["food", "medical"]:
+		remove_inventory(did, 1)
+		if did.contains("bandage") and wounds > 0:
+			wound_stable = true
+			wounds = maxi(0, wounds - 1)
+		emit_signal("state_changed")
+		return {"ok": true, "text": "使用了%s。" % item_display_name(it)}
+	return {"ok": false, "text": "这个物品不能直接使用。"}
+
+func unlock_hireling() -> void:
+	if not hireling.is_empty():
+		return
+	hireling = {"id": "hireling_juan", "name": "Juan", "health": 100, "max_health": 100, "status": "available", "days_away": 0, "log": ""}
+	if not bool(perk_flags.get("expedition_unlocked", false)):
+		perk_flags["expedition_unlocked"] = true
 
 func rep_perk_def(pid: String) -> Dictionary:
 	for p in rep_perk_defs:
@@ -4850,6 +5367,343 @@ func procurement_template(tid: String) -> Dictionary:
 		if String(t.get("id", "")) == tid:
 			return t
 	return {}
+
+func hireling_status_text() -> String:
+	if hireling.is_empty():
+		return "没有雇员。"
+	var st := String(hireling.get("status", "available"))
+	match st:
+		"away": return "Juan 外出探险中（%d 天）。" % int(hireling.get("days_away", 0))
+		"injured": return "Juan 受伤休养中（生命 %d/%d）。" % [int(hireling.get("health", 0)), int(hireling.get("max_health", 100))]
+		"complete": return "Juan 已返回，等待汇报。"
+	return "Juan 待命中（生命 %d/%d）。" % [int(hireling.get("health", 0)), int(hireling.get("max_health", 100))]
+
+func dispatch_hireling() -> Dictionary:
+	if hireling.is_empty():
+		return {"ok": false, "text": "还没有雇员。先选择“探险组织者”天赋。"}
+	if String(hireling.get("status", "available")) != "available":
+		return {"ok": false, "text": hireling_status_text()}
+	hireling["status"] = "away"
+	hireling["days_away"] = 1
+	hireling["reported"] = false
+	hireling_expedition = {"loot": [], "log": "", "injury": 0}
+	_add_night_log("Juan 出发前往垃圾场探险。")
+	emit_signal("state_changed")
+	return {"ok": true, "text": "Juan 已出发，预计明天返回。"}
+
+func _resolve_hireling_expedition() -> void:
+	if hireling.is_empty() or String(hireling.get("status", "")) != "away":
+		return
+	var lines: Array = []
+	var loot: Array = []
+	var pools := [
+		["scrap_metal", "debris_pile1", "printer_plastic"],
+		["scrap_metal", "printer_plastic", "common_electronic"],
+		["common_electronic", "metal_ingot", "printer_chip_pistol"],
+	]
+	for i in range(3):
+		if rng.randi_range(1, 100) <= 85:
+			var pool: Array = pools[i]
+			var did := String(pool[rng.randi_range(0, pool.size() - 1)])
+			var it := make_item(did, 100, true, false)
+			it["known"] = true
+			add_item(it)
+			loot.append(item_display_name(it))
+			lines.append("找到 %s。" % item_display_name(it))
+		else:
+			var dmg := rng.randi_range(5, 8)
+			hireling["health"] = maxi(0, int(hireling.get("health", 100)) - dmg)
+			lines.append("遭遇事故，受伤 %d。" % dmg)
+	var log_text := "
+".join(lines)
+	hireling_expedition = {"loot": loot, "log": log_text, "injury": 1 if int(hireling.get("health", 100)) <= 50 else 0}
+	hireling["status"] = "complete"
+	if int(hireling.get("health", 100)) <= 50:
+		hireling["status"] = "injured"
+	_add_night_log("Juan 的探险报告：" + log_text)
+
+func _gen_hireling_return_customer() -> Dictionary:
+	var log_text := String(hireling_expedition.get("log", "这次什么也没找到。"))
+	var note := make_item("handnote", 100, true, false)
+	note["custom_name"] = "探险日志"
+	note["custom_desc"] = log_text
+	note["known"] = true
+	add_item(note)
+	hireling["status"] = "available" if String(hireling.get("status", "")) == "complete" else String(hireling.get("status", "available"))
+	hireling_expedition = {}
+	return {
+		"arche": {"faction": "lower", "name": "Juan"},
+		"intent": "hireling_return", "done": false, "patience": 3,
+		"line": log_text,
+	}
+
+func _maybe_introduce_aug() -> void:
+	if not aug_introduced and day >= 12:
+		aug_introduced = true
+		aug_presence = 15
+		aug_next_spawn_day = day + rng.randi_range(2, 4)
+		_add_night_log("治安部发布义体人通报：义体人开始出现在站内。")
+	if aug_introduced and aug_next_spawn_day <= 0:
+		aug_next_spawn_day = day + 6
+
+func _gen_aug_customer() -> Dictionary:
+	var tier := 1
+	var t := clampf(float(day - 12) / 100.0, 0.0, 1.0)
+	var roll := rng.randi_range(1, 100)
+	if roll <= int(lerpf(5.0, 75.0, t)):
+		tier = 1
+	elif roll <= int(lerpf(20.0, 100.0, t)):
+		tier = 2
+	else:
+		tier = 3 if roll > 90 else 4
+	var name := "普通顾客"
+	if tier >= 3:
+		name = "体面的顾客"
+	var is_aug := rng.randi_range(1, 100) <= 80
+	var tell := 0
+	if is_aug:
+		var tr := rng.randi_range(1, 100)
+		if tr < 35:
+			tell = 1
+		elif tr < 75:
+			tell = 2
+		else:
+			tell = 0
+	var budget := rng.randi_range(150, 250)
+	return {
+		"arche": {"faction": "lower" if tier <= 2 else "upper", "name": name},
+		"intent": "buy", "want_tags": ["MEDICAL"], "exclude_contraband": false,
+		"budget": budget, "offer": budget, "max_price": budget,
+		"done": false, "patience": 3, "is_aug": is_aug, "aug_tier": tier,
+		"aug_scanned": false, "aug_tell": tell,
+		"line": "我需要一些医疗用品。" if tier <= 2 else "你这里有什么好药？",
+	}
+
+func scan_aug_customer() -> Dictionary:
+	if current_customer.is_empty():
+		return {"ok": false, "text": "当前没有顾客。"}
+	if inventory_count("aug_scanner") <= 0:
+		return {"ok": false, "text": "没有义体扫描仪。"}
+	if bool(current_customer.get("aug_scanned", false)):
+		return {"ok": false, "text": "已经扫描过了。"}
+	if power < 25:
+		return {"ok": false, "text": "电力不足：需要 25。"}
+	power -= 25
+	current_customer["aug_scanned"] = true
+	var is_aug := bool(current_customer.get("is_aug", false))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "扫描结果：%s" % ("检测到义体信号。" if is_aug else "没有检测到义体信号。")}
+
+func threaten_aug() -> Dictionary:
+	if current_customer.is_empty():
+		return {"ok": false, "text": "当前没有顾客。"}
+	if not aug_introduced:
+		return {"ok": false, "text": "你还不知道怎么威胁义体人。"}
+	if bool(current_customer.get("aug_threatened", false)):
+		return {"ok": false, "text": "已经威胁过了。"}
+	current_customer["aug_threatened"] = true
+	if bool(current_customer.get("is_aug", false)):
+		current_customer["aug_threat"] = 20
+		add_rep("security", -2)
+		return {"ok": true, "text": "义体人沉默片刻，接受了你的条件（+20%）。"}
+	if rng.randi_range(1, 100) <= 50:
+		add_rep("blackmarket", -10)
+		add_rep("security", -10)
+		var name := String(current_customer.get("arche", {}).get("name", "顾客"))
+		complete_customer(false)
+		return {"ok": true, "text": "%s 不是义体人，被激怒了，转身离开。" % name}
+	add_rep("blackmarket", -7)
+	return {"ok": true, "text": "对方被吓住了，但你的名声受损。"}
+
+func report_aug() -> Dictionary:
+	if current_customer.is_empty() or not bool(current_customer.get("is_aug", false)):
+		ach_stats["wrongful_reports"] = int(ach_stats.get("wrongful_reports", 0)) + 1
+		add_rep("security", -10)
+		add_rep("blackmarket", -5)
+		complete_customer(false)
+		return {"ok": false, "text": "治安部赶来后一无所获，你被记了一次误报。"}
+	var reward := clampi(100 + int(day) - 12, 100, 250)
+	if bool(perk_flags.get("aug_menace", false)):
+		reward = int(round(float(reward) * 1.25))
+	cash += reward
+	add_rep("security", 8)
+	add_rep("rev", 2)
+	add_rep("blackmarket", 2)
+	aug_presence = maxi(0, aug_presence - 25)
+	ach_stats["augs_shot"] = int(ach_stats.get("augs_shot", 0)) + 1
+	ach_stats["criminals_reported"] = int(ach_stats.get("criminals_reported", 0)) + 1
+	_check_achievements()
+	_add_night_log("举报义体人：奖励 %d₵。" % reward)
+	complete_customer(false)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "治安部确认了义体信号，支付了 %d₵ 赏金。" % reward}
+
+func gun_def_stats(def_id: String, condition: String = "") -> Dictionary:
+	var g: Dictionary = gun_defs.get("guns", {}).get(def_id, {}).duplicate()
+	if g.is_empty():
+		return {}
+	var cond := condition if condition != "" else String(g.get("condition", "good"))
+	var cond_pct := int(gun_defs.get("conditions", {}).get(cond, 0))
+	var shape: Array = get_item_def(def_id).get("shape", [1, 1])
+	g["size"] = int(shape[0]) * int(shape[1])
+	g["suppressed"] = 0
+	g["caliber"] = int(g.get("caliber", 0))
+	for k in ["firepower", "style", "reliability", "recoil", "ergonomics", "accuracy"]:
+		g[k] = int(round(float(g.get(k, 0)) * (100.0 + cond_pct) / 100.0))
+	g["condition"] = cond
+	return g
+
+func _gun_tier_for_faction(faction: String) -> int:
+	return int(gun_order_defs.get("faction_tier", {}).get(faction, 1))
+
+func _player_has_tier_gun(tier: int) -> bool:
+	var ids: Array = gun_order_defs.get("tier_guns", {}).get(str(tier), [])
+	for it in inventory:
+		if ids.has(String(it.get("def_id", ""))):
+			return true
+	return false
+
+func _gen_gun_order_customer() -> Dictionary:
+	var factions: Array = ["lower", "lower", "blackmarket", "upper", "rev"]
+	var faction := String(factions[rng.randi_range(0, factions.size() - 1)])
+	var tier := _gun_tier_for_faction(faction)
+	var name := loc("ClientName", "name_gun_buyer", "枪械买家")
+	if name == "" or name == "枪械买家":
+		name = ["枪械买家", "佣兵", "上层收藏家"][tier - 1]
+	var service_mode := rng.randf() < 0.5 and not _player_has_tier_gun(tier)
+	if service_mode:
+		var sv: Dictionary = gun_order_defs.get("service", {})
+		var gids: Array = sv.get("guns", {}).get(str(tier), ["handmade_pistol"])
+		var gun_id := String(gids[rng.randi_range(0, gids.size() - 1)])
+		var conds: Array = sv.get("conditions", ["fair"])
+		var cond := String(conds[rng.randi_range(0, conds.size() - 1)])
+		var gun := make_item(gun_id, 100, true, false)
+		gun["condition"] = cond
+		gun["custom_name"] = "待修：" + item_display_name(gun)
+		gun["service_order"] = true
+		gun["known"] = true
+		add_item(gun)
+		var base_stats := gun_def_stats(gun_id, cond)
+		var req: Dictionary = {}
+		var stat_pool: Array = ["accuracy", "firepower", "reliability", "style"]
+		var need := 1 if tier == 1 else 2
+		for i in range(need):
+			var st := String(stat_pool[rng.randi_range(0, stat_pool.size() - 1)])
+			req[st] = int(base_stats.get(st, 0)) + 4
+		var fee: int = int(sv.get("fees", [0, 30, 60, 100])[mini(tier, 3)])
+		return {
+			"arche": {"faction": faction, "name": name},
+			"intent": "gun_order", "done": false, "patience": 3,
+			"order_id": "svc_%d_%d" % [day, rng.randi_range(100, 999)],
+			"tier": tier, "service": true, "gun_id": gun_id,
+			"require": req, "bonuses": [], "base": 0, "fee": fee,
+			"line": "我这把枪要按规格整备好。",
+		}
+	var pool: Array = []
+	for o in gun_order_defs.get("orders", []):
+		if int(o.get("tier", 0)) == tier:
+			pool.append(o)
+	if pool.is_empty():
+		return {}
+	var order: Dictionary = pool[rng.randi_range(0, pool.size() - 1)]
+	var o := order.duplicate(true)
+	o["arche"] = {"faction": faction, "name": name}
+	o["intent"] = "gun_order"
+	o["done"] = false
+	o["patience"] = 3
+	o["service"] = false
+	o["order_id"] = "gun_%d_%d" % [day, rng.randi_range(100, 999)]
+	o["line"] = "我要一把符合这张订单的枪。"
+	return o
+
+func gun_order_candidates() -> Array:
+	var out: Array = []
+	for it in inventory:
+		var did := String(it.get("def_id", ""))
+		if gun_defs.get("guns", {}).has(did):
+			out.append(it)
+	for it in display:
+		var did2 := String(it.get("def_id", ""))
+		if gun_defs.get("guns", {}).has(did2):
+			out.append(it)
+	return out
+
+func gun_order_eval(it: Dictionary) -> Dictionary:
+	if gun_order.is_empty():
+		return {"ok": false, "met": false, "reward": 0, "text": "没有订单。"}
+	var did := str(it.get("def_id", ""))
+	var stats := gun_def_stats(did, str(it.get("condition", "")))
+	if stats.is_empty():
+		return {"ok": false, "met": false, "reward": 0, "text": "这不是枪。"}
+	var require: Dictionary = gun_order.get("require", {})
+	var missing: Array = []
+	for k in require.keys():
+		if int(stats.get(k, 0)) <= int(require[k]):
+			missing.append("%s>%d" % [k, int(require[k])])
+	var met := missing.is_empty()
+	var reward := int(gun_order.get("base", 0))
+	var met_bonus := 0
+	for b in gun_order.get("bonuses", []):
+		if int(stats.get(String(b.get("stat", "")), 0)) > int(b.get("min", 0)):
+			reward += int(b.get("add", 0))
+			met_bonus += 1
+	var weapon_mod := 1.0 + float(market_modifiers.get("WEAPON", 0)) / 100.0
+	reward = int(round(float(reward) * weapon_mod))
+	if bool(gun_order.get("service", false)):
+		reward += int(gun_order.get("fee", 0)) + effective_value(it) / 3
+	return {"ok": true, "met": met, "reward": reward, "missing": missing, "bonuses": met_bonus, "text": "符合订单" if met else "缺少：" + "、".join(missing)}
+
+func deliver_gun_order(uid: int) -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "gun_order":
+		return {"ok": false, "text": "当前没有枪械订单。"}
+	var it := find_item(uid)
+	if it.is_empty():
+		return {"ok": false, "text": "找不到这把枪。"}
+	gun_order = current_customer
+	var ev := gun_order_eval(it)
+	if not bool(ev.get("met", false)):
+		return {"ok": false, "text": "订单要求未满足。"}
+	var reward := int(ev.get("reward", 0))
+	var loc := String(it.get("location", ""))
+	if loc == "display":
+		for i in range(display.size()):
+			if int(display[i].get("uid", -1)) == uid:
+				display.remove_at(i)
+				break
+	else:
+		inventory.remove_at(_find_root_index(inventory, uid))
+	cash += reward
+	daily["sales"] = int(daily.get("sales", 0)) + reward
+	run_stats["total_sales"] = int(run_stats.get("total_sales", 0)) + reward
+	add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), 3)
+	_add_night_log("枪械订单交付：%s，报酬 %d₵。" % [item_display_name(it), reward])
+	complete_customer(true)
+	gun_order = {}
+	emit_signal("state_changed")
+	return {"ok": true, "text": "交付完成，收到 %d₵。" % reward}
+
+func gun_order_repair() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "gun_order":
+		return {"ok": false, "text": "当前没有枪械订单。"}
+	if not bool(current_customer.get("service", false)):
+		return {"ok": false, "text": "这不是维修订单。"}
+	var fee := int(current_customer.get("fee", 0))
+	if cash < fee:
+		return {"ok": false, "text": "现金不足，维修费 %d₵。" % fee}
+	cash -= fee
+	var gid := String(current_customer.get("gun_id", ""))
+	for it in inventory:
+		if String(it.get("def_id", "")) == gid and bool(it.get("service_order", false)):
+			it["condition"] = "good"
+			break
+	run_stats["stock_spent"] = int(run_stats.get("stock_spent", 0)) + fee
+	return {"ok": true, "text": "支付维修费 %d₵，枪支已整备。" % fee}
+
+func _find_root_index(arr: Array, uid: int) -> int:
+	for i in range(arr.size()):
+		if int(arr[i].get("uid", -1)) == uid:
+			return i
+	return -1
 
 func _gen_procurement_offer_customer() -> Dictionary:
 	var active: Array = []
@@ -5227,9 +6081,10 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	combat_player_weapon = String(pw.get("ability", "fists"))
 	combat_player_weapon_uid = int(pw.get("uid", -1))
 	combat_player_items = _combat_item_abilities()
+	var php := maxi(20, player_max_hp - wounds * 2)
 	var player := {
-		"uid": 0, "team": 0, "name": "你", "hp": 100, "max_hp": 100,
-		"accuracy": 70, "reaction": 10, "priority": 5, "dodge": 0, "crit": 10,
+		"uid": 0, "team": 0, "name": "你", "hp": php, "max_hp": php,
+		"accuracy": player_accuracy + survival_accuracy_mod(), "reaction": player_reaction, "priority": 5, "dodge": 0, "crit": 10,
 		"crit_receive": 0, "death_chance": 40, "weapon": combat_player_weapon,
 		"abilities": [], "effects": [], "dead": false, "is_player": true,
 		"max_action": 1, "action": 1, "loot": [],
@@ -5605,6 +6460,12 @@ func _combat_ai_turn(u: Dictionary) -> void:
 	_combat_use_ability(u, weapon, int(target.get("uid", -1)))
 
 func _combat_start_turn(u: Dictionary) -> void:
+	if bool(u.get("is_player", false)):
+		thirst = maxi(0, thirst - 15)
+		u["accuracy"] = player_accuracy + survival_accuracy_mod()
+		if thirst <= 0:
+			_combat_damage(u, int(u.get("hp", 1)) + 999, "极度脱水")
+			return
 	for e in u.get("effects", []).duplicate():
 		if String(e.get("type", "")) == "bleed" and int(e.get("duration", 0)) > 0:
 			_combat_damage(u, absi(int(e.get("value", 2))), "流血")
@@ -5669,6 +6530,7 @@ func _combat_defeat() -> void:
 	combat_active = false
 	cash = maxi(0, cash - 100)
 	add_rep("lower", -3)
+	gain_wound(true)
 	var end_id := ""
 	if combat_context == "security_raid":
 		end_id = "sec"
@@ -6591,6 +7453,10 @@ func _grant_job_outputs(job: Dictionary) -> Array:
 					it["location"] = "machine"
 			if not placed:
 				add_item(it)
+			if mid == "chem_finisher" and cond >= 90:
+				unlock_achievement("ACH_LAB_PURE")
+			if oid == "nutrifruit" and cond >= 95:
+				unlock_achievement("ACH_HUGE_NUTRIFRUIT")
 			got.append(String(get_item_def(oid).get("name", oid)))
 	return got
 
@@ -7626,6 +8492,14 @@ func save_game(slot: int = 1) -> bool:
 		"commissions": commissions, "procurement_orders": procurement_orders, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
+		"start_type_id": start_type_id, "starting_perk_ids": starting_perk_ids,
+		"player_max_hp": player_max_hp, "player_accuracy": player_accuracy, "player_reaction": player_reaction,
+		"thirst": thirst, "wounds": wounds, "wound_stable": wound_stable, "addiction_days": addiction_days,
+		"narcotic_relief": narcotic_relief, "sentinel_days": sentinel_days, "sentinel_pool": sentinel_pool,
+		"luck": luck, "perk_flags": perk_flags, "achievements_unlocked": achievements_unlocked,
+		"ach_stats": ach_stats, "run_stats": run_stats, "aug_presence": aug_presence,
+		"aug_introduced": aug_introduced, "aug_next_spawn_day": aug_next_spawn_day,
+		"hireling": hireling, "hireling_expedition": hireling_expedition, "gun_order": gun_order,
 	}
 	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.WRITE)
 	if f == null:
@@ -7703,6 +8577,29 @@ func load_game(slot: int = 1) -> bool:
 		client_cooldowns[cid] = int(client_cooldowns[cid])
 	profession_id = String(data.get("profession_id", ""))
 	profession_chosen = bool(data.get("profession_chosen", false))
+	start_type_id = String(data.get("start_type_id", profession_id))
+	starting_perk_ids = data.get("starting_perk_ids", []).duplicate()
+	player_max_hp = int(data.get("player_max_hp", 100))
+	player_accuracy = int(data.get("player_accuracy", 70))
+	player_reaction = int(data.get("player_reaction", 10))
+	thirst = int(data.get("thirst", 1000))
+	wounds = int(data.get("wounds", 0))
+	wound_stable = bool(data.get("wound_stable", true))
+	addiction_days = data.get("addiction_days", {"nicotine": 0, "alcohol": 0, "narcotic": 0}).duplicate()
+	narcotic_relief = int(data.get("narcotic_relief", 999))
+	sentinel_days = int(data.get("sentinel_days", 0))
+	sentinel_pool = int(data.get("sentinel_pool", 0))
+	luck = int(data.get("luck", 0))
+	perk_flags = data.get("perk_flags", {}).duplicate()
+	achievements_unlocked = data.get("achievements_unlocked", {}).duplicate()
+	ach_stats = data.get("ach_stats", {}).duplicate()
+	run_stats = data.get("run_stats", _new_run_stats()).duplicate(true)
+	aug_presence = int(data.get("aug_presence", 0))
+	aug_introduced = bool(data.get("aug_introduced", false))
+	aug_next_spawn_day = int(data.get("aug_next_spawn_day", 0))
+	hireling = data.get("hireling", {}).duplicate(true)
+	hireling_expedition = data.get("hireling_expedition", {}).duplicate(true)
+	gun_order = data.get("gun_order", {}).duplicate(true)
 	commissions = data.get("commissions", []).duplicate(true)
 	procurement_orders = data.get("procurement_orders", []).duplicate(true)
 	story_seen = data.get("story_seen", []).duplicate(true)

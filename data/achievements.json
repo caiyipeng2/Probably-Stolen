@@ -1,0 +1,23 @@
+[
+  {"id": "ACH_TUTORIAL", "name": "新手上路", "desc": "完成新手教程。"},
+  {"id": "ACH_BUYOUT", "name": "赎回店铺", "desc": "付清店铺买断款。"},
+  {"id": "ACH_HONEST_MERCHANT", "name": "清白商人", "desc": "从未卖出赃物或违禁品的买断。"},
+  {"id": "ACH_AUTHORIZED", "name": "持证经营", "desc": "购买商业许可证。"},
+  {"id": "ACH_RATS", "name": "一无所有", "desc": "以“一无所有”开局。"},
+  {"id": "ACH_RAG_TO_RICHES", "name": "白手起家", "desc": "以“一无所有”开局并买断店铺。"},
+  {"id": "ACH_NOTHING_TO_RICHES", "name": "赤手空拳", "desc": "在困难或更高难度下以“一无所有”开局并买断。"},
+  {"id": "ACH_PERFECT_MEDIATOR", "name": "调停大师", "desc": "任一派系声望达到 200。"},
+  {"id": "ACH_LUCKY", "name": "幸运儿", "desc": "刮刮乐单次奖金达到 350。"},
+  {"id": "ACH_SETTLED", "name": "站稳脚跟", "desc": "净资产超过 10000。"},
+  {"id": "ACH_RICH", "name": "富甲一方", "desc": "净资产超过 100000。"},
+  {"id": "ACH_LAB_PURE", "name": "实验室纯度", "desc": "化学完成器产出实验室纯度成品。"},
+  {"id": "ACH_HUGE_NUTRIFRUIT", "name": "巨型营养果", "desc": "收获巨型营养果。"},
+  {"id": "ACH_PRODIGIOUS", "name": "少年得志", "desc": "在第 50 天前买断店铺。"},
+  {"id": "ACH_SHINY", "name": "闪闪发光", "desc": "店铺吸引力达到 1000。"},
+  {"id": "ACH_OVERLOAD", "name": "超载模块", "desc": "模块品质加成达到 250。"},
+  {"id": "ACH_MODEL_CITIZEN", "name": "模范公民", "desc": "累计举报 10 名罪犯。"},
+  {"id": "ACH_AUG_HUNTER", "name": "义体猎手", "desc": "累计击毙 10 名义体人。"},
+  {"id": "ACH_LOWER_LEVELS_SPECIAL", "name": "下层特供", "desc": "给物品贴上自定义标签。"},
+  {"id": "ACH_MASTER_APPRAISER", "name": "鉴定大师", "desc": "累计 10 次完美鉴定。"},
+  {"id": "ACH_INDUSTRIOUS", "name": "机械迷", "desc": "拥有 10 台机器。"}
+]

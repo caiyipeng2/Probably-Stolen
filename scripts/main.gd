@@ -244,6 +244,13 @@ var commissary_status: Label
 var bargain_price := 0
 var welcome_shown := false
 var last_summary: Dictionary = {}
+var newgame_layer: Control
+var ng_page := "menu"
+var ng_start_type := "apprentice"
+var ng_perks: Array = []
+var ng_difficulty := "normal"
+var ng_campaign := "original"
+var ng_skip_intro := false
 
 func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
@@ -262,12 +269,14 @@ func _ready() -> void:
 	GameState.inspection_arrived.connect(_on_inspection_arrived)
 	GameState.security_officer_arrived.connect(_on_security_officer_arrived)
 	GameState.permit_revoke_arrived.connect(_on_permit_revoke_arrived)
+	GameState.achievement_unlocked.connect(_on_achievement_unlocked)
 	GameState.combat_hit.connect(_on_combat_hit)
 	GameState.combat_started.connect(_on_combat_started)
 	GameState.combat_updated.connect(_on_combat_updated)
 	GameState.combat_finished.connect(_on_combat_finished)
 	_refresh()
-	_show_welcome()
+	_build_newgame_layer()
+	_show_new_game_menu()
 	_capture_if_requested()
 	_autotest_if_requested()
 	_dumpui_if_requested()
@@ -281,6 +290,7 @@ func _ready() -> void:
 	_testcombatui_if_requested()
 	_testsecurityui_if_requested()
 	_testpresentationui_if_requested()
+	_testp0ui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -1115,7 +1125,8 @@ func _build_hud() -> void:
 	day_label = _label(self, "", Vector2(360, 18), Vector2(320, 42), 30, C_TEXT)
 	rent_label = _label(self, "", Vector2(700, 18), Vector2(520, 42), 30, C_AMBER)
 	_label(self, "信用点", Vector2(1560, 8), Vector2(200, 22), 18, C_MUTED)
-	cash_label = _label(self, "", Vector2(1560, 24), Vector2(350, 52), 48, C_AMBER, HORIZONTAL_ALIGNMENT_RIGHT)
+	cash_label = _label(self, "", Vector2(1380, 24), Vector2(400, 52), 46, C_AMBER, HORIZONTAL_ALIGNMENT_RIGHT)
+	_button(self, "状态", Vector2(1790, 14), Vector2(120, 52), C_GREEN, _open_status)
 	audio_toggle_btn = _button(self, "音效 开" if audio_enabled else "音效 关", Vector2(1925, 14), Vector2(120, 52), C_MUTED, _on_audio_toggle)
 	_button(self, "存档", Vector2(2060, 14), Vector2(120, 52), C_CYAN, _on_save)
 	_button(self, "读档", Vector2(2190, 14), Vector2(120, 52), C_CYAN, _on_load)
@@ -2123,6 +2134,60 @@ func _pay_due(kind: String) -> void:
 	_refresh()
 	_toast(String(res.get("text", "")))
 
+func _open_gun_order() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "gun_order":
+		return
+	GameState.gun_order = c
+	var reqs: Array = []
+	for k in c.get("require", {}).keys():
+		reqs.append("%s > %d" % [String(k), int(c["require"][k])])
+	var bonus_lines: Array = []
+	for b in c.get("bonuses", []):
+		bonus_lines.append("%s > %d → +%d₵" % [String(b.get("stat", "")), int(b.get("min", 0)), int(b.get("add", 0))])
+	var text := "订单要求：" + ("、".join(reqs) if not reqs.is_empty() else "任意枪械")
+	if not bonus_lines.is_empty():
+		text += "
+附加奖励：" + "；".join(bonus_lines)
+	if bool(c.get("service", false)):
+		text += "
+维修订单：费用 %d₵，整备后可交付。" % int(c.get("fee", 0))
+	var actions: Array = [{"label": "选择枪械交付", "cb": _gun_order_pick, "color": C_AMBER}]
+	if bool(c.get("service", false)):
+		actions.append({"label": "支付维修费", "cb": _gun_order_repair_ui, "color": C_CYAN})
+	actions.append({"label": "离开", "cb": _gun_order_leave})
+	_show_modal("枪械订单 · %s" % String(c.get("arche", {}).get("name", "买家")), text, actions)
+
+func _gun_order_pick() -> void:
+	var items: Array = []
+	for it in GameState.gun_order_candidates():
+		var ev := GameState.gun_order_eval(it)
+		var did := String(it.get("def_id", ""))
+		var stats := GameState.gun_def_stats(did, String(it.get("condition", "")))
+		var stat_text := "FP%d ACC%d REL%d" % [int(stats.get("firepower", 0)), int(stats.get("accuracy", 0)), int(stats.get("reliability", 0))]
+		items.append({"id": str(int(it.get("uid", -1))), "label": "%s · %s · %s" % [GameState.item_display_name(it), stat_text, String(ev.get("text", ""))]})
+	if items.is_empty():
+		_toast("背包和展示柜里没有可交付的枪械。")
+		return
+	_open_select("选择交付枪械", items, _gun_order_deliver_uid)
+
+func _gun_order_deliver_uid(id: String) -> void:
+	var res := GameState.deliver_gun_order(int(id))
+	_play_sfx("cash" if bool(res.get("ok", false)) else "fail")
+	_refresh()
+	_show_modal("枪械订单", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _gun_order_repair_ui() -> void:
+	var res := GameState.gun_order_repair()
+	_play_sfx("machine" if bool(res.get("ok", false)) else "fail")
+	_refresh()
+	_show_modal("维修", String(res.get("text", "")), [{"label": "返回订单", "cb": _open_gun_order}])
+
+func _gun_order_leave() -> void:
+	GameState.complete_customer(false)
+	GameState.gun_order = {}
+	_refresh()
+
 func _open_expedition() -> void:
 	var c := GameState.current_customer
 	if c.is_empty() or String(c.get("intent", "")) != "expedition":
@@ -2131,11 +2196,33 @@ func _open_expedition() -> void:
 	var body := String(c.get("line", "")) + "
 
 目标：%s" % String(party.get("name", "未知区域"))
-	_show_modal("探险 · %s" % String(c.get("arche", {}).get("name", "组织者")), body, [
-		{"label": "出发", "cb": _start_expedition_ui, "color": C_RUST},
-		{"label": "拒绝", "cb": _decline_procurement, "color": C_MUTED},
-	])
+	var actions: Array = [{"label": "出发", "cb": _start_expedition_ui, "color": C_RUST}]
+	if not GameState.hireling.is_empty():
+		actions.append({"label": "派遣 Juan", "cb": _dispatch_hireling_ui, "color": C_AMBER})
+	actions.append({"label": "拒绝", "cb": _decline_procurement, "color": C_MUTED})
+	_show_modal("探险 · %s" % String(c.get("arche", {}).get("name", "组织者")), body, actions)
 	modal_close_btn.visible = false
+
+func _dispatch_hireling_ui() -> void:
+	var res := GameState.dispatch_hireling()
+	_play_sfx("phone_calling" if bool(res.get("ok", false)) else "fail")
+	_close_modal()
+	GameState.complete_customer(false)
+	_refresh()
+	_toast(String(res.get("text", "")))
+
+func _open_hireling_return() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "hireling_return":
+		return
+	_show_modal("Juan 的探险报告", String(c.get("line", "")), [
+		{"label": "收下日志", "cb": _hireling_report_done, "color": C_GREEN},
+	])
+
+func _hireling_report_done() -> void:
+	_close_modal()
+	GameState.complete_customer(true)
+	_refresh()
 
 func _start_expedition_ui() -> void:
 	var res := GameState.start_expedition()
@@ -2528,9 +2615,9 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"]]
 	for i in range(tabs.size()):
-		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 142, 70), Vector2(132, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
+		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 132, 70), Vector2(124, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(24, 130)
@@ -3440,6 +3527,14 @@ func _on_customer_changed() -> void:
 		if wholesale_layer:
 			wholesale_layer.visible = false
 		_open_information_dealer()
+	elif intent == "hireling_return":
+		_open_hireling_return()
+	elif intent == "gun_order":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_gun_order()
 	elif intent == "expedition":
 		if barter_layer:
 			barter_layer.visible = false
@@ -3553,6 +3648,7 @@ func _on_end_day_pressed() -> void:
 	if not GameState.tutorial_done and GameState.tutorial_step > 0:
 		GameState.tutorial_done = true
 		GameState.tutorial_step = 0
+		GameState.unlock_achievement("ACH_TUTORIAL")
 	_play_sfx("shutter")
 	GameState.finish_day()
 
@@ -4183,6 +4279,9 @@ func _update_walkers(delta: float) -> void:
 			alive.append(w)
 	walkers = alive
 
+func _open_status() -> void:
+	_open_info_tab("status")
+
 func _open_info_tab(tab: String) -> void:
 	info_layer.visible = true
 	info_tab = tab
@@ -4262,6 +4361,21 @@ func _rebuild_info_list() -> void:
 			archive_groups = GameState.dialogue_archive
 			for g in archive_groups:
 				_add_info_button("%s · %d" % [g.get("name", g.get("id", "")), g.get("entries", []).size()], String(g.get("id", "")))
+		"status":
+			for it in GameState.inventory:
+				if GameState.can_use_consumable(it):
+					_add_info_button("%s ×%d" % [GameState.item_display_name(it), int(it.get("unit_count", 1))], str(int(it.get("uid", -1))))
+		"achievements":
+			for a in GameState.achievement_defs:
+				var aid := String(a.get("id", ""))
+				var got := GameState.achievements_unlocked.has(aid)
+				_add_info_button("%s %s" % ["●" if got else "○", String(a.get("name", aid))], aid)
+		"stats":
+			for key in GameState.run_stats.keys():
+				var val = GameState.run_stats[key]
+				if val is Dictionary:
+					continue
+				_add_info_button(_stat_label(String(key)), String(key))
 	if info_selected_id == "" and not info_list_buttons.is_empty():
 		info_selected_id = String(info_list_buttons.keys()[0])
 	_refresh_info_selection()
@@ -4514,6 +4628,74 @@ func _refresh_info_detail() -> void:
 			archive_text.text = body
 			archive_scroll.scroll_vertical = 0
 			info_status.text = "共 %d 条" % entries.size()
+		"status":
+			var lines: Array = []
+			lines.append("口渴：%d/%d（%s）" % [GameState.thirst, GameState.thirst_max, _thirst_label()])
+			lines.append("伤口：%d/10（%s）" % [GameState.wounds, "稳定" if GameState.wound_stable else "未处理"])
+			var add_lines: Array = []
+			var addiction_names := {"nicotine": "尼古丁", "alcohol": "酒精", "narcotic": "麻醉品"}
+			for k in ["nicotine", "alcohol", "narcotic"]:
+				if bool(GameState.perk_flags.get("addiction_" + k, false)):
+					add_lines.append("%s 第 %d 天" % [addiction_names[k], int(GameState.addiction_days.get(k, 0))])
+			lines.append("成瘾：" + ("、".join(add_lines) if not add_lines.is_empty() else "无"))
+			if bool(GameState.perk_flags.get("sentinel", false)):
+				lines.append("哨兵注射剂：%d 天 · 负荷 %d/20" % [GameState.sentinel_days, GameState.sentinel_pool])
+			info_name.text = "身体状态"
+			info_meta.text = "价格惩罚 %+d%%" % int(GameState.addiction_price_mod() * 100.0)
+			var body := "
+".join(lines)
+			if info_selected_id != "":
+				var it := GameState.find_item(int(info_selected_id))
+				if not it.is_empty():
+					body += "
+
+选中：" + GameState.item_display_name(it)
+					info_action.visible = true
+					info_action.text = "使用"
+					info_action.disabled = false
+			info_body.text = body
+		"achievements":
+			var adef := {}
+			for a in GameState.achievement_defs:
+				if String(a.get("id", "")) == info_selected_id:
+					adef = a
+					break
+			info_name.text = String(adef.get("name", info_selected_id))
+			var got := GameState.achievements_unlocked.has(info_selected_id)
+			info_meta.text = "● 已解锁 · 第 %d 天" % int(GameState.achievements_unlocked.get(info_selected_id, 0)) if got else "○ 未解锁"
+			info_body.text = String(adef.get("desc", ""))
+			info_status.text = "已解锁 %d/%d" % [GameState.achievements_unlocked.size(), GameState.achievement_defs.size()]
+		"stats":
+			info_name.text = _stat_label(info_selected_id)
+			info_meta.text = "本局运行统计"
+			info_body.text = str(GameState.run_stats.get(info_selected_id, 0))
+			info_status.text = "第 %d 天 · 净资产 %d₵" % [GameState.day, GameState.net_worth()]
+
+func _thirst_label() -> String:
+	if GameState.thirst <= 0:
+		return "极度脱水"
+	if GameState.thirst <= 150:
+		return "脱水"
+	if GameState.thirst <= 500:
+		return "口渴"
+	if GameState.thirst >= 800:
+		return "水分充足"
+	return "正常"
+
+func _stat_label(key: String) -> String:
+	var names := {
+		"total_sales": "总销售额", "items_sold": "售出物品", "stock_spent": "进货支出",
+		"customers_served": "接待顾客", "best_day_sales": "最佳单日销售", "best_day": "最佳单日",
+		"rent_paid": "已付房租", "power_spent": "电力支出", "insurance_spent": "保险支出",
+		"bribes": "贿赂支出", "inspections": "被检查次数", "inspections_passed": "通过检查",
+		"goods_seized": "被没收货物", "burglaries": "失窃次数", "burglary_losses": "失窃损失",
+		"scavenge_attempts": "拾荒次数", "scavenged_value": "拾荒价值",
+		"injuries_minor": "轻伤", "injuries_major": "重伤", "criminals_reported": "举报罪犯",
+		"perfect_appraisals": "完美鉴定", "augs_shot": "击毙义体人", "wrongful_reports": "误报",
+		"items_bought": "购入物品", "best_flip_value": "最佳倒卖", "best_find_value": "最佳拾荒发现",
+		"days_played": "经营天数",
+	}
+	return String(names.get(key, key))
 
 func _info_action() -> void:
 	match info_tab:
@@ -4526,6 +4708,12 @@ func _info_action() -> void:
 		"professions":
 			var res := GameState.apply_profession(info_selected_id)
 			_refresh()
+			_refresh_info_detail()
+			info_status.text = String(res.get("text", ""))
+		"status":
+			var res := GameState.use_consumable(int(info_selected_id))
+			_refresh()
+			_rebuild_info_list()
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
 		"perks":
@@ -4676,7 +4864,18 @@ func _show_ending(id: String) -> void:
 	var e := GameState.ending_def(id)
 	if e.is_empty():
 		return
-	_show_modal(String(e.get("title", "结局")), String(e.get("text", "")), [{"label": "重新开始", "cb": _restart_game, "color": C_RUST}, {"label": "关闭", "cb": _close_modal}])
+	var extra := "
+
+—— 本局统计 ——
+经营 %d 天 · 净资产 %d₵ · 总销售 %d₵ · 售出 %d 件 · 接待 %d 位
+检查 %d 次 · 失窃 %d 次 · 拾荒价值 %d₵ · 举报 %d 人" % [
+		int(GameState.run_stats.get("days_played", GameState.day)), GameState.net_worth(),
+		int(GameState.run_stats.get("total_sales", 0)), int(GameState.run_stats.get("items_sold", 0)),
+		int(GameState.run_stats.get("customers_served", 0)), int(GameState.run_stats.get("inspections", 0)),
+		int(GameState.run_stats.get("burglaries", 0)), int(GameState.run_stats.get("scavenged_value", 0)),
+		int(GameState.run_stats.get("criminals_reported", 0)),
+	]
+	_show_modal(String(e.get("title", "结局")), String(e.get("text", "")) + extra, [{"label": "重新开始", "cb": _restart_game, "color": C_RUST}, {"label": "关闭", "cb": _close_modal}])
 
 func _close_story() -> void:
 	story_layer.visible = false
@@ -5000,6 +5199,47 @@ func _show_news(title: String, text: String, actions: Array) -> void:
 			b.add_theme_color_override("font_hover_color", Color("#4a3423"))
 			b.add_theme_color_override("font_pressed_color", Color("#4a3423"))
 
+func _testp0ui_if_requested() -> void:
+	if not "--testp0ui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.6).timeout
+	print("P0UI menu=", newgame_layer.visible, " page=", ng_page)
+	_ng_goto("start")
+	print("P0UI start page=", ng_page, " professions=", GameState.professions.size())
+	_ng_pick_start("water_merchant")
+	GameState.run_count = 1
+	_ng_goto("perks")
+	_ng_toggle_perk("perk_saving")
+	print("P0UI perks=", ng_perks, " points=", GameState.starting_perk_points(ng_perks))
+	_ng_goto("difficulty")
+	_ng_pick_difficulty("cozy")
+	_ng_start()
+	await get_tree().process_frame
+	print("P0UI started type=", GameState.start_type_id, " cash=", GameState.cash, " layer=", newgame_layer.visible)
+	if modal_layer.visible:
+		_close_modal()
+	_open_status()
+	print("P0UI status tab=", info_tab, " title=", info_name.text, " meta=", info_meta.text)
+	_switch_info_tab("achievements")
+	print("P0UI achievements=", info_list_buttons.size())
+	_switch_info_tab("stats")
+	print("P0UI stats rows=", info_list_buttons.size())
+	_close_info()
+	GameState.current_customer = {"intent": "gun_order", "arche": {"faction": "lower", "name": "买家"}, "require": {"accuracy": 10}, "bonuses": [], "base": 100, "done": false}
+	GameState.gun_order = GameState.current_customer
+	_open_gun_order()
+	await get_tree().process_frame
+	print("P0UI gun title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	GameState.current_customer = {"intent": "expedition", "arche": {"faction": "lower", "name": "组织者"}, "party": "pirateRookieTriple", "done": false, "line": "去探险吗？"}
+	GameState.unlock_hireling()
+	_open_expedition()
+	await get_tree().process_frame
+	print("P0UI expedition actions=", modal_actions.get_child_count())
+	_close_modal()
+	await get_tree().process_frame
+	get_tree().quit(0)
+
 func _testpresentationui_if_requested() -> void:
 	if not "--testpresentationui" in OS.get_cmdline_args():
 		return
@@ -5073,7 +5313,191 @@ func _faction_short(k: String) -> String:
 		"cartel": return "卡特尔"
 	return k
 
-func _show_welcome() -> void:
+func _build_newgame_layer() -> void:
+	newgame_layer = Control.new()
+	newgame_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	newgame_layer.z_index = 160
+	newgame_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	newgame_layer.visible = false
+	add_child(newgame_layer)
+
+func _show_new_game_menu() -> void:
+	ng_page = "menu"
+	newgame_layer.visible = true
+	move_child(newgame_layer, get_child_count() - 1)
+	_ng_render()
+
+func _ng_render() -> void:
+	_clear_children(newgame_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0.02, 0.02, 0.03, 0.94)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	newgame_layer.add_child(dim)
+	var panel := _panel(newgame_layer, Vector2(300, 36), Vector2(1740, 1008), C_PANEL, C_CYAN, 3)
+	_label(panel, "深空当铺", Vector2(40, 22), Vector2(800, 60), 52, C_AMBER)
+	_label(panel, "PROBABLY STOLEN · MOBILE PORT", Vector2(44, 84), Vector2(800, 28), 18, C_MUTED)
+	if ng_page == "menu":
+		_label(panel, "一间当铺，一条空间站走廊，和一堆来路不明的东西。", Vector2(44, 150), Vector2(1500, 40), 26, C_TEXT)
+		_button(panel, "新游戏", Vector2(80, 260), Vector2(420, 90), C_AMBER, _ng_goto.bind("start"))
+		var cont := _button(panel, "继续游戏", Vector2(80, 380), Vector2(420, 90), C_CYAN, _ng_continue)
+		cont.disabled = not GameState.has_save(1)
+		_button(panel, "设置", Vector2(80, 500), Vector2(420, 90), C_MUTED, _ng_settings)
+		_button(panel, "制作人员", Vector2(80, 620), Vector2(420, 90), C_MUTED, _ng_credits)
+		var info := "原版活跃流程：选择开局 → 分配天赋 → 选择难度 → 开店。\n首局不开放开局天赋（原版规则）。"
+		_label(panel, info, Vector2(560, 280), Vector2(1080, 160), 24, C_MUTED)
+		_label(panel, "当前存档：%s" % ("槽位 1 · 第 %d 天" % GameState.day if GameState.has_save(1) else "无"), Vector2(560, 470), Vector2(900, 40), 22, C_MUTED)
+		_button(panel, "关闭菜单继续当前局", Vector2(560, 760), Vector2(420, 70), C_MUTED, _ng_close)
+	elif ng_page == "start":
+		_label(panel, "选择开局", Vector2(44, 140), Vector2(800, 50), 34, C_AMBER)
+		var active: Array = []
+		for p in GameState.professions:
+			if not bool(p.get("coming_soon", false)):
+				active.append(p)
+		for i in range(active.size()):
+			var p: Dictionary = active[i]
+			var pid := String(p.get("id", ""))
+			var col := i % 3
+			var row := int(i / 3)
+			var txt := "%s\n%s" % [String(p.get("name", pid)), _ng_wrap(String(p.get("desc", "")), 22)]
+			var b := _button(panel, txt, Vector2(50 + col * 550, 210 + row * 200), Vector2(510, 180), C_TEXT, _ng_pick_start.bind(pid))
+			b.add_theme_font_size_override("font_size", 20)
+			b.modulate = Color(1.25, 1.12, 0.72) if pid == ng_start_type else Color.WHITE
+		_label(panel, "已选：%s" % _ng_start_name(), Vector2(50, 840), Vector2(900, 40), 24, C_GREEN)
+		_button(panel, "返回", Vector2(50, 900), Vector2(220, 64), C_MUTED, _ng_goto.bind("menu"))
+		_button(panel, "下一步：天赋", Vector2(1450, 900), Vector2(260, 64), C_AMBER, _ng_goto.bind("perks"))
+	elif ng_page == "perks":
+		var pts := GameState.starting_perk_points(ng_perks)
+		_label(panel, "开局天赋（%d/3 点 · 槽位 %d/%d）" % [pts, ng_perks.size(), GameState.starting_perk_slots(ng_perks)], Vector2(44, 132), Vector2(1200, 40), 30, C_AMBER)
+		var first_run := GameState.run_count <= 0
+		if first_run:
+			_label(panel, "首局不可选天赋：先完成一局，之后的周目才开放。", Vector2(44, 168), Vector2(1400, 30), 20, C_RUST)
+		var scroll := ScrollContainer.new()
+		scroll.position = Vector2(44, 210)
+		scroll.size = Vector2(1660, 650)
+		scroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
+		scroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
+		panel.add_child(scroll)
+		var grid := GridContainer.new()
+		grid.columns = 4
+		grid.add_theme_constant_override("h_separation", 12)
+		grid.add_theme_constant_override("v_separation", 10)
+		grid.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		scroll.add_child(grid)
+		for p in GameState.starting_perks:
+			var pid := String(p.get("id", ""))
+			var meta := GameState.starting_perk_meta_def(pid)
+			if meta.is_empty():
+				continue
+			var cost := int(meta.get("cost", 0))
+			var cost_text := ("+%d" % cost) if cost > 0 else str(cost)
+			var b := _button(grid, "%s  %s" % [String(p.get("name", pid)), cost_text], Vector2.ZERO, Vector2(402, 70), C_TEXT, _ng_toggle_perk.bind(pid))
+			b.custom_minimum_size = Vector2(402, 70)
+			b.add_theme_font_size_override("font_size", 17)
+			b.modulate = Color(1.25, 1.12, 0.72) if ng_perks.has(pid) else Color.WHITE
+			b.disabled = first_run
+		var valid := GameState.starting_perks_valid(ng_perks)
+		_label(panel, String(valid.get("text", "")), Vector2(44, 872), Vector2(1100, 30), 20, C_MUTED)
+		_button(panel, "返回", Vector2(44, 912), Vector2(220, 64), C_MUTED, _ng_goto.bind("start"))
+		var nxt := _button(panel, "下一步：难度", Vector2(1440, 912), Vector2(270, 64), C_AMBER, _ng_goto.bind("difficulty"))
+		nxt.disabled = not bool(valid.get("ok", false))
+	elif ng_page == "difficulty":
+		_label(panel, "选择难度", Vector2(44, 132), Vector2(800, 44), 34, C_AMBER)
+		var diffs := ["cozy", "normal", "hard", "challenge"]
+		for i in range(diffs.size()):
+			var did: String = diffs[i]
+			var d: Dictionary = GameState.DIFFICULTY.get(did, {})
+			var b := _button(panel, "%s\n起始现金 %d₵ · 房租 %d₵" % [String(d.get("name", did)), int(d.get("cash", 600)), int(d.get("rent", 200))], Vector2(70 + i * 410, 220), Vector2(380, 180), C_TEXT, _ng_pick_difficulty.bind(did))
+			b.add_theme_font_size_override("font_size", 22)
+			b.modulate = Color(1.25, 1.12, 0.72) if did == ng_difficulty else Color.WHITE
+		_button(panel, "日程：%s" % ("原版 45 天" if ng_campaign == "original" else "移动 10 天"), Vector2(70, 450), Vector2(500, 70), C_CYAN, _ng_toggle_campaign)
+		_button(panel, "跳过开场：%s" % ("是" if ng_skip_intro else "否"), Vector2(600, 450), Vector2(400, 70), C_CYAN, _ng_toggle_skip)
+		var preview := "开局：%s\n天赋：%d 个（%d 点）\n难度：%s\n日程：%s" % [_ng_start_name(), ng_perks.size(), GameState.starting_perk_points(ng_perks), String(GameState.DIFFICULTY.get(ng_difficulty, {}).get("name", ng_difficulty)), "原版 45 天" if ng_campaign == "original" else "移动 10 天"]
+		_label(panel, preview, Vector2(70, 570), Vector2(1200, 200), 24, C_TEXT)
+		_button(panel, "返回", Vector2(44, 912), Vector2(220, 64), C_MUTED, _ng_goto.bind("perks"))
+		_button(panel, "开始营业", Vector2(1400, 900), Vector2(300, 76), C_GREEN, _ng_start)
+	_button(panel, "关闭", Vector2(1570, 20), Vector2(120, 48), C_MUTED, _ng_close)
+
+func _ng_goto(page: String) -> void:
+	ng_page = page
+	_ng_render()
+
+func _ng_pick_start(pid: String) -> void:
+	ng_start_type = pid
+	_ng_render()
+
+func _ng_toggle_perk(pid: String) -> void:
+	if ng_perks.has(pid):
+		ng_perks.erase(pid)
+	else:
+		ng_perks.append(pid)
+	var check := GameState.starting_perks_valid(ng_perks)
+	if not bool(check.get("ok", false)):
+		ng_perks.erase(pid)
+	_ng_render()
+
+func _ng_pick_difficulty(did: String) -> void:
+	ng_difficulty = did
+	_ng_render()
+
+func _ng_toggle_campaign() -> void:
+	ng_campaign = "mobile" if ng_campaign == "original" else "original"
+	_ng_render()
+
+func _ng_toggle_skip() -> void:
+	ng_skip_intro = not ng_skip_intro
+	_ng_render()
+
+func _ng_start_name() -> String:
+	for p in GameState.professions:
+		if String(p.get("id", "")) == ng_start_type:
+			return String(p.get("name", ng_start_type))
+	return ng_start_type
+
+func _ng_wrap(text: String, width: int) -> String:
+	var out := ""
+	var line := 0
+	for ch in text:
+		out += ch
+		line += 1
+		if line >= width:
+			out += "\n"
+			line = 0
+	return out
+
+func _ng_start() -> void:
+	var perks: Array = [] if GameState.run_count <= 0 else ng_perks.duplicate()
+	GameState.new_game(ng_difficulty, ng_campaign, ng_start_type, perks)
+	GameState.record_new_game_start()
+	newgame_layer.visible = false
+	if ng_skip_intro:
+		GameState.tutorial_done = true
+		GameState.pending_story = ""
+		GameState.story_queue.clear()
+		_close_modal()
+	else:
+		_welcome_done()
+	_refresh()
+
+func _ng_continue() -> void:
+	if GameState.load_game(1):
+		newgame_layer.visible = false
+		_close_modal()
+		_refresh()
+		_toast("已读取槽位 1。")
+
+func _ng_close() -> void:
+	newgame_layer.visible = false
+
+func _ng_settings() -> void:
+	_show_modal("设置", "音效与音乐当前为%s。\n存档：1/2/3 三个槽位，可在游戏顶栏或信息页操作。" % ("开启" if audio_enabled else "关闭"), [
+		{"label": "切换音效", "cb": _on_audio_toggle},
+		{"label": "关闭", "cb": _close_modal},
+	])
+
+func _ng_credits() -> void:
+	_show_modal("制作人员", "原版：Probably Stolen 开发组\n移动移植：Qoder 1:1 还原项目\n字体：Fusion Pixel 12px\n音频与美术素材来自本地正版安装（私有构建，不随公开仓库分发）。", [{"label": "关闭", "cb": _close_modal}])
+
+
 	if welcome_shown:
 		return
 	welcome_shown = true
@@ -5093,6 +5517,8 @@ func _choose_original() -> void:
 	_welcome_done()
 
 func _welcome_done() -> void:
+	if newgame_layer:
+		newgame_layer.visible = false
 	_close_modal()
 	if GameState.pending_story != "" and not story_layer.visible:
 		_show_story(GameState.pending_story)
@@ -5137,6 +5563,7 @@ func _maybe_show_tutorial() -> void:
 func _skip_tutorial() -> void:
 	GameState.tutorial_done = true
 	GameState.tutorial_step = 0
+	GameState.unlock_achievement("ACH_TUTORIAL")
 	_close_modal()
 	_refresh()
 
@@ -5374,7 +5801,36 @@ func _refresh_bargain_modal() -> void:
 		{"label": "报价", "cb": _bargain_confirm, "color": C_AMBER},
 		{"label": "威胁", "cb": _do_threaten, "color": C_RUST},
 	]
+	if GameState.aug_introduced and not bool(c.get("aug_scanned", false)) and GameState.inventory_count("aug_scanner") > 0:
+		actions.append({"label": "扫描义体", "cb": _do_scan_aug, "color": C_CYAN})
+	if GameState.aug_introduced and not bool(c.get("aug_threatened", false)):
+		actions.append({"label": "威胁义体", "cb": _do_threaten_aug, "color": C_RUST})
+	if bool(c.get("aug_scanned", false)) and bool(c.get("is_aug", false)):
+		actions.append({"label": "举报义体", "cb": _do_report_aug, "color": C_GREEN})
 	_show_modal("议价 · " + GameState.item_display_name(it), text, actions)
+
+func _on_achievement_unlocked(aid: String) -> void:
+	var aname := aid
+	for a in GameState.achievement_defs:
+		if String(a.get("id", "")) == aid:
+			aname = String(a.get("name", aid))
+			break
+	_toast("成就解锁：%s" % aname)
+
+func _do_scan_aug() -> void:
+	var res := GameState.scan_aug_customer()
+	_refresh()
+	_show_modal("义体扫描", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _do_threaten_aug() -> void:
+	var res := GameState.threaten_aug()
+	_refresh()
+	_show_modal("威胁义体", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _do_report_aug() -> void:
+	var res := GameState.report_aug()
+	_refresh()
+	_show_modal("举报义体", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
 func _bargain_adjust(factor: float) -> void:
 	bargain_price = maxi(1, int(round(float(bargain_price) * factor)))

@@ -1,0 +1,20 @@
+{
+  "guns": {
+    "printed_gun": {"firepower": 15, "style": 5, "reliability": 15, "recoil": 55, "ergonomics": 40, "accuracy": 15, "caliber": 22, "condition": "new"},
+    "handmade_pistol": {"firepower": 20, "style": 15, "reliability": 30, "recoil": 65, "ergonomics": 50, "accuracy": 30, "caliber": 22, "condition": "good"},
+    "heavy_handmade_pistol": {"firepower": 30, "style": 30, "reliability": 34, "recoil": 30, "ergonomics": 40, "accuracy": 40, "caliber": 10, "condition": "good"},
+    "glock_receiver": {"firepower": 30, "style": 40, "reliability": 42, "recoil": 35, "ergonomics": 50, "accuracy": 45, "caliber": 10, "condition": "good"},
+    "smg": {"firepower": 65, "style": 55, "reliability": 65, "recoil": 25, "ergonomics": 60, "accuracy": 50, "caliber": 10, "condition": "good"},
+    "shotgun": {"firepower": 85, "style": 75, "reliability": 75, "recoil": 30, "ergonomics": 45, "accuracy": 50, "caliber": 12, "condition": "good"},
+    "revolver": {"firepower": 36, "style": 50, "reliability": 50, "recoil": 38, "ergonomics": 55, "accuracy": 52, "caliber": 45, "condition": "good"}
+  },
+  "conditions": {
+    "new": 30, "excellent": 15, "good": 0, "fair": -15, "poor": -30
+  },
+  "service": {
+    "guns": {"1": ["handmade_pistol", "printed_gun"], "2": ["heavy_handmade_pistol", "glock_receiver"], "3": ["smg", "shotgun"]},
+    "conditions": ["poor", "fair", "good"],
+    "fees": [0, 30, 60, 100],
+    "rewards": [0, 15, 25, 40]
+  }
+}
