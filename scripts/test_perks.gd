@@ -19,6 +19,17 @@ func _init() -> void:
 	var chosen: Dictionary = gs.choose_starting_perk("perk_saving")
 	check(bool(chosen.get("ok", false)) and gs.cash == cash0 + 150 and gs.starting_perk_chosen, "saving perk applies", str(chosen))
 	check(not bool(gs.choose_starting_perk("perk_lucky").get("ok", true)), "starting perk once")
+	gs.starting_perk_chosen = false
+	gs.choose_starting_perk("perk_sawyer_crew")
+	gs.start_combat("thug")
+	var team0 := 0
+	for u in gs.combat_units:
+		if int(u.get("team", -1)) == 0:
+			team0 += 1
+	check(team0 == 2, "sawyer crew ally joins combat", str(team0))
+	var player_unit: Dictionary = gs._combat_unit_by_uid(0)
+	gs._combat_damage(player_unit, 999, "测试")
+	check(gs.combat_active, "combat continues while ally alive")
 	gs.rep["security"] = 60
 	check(gs.rep_perk_unlocked("SEC_TRUSTED") and not gs.rep_perk_unlocked("SEC_PRIORITY"), "generic rep perk unlock")
 	check(gs.rep_perk_unlocked("UL_PETITION") == false, "upper petition locked by default")

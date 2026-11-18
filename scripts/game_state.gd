@@ -102,6 +102,7 @@ var combat_ended := false
 var combat_pending_victory := false
 var combat_armor_defs: Dictionary = {}
 var combat_parties: Dictionary = {}
+var combat_allies: Array = []
 var equipped_armor_uid := -1
 var security_defs: Dictionary = {}
 var locale_text: Dictionary = {}
@@ -2226,6 +2227,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	scene_seen = []
 	wanted_defeated = []
 	combat_active = false
+	combat_allies = []
 	ending_id = ""
 	_refresh_upgrades()
 	machine_jobs = []
@@ -4399,6 +4401,10 @@ func choose_starting_perk(pid: String) -> Dictionary:
 	starting_perk_id = pid
 	starting_perk_chosen = true
 	match pid:
+		"perk_sawyer_crew":
+			combat_allies = [{"name": "索耶船员", "enemy_id": "marine"}]
+		"perk_expedition_organizer":
+			combat_allies = [{"name": "探险助手", "enemy_id": "scav"}]
 		"perk_saving": cash += 150
 		"perk_bad_lease": cash -= 40
 		"perk_well_connected": add_rep("upper", 15)
@@ -4798,6 +4804,15 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	}
 	combat_player_uid = 0
 	combat_units.append(player)
+	for ally in combat_allies:
+		var adef := enemy_def(String(ally.get("enemy_id", "scav")))
+		if adef.is_empty():
+			continue
+		var ally_unit := _combat_make_unit(adef, 0)
+		ally_unit["name"] = String(ally.get("name", "队友"))
+		ally_unit["is_player"] = false
+		ally_unit["is_ally"] = true
+		combat_units.append(ally_unit)
 	if enemy_ids.is_empty():
 		enemy_ids = [enemy_id]
 	for idx in range(enemy_ids.size()):
@@ -4825,6 +4840,11 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	var encounter_name := String(party.get("name", e.get("name", enemy_id)))
 	if party.is_empty() and enemy_ids.size() > 1:
 		encounter_name = "%s ×%d" % [String(e.get("name", enemy_id)), enemy_ids.size()]
+	if not combat_allies.is_empty():
+		var ally_names: Array = []
+		for a in combat_allies:
+			ally_names.append(String(a.get("name", "队友")))
+		combat_log.append("队友：%s。" % "、".join(ally_names))
 	combat_log.append("遭遇：%s（第 %d 回合）" % [encounter_name, combat_round])
 	_combat_sync_legacy()
 	emit_signal("combat_started")
@@ -5164,8 +5184,8 @@ func _combat_check_end() -> bool:
 	if _combat_alive(1).is_empty():
 		_combat_victory()
 		return true
-	var pl := _combat_unit_by_uid(combat_player_uid)
-	if pl.is_empty() or bool(pl.get("dead", false)):
+	var party_alive := _combat_alive(0)
+	if party_alive.is_empty():
 		_combat_defeat()
 		return true
 	return false
@@ -7162,7 +7182,7 @@ func save_game(slot: int = 1) -> bool:
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
 		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
-		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "combat_allies": combat_allies, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
 		"commissions": commissions, "procurement_orders": procurement_orders, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
@@ -7224,6 +7244,7 @@ func load_game(slot: int = 1) -> bool:
 	sec_permit_revoke_levels = []
 	for lv in data.get("sec_permit_revoke_levels", []):
 		sec_permit_revoke_levels.append(int(lv))
+	combat_allies = data.get("combat_allies", []).duplicate(true)
 	starting_perk_id = String(data.get("starting_perk_id", ""))
 	starting_perk_chosen = bool(data.get("starting_perk_chosen", false))
 	active_permits = []
