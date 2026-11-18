@@ -15,12 +15,21 @@ const C_TEXT := Color("#f2ecdd")
 const C_MUTED := Color("#8d96a6")
 const C_PAPER := Color("#e8dcc1")
 const C_INK := Color("#2b2a25")
+const UI_PANEL_TEX := "res://assets_private/ui_panels/"
+const WALKER_TEX := "res://assets_private/walkers/walker1_%d.png"
 
 var font: FontFile
 var game_view: Control
 var bg_window: TextureRect
 var customer_rect: TextureRect
 var customer_idle_tween: Tween
+var customer_shadow_tween: Tween
+var customer_shown_key := ""
+var walker_layer: Control
+var walkers: Array = []
+var walker_textures: Array = []
+var walker_far_timer := 1.5
+var walker_mid_timer := 2.0
 var fg: TextureRect
 var day_label: Label
 var rent_label: Label
@@ -271,6 +280,7 @@ func _ready() -> void:
 	_testphoneui_if_requested()
 	_testcombatui_if_requested()
 	_testsecurityui_if_requested()
+	_testpresentationui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -718,6 +728,32 @@ func _testsecurityui_if_requested() -> void:
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
+	if "--capturepresentation" in OS.get_cmdline_args():
+		await get_tree().create_timer(1.0).timeout
+		_welcome_done()
+		await get_tree().create_timer(0.2).timeout
+		var pguard := 0
+		while story_layer.visible and pguard < 40:
+			_story_advance()
+			pguard += 1
+		if modal_layer.visible:
+			_close_modal()
+		GameState.customers_today = [{"dummy": true}, {"dummy": true}, {"dummy": true}]
+		GameState.phase = "customer"
+		walker_far_timer = 0.0
+		walker_mid_timer = 0.0
+		_update_walkers(0.1)
+		customer_rect.modulate = Color.WHITE
+		await get_tree().create_timer(0.7).timeout
+		get_viewport().get_texture().get_image().save_png("res://_research/mockups/m35_shop_walkers.png")
+		_show_receipt("治安查抄单", "查获违禁品：手枪 ×1\n罚款：200₵\n盖章：治安部")
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png("res://_research/mockups/m35_receipt.png")
+		_show_news("号外：夜里有雨", "治安部今晚加强巡逻，黑市暂时关门。", [{"label": "知道了", "cb": _close_modal}])
+		await get_tree().create_timer(0.4).timeout
+		get_viewport().get_texture().get_image().save_png("res://_research/mockups/m35_news.png")
+		get_tree().quit()
+		return
 	if "--capturearchive" in OS.get_cmdline_args():
 		await get_tree().create_timer(1.0).timeout
 		_welcome_done()
@@ -920,11 +956,35 @@ func _style(bg: Color, border: Color, bw: int = 2) -> StyleBoxFlat:
 	sb.border_width_bottom = bw
 	return sb
 
+func _tex_style(tex_name: String, margin: int, fallback_bg: Color, fallback_border: Color, bw: int = 2) -> StyleBox:
+	var path := UI_PANEL_TEX + tex_name
+	if ResourceLoader.exists(path):
+		var sb := StyleBoxTexture.new()
+		sb.texture = load(path)
+		sb.texture_margin_left = margin
+		sb.texture_margin_right = margin
+		sb.texture_margin_top = margin
+		sb.texture_margin_bottom = margin
+		return sb
+	return _style(fallback_bg, fallback_border, bw)
+
 func _panel(parent: Node, pos: Vector2, size: Vector2, bg: Color, border: Color, bw: int = 2) -> Panel:
 	var p := Panel.new()
 	p.position = pos
 	p.size = size
-	p.add_theme_stylebox_override("panel", _style(bg, border, bw))
+	if bg == C_PANEL:
+		p.add_theme_stylebox_override("panel", _tex_style("panel.png", 4, bg, border, bw))
+	else:
+		p.add_theme_stylebox_override("panel", _style(bg, border, bw))
+	parent.add_child(p)
+	return p
+
+func _slot_cell(parent: Node, pos: Vector2, size: Vector2) -> Panel:
+	var p := Panel.new()
+	p.position = pos
+	p.size = size
+	p.add_theme_stylebox_override("panel", _tex_style("slot_frame.png", 10, Color("#11151d"), Color("#2a3140"), 1))
+	p.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	parent.add_child(p)
 	return p
 
@@ -1009,6 +1069,11 @@ func _build_ui() -> void:
 	game_view.add_child(back)
 	_texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_scene_base.png"))
 	bg_window = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_bg_window.png"))
+	walker_layer = Control.new()
+	walker_layer.position = Vector2.ZERO
+	walker_layer.size = Vector2(1920, 1080)
+	walker_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	game_view.add_child(walker_layer)
 	customer_rect = _texture_rect(game_view, Vector2(635, 5), Vector2(677, 496), _customer_path("maleUpper_0.png"))
 	fg = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_fg.png"))
 	var glass := ColorRect.new()
@@ -1494,13 +1559,13 @@ func _rebuild_container_grid() -> void:
 				var cell_zone := GameState.container_zone_at(spec, x)
 				if not zones.is_empty() and cell_zone.is_empty():
 					continue
-				var fill := Color("#11151d")
-				var edge := Color("#2a3140")
-				if not cell_zone.is_empty():
-					edge = Color("#2f5b6e") if String(cell_zone.get("id", "")) == "chill" else Color("#4a5f8f")
-					fill = Color("#101820") if String(cell_zone.get("id", "")) == "chill" else Color("#131826")
-				var cell := _panel(container_grid, Vector2(x * CONTAINER_STEP, y * CONTAINER_STEP), Vector2(CONTAINER_CELL, CONTAINER_CELL), fill, edge, 1)
-				cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+				if cell_zone.is_empty():
+					_slot_cell(container_grid, Vector2(x * CONTAINER_STEP, y * CONTAINER_STEP), Vector2(CONTAINER_CELL, CONTAINER_CELL))
+				else:
+					var edge := Color("#2f5b6e") if String(cell_zone.get("id", "")) == "chill" else Color("#4a5f8f")
+					var fill := Color("#101820") if String(cell_zone.get("id", "")) == "chill" else Color("#131826")
+					var cell := _panel(container_grid, Vector2(x * CONTAINER_STEP, y * CONTAINER_STEP), Vector2(CONTAINER_CELL, CONTAINER_CELL), fill, edge, 1)
+					cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		if not zones.is_empty():
 			for z in zones:
 				var zl := Label.new()
@@ -1703,8 +1768,7 @@ func _rebuild_showcase() -> void:
 	var show_size := GameState.showcase_size()
 	for y in range(int(show_size[1])):
 		for x in range(int(show_size[0])):
-			var cell := _panel(showcase_grid, Vector2(x * 56, y * 56), Vector2(52, 52), Color("#11151d"), Color("#2a3140"), 1)
-			cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+			_slot_cell(showcase_grid, Vector2(x * 56, y * 56), Vector2(52, 52))
 	for it in GameState.display:
 		var def := GameState.get_item_def(String(it.get("def_id", "")))
 		var shape := GameState.item_shape(it)
@@ -2841,6 +2905,8 @@ func _update_customer() -> void:
 	var c: Dictionary = GameState.current_customer
 	if c.is_empty():
 		customer_rect.visible = false
+		customer_rect.modulate = Color.WHITE
+		customer_shown_key = ""
 		customer_name_label.text = "—"
 		customer_info_label.text = "当前没有顾客。\n可以整理物品、查看档案，或结束营业。"
 		dialogue_name.text = "店铺"
@@ -2855,6 +2921,10 @@ func _update_customer() -> void:
 	var path := _customer_path(sprite)
 	if ResourceLoader.exists(path):
 		customer_rect.texture = load(path)
+	var ckey := "%d|%d|%s" % [GameState.day, GameState.current_index, String(arche.get("name", ""))]
+	if ckey != customer_shown_key:
+		customer_shown_key = ckey
+		_play_customer_walkin()
 	dialogue_name.text = "%s · %s" % [arche.get("name", "顾客"), intent_text]
 	dialogue_text.text = String(c.get("line", ""))
 
@@ -3317,6 +3387,19 @@ func _on_put_counter() -> void:
 	elif it.get("location") == "display":
 		GameState.put_display_on_counter(selected_uid)
 	_refresh()
+
+func _play_customer_walkin() -> void:
+	if customer_rect == null:
+		return
+	if customer_shadow_tween:
+		customer_shadow_tween.kill()
+	customer_rect.modulate = Color(0.22, 0.2, 0.3)
+	var tw := create_tween()
+	tw.tween_callback(_play_sfx.bind("step_left"))
+	tw.tween_interval(0.22)
+	tw.tween_callback(_play_sfx.bind("step_right"))
+	tw.tween_property(customer_rect, "modulate", Color.WHITE, 0.7).set_trans(Tween.TRANS_QUAD).set_ease(Tween.EASE_OUT)
+	customer_shadow_tween = tw
 
 func _start_customer_idle() -> void:
 	if customer_idle_tween:
@@ -4005,6 +4088,7 @@ func _on_machine_finished(message: String) -> void:
 		_toast(message)
 
 func _process(delta: float) -> void:
+	_update_walkers(delta)
 	if machine_layer == null or not machine_layer.visible:
 		return
 	machine_ui_timer += delta
@@ -4012,6 +4096,92 @@ func _process(delta: float) -> void:
 		machine_ui_timer = 0.0
 		_refresh_machine_jobs()
 		machine_power_label.text = "电力 %d/%d" % [GameState.power, GameState.max_power]
+
+func _walker_sprite(frame: int) -> Texture2D:
+	if walker_textures.is_empty():
+		for i in range(8):
+			var path := WALKER_TEX % i
+			walker_textures.append(load(path) if ResourceLoader.exists(path) else null)
+	if walker_textures.is_empty():
+		return null
+	return walker_textures[frame % walker_textures.size()]
+
+func _walker_rate_multiplier() -> float:
+	if GameState.phase != "customer" and GameState.phase != "open":
+		return 0.0
+	var n := GameState.customers_today.size()
+	if n <= 0:
+		return 0.0
+	if n <= 2:
+		return 0.25
+	return 1.0
+
+func _spawn_walker(far: bool) -> void:
+	if walker_layer == null or walkers.size() >= 20:
+		return
+	var tex := _walker_sprite(0)
+	if tex == null:
+		return
+	var rect := TextureRect.new()
+	rect.texture = tex
+	rect.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+	rect.expand_mode = TextureRect.EXPAND_IGNORE_SIZE
+	rect.stretch_mode = TextureRect.STRETCH_KEEP_ASPECT_CENTERED
+	var dir := 1 if GameState.rng.randf() > 0.5 else -1
+	var scale := 0.34 if far else 0.46
+	var h := 273.0 * scale
+	var x := 884.0 if far else 832.0
+	if dir < 0:
+		x = 1086.0 if far else 1134.0
+	var base_y := 338.0 if far else 356.0
+	rect.size = Vector2(143.0 * scale, h)
+	rect.position = Vector2(x, base_y - h)
+	rect.flip_h = dir < 0
+	rect.modulate = Color(0.18, 0.17, 0.23, 0.85) if far else Color(0.24, 0.22, 0.3, 0.95)
+	walker_layer.add_child(rect)
+	walkers.append({
+		"rect": rect,
+		"dir": dir,
+		"speed": (20.0 if far else 30.0) * GameState.rng.randf_range(0.85, 1.15),
+		"far": far,
+		"frame_t": 0.0,
+		"x": x,
+		"y": base_y - h,
+	})
+
+func _update_walkers(delta: float) -> void:
+	if walker_layer == null:
+		return
+	var mult := _walker_rate_multiplier()
+	if mult > 0.0:
+		walker_far_timer -= delta * mult
+		walker_mid_timer -= delta * mult
+	if walker_far_timer <= 0.0 and mult > 0.0:
+		walker_far_timer = GameState.rng.randf_range(2.0, 5.0)
+		_spawn_walker(true)
+	if walker_mid_timer <= 0.0 and mult > 0.0:
+		walker_mid_timer = GameState.rng.randf_range(2.0, 5.0)
+		_spawn_walker(false)
+	if walkers.is_empty():
+		return
+	var alive: Array = []
+	for w in walkers:
+		var rect: TextureRect = w.get("rect")
+		if rect == null or not is_instance_valid(rect):
+			continue
+		var x := float(w.get("x", 0.0)) + int(w.get("dir", 1)) * float(w.get("speed", 20.0)) * delta
+		var frame_t := float(w.get("frame_t", 0.0)) + delta
+		rect.texture = _walker_sprite(int(frame_t * 10.0))
+		rect.position = Vector2(x, float(w.get("y", 0.0)))
+		var far := bool(w.get("far", true))
+		var out := (x < 783.0 or x > 1187.0) if far else (x < 680.0 or x > 1290.0)
+		if out:
+			rect.queue_free()
+		else:
+			w["x"] = x
+			w["frame_t"] = frame_t
+			alive.append(w)
+	walkers = alive
 
 func _open_info_tab(tab: String) -> void:
 	info_layer.visible = true
@@ -4788,7 +4958,7 @@ func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
 
 func _show_modal(title: String, text: String, actions: Array) -> void:
-	modal_panel.add_theme_stylebox_override("panel", _style(C_PANEL, C_CYAN, 3))
+	modal_panel.add_theme_stylebox_override("panel", _tex_style("window_frame.png", 8, C_PANEL, C_CYAN, 3))
 	modal_title.add_theme_color_override("font_color", C_AMBER)
 	modal_text.add_theme_color_override("font_color", C_TEXT)
 	move_child(modal_layer, get_child_count() - 1)
@@ -4812,9 +4982,61 @@ func _show_modal(title: String, text: String, actions: Array) -> void:
 
 func _show_receipt(title: String, text: String) -> void:
 	_show_modal(title, text, [{"label": "收起", "cb": _close_modal}])
-	modal_panel.add_theme_stylebox_override("panel", _style(Color("#efe6cf"), Color("#8a7a5a"), 3))
-	modal_title.add_theme_color_override("font_color", Color("#3a2f22"))
+	modal_panel.add_theme_stylebox_override("panel", _tex_style("inspection_receipt.png", 14, Color("#efe6cf"), Color("#8a7a5a"), 3))
+	modal_title.add_theme_color_override("font_color", Color("#4a3423"))
 	modal_text.add_theme_color_override("font_color", Color("#2b241b"))
+
+func _show_news(title: String, text: String, actions: Array) -> void:
+	_show_modal(title, text, actions)
+	modal_panel.add_theme_stylebox_override("panel", _tex_style("newspaper.png", 22, Color("#d8d2bd"), Color("#8a8570"), 3))
+	modal_title.add_theme_color_override("font_color", Color("#6f2320"))
+	modal_text.add_theme_color_override("font_color", Color("#2b2a24"))
+	for b in modal_actions.get_children():
+		if b is Button:
+			b.add_theme_stylebox_override("normal", _style(Color("#cdc7b2"), Color("#8a8570"), 2))
+			b.add_theme_stylebox_override("hover", _style(Color("#e0dac5"), Color("#6f5a45"), 2))
+			b.add_theme_stylebox_override("pressed", _style(Color("#b7b19c"), Color("#6f5a45"), 2))
+			b.add_theme_color_override("font_color", Color("#2b2a24"))
+			b.add_theme_color_override("font_hover_color", Color("#4a3423"))
+			b.add_theme_color_override("font_pressed_color", Color("#4a3423"))
+
+func _testpresentationui_if_requested() -> void:
+	if not "--testpresentationui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.5).timeout
+	_welcome_done()
+	await get_tree().process_frame
+	if modal_layer.visible:
+		_close_modal()
+	_show_receipt("查抄单", "罚款 100₵")
+	await get_tree().process_frame
+	var rstyle := modal_panel.get_theme_stylebox("panel")
+	print("PRUI receipt style=", rstyle is StyleBoxTexture)
+	_show_news("号外", "夜里不太平。", [{"label": "知道了", "cb": _close_modal}])
+	await get_tree().process_frame
+	var nstyle := modal_panel.get_theme_stylebox("panel")
+	print("PRUI news style=", nstyle is StyleBoxTexture, " buttons=", modal_actions.get_child_count())
+	_close_modal()
+	var slot := _slot_cell(modal_actions, Vector2.ZERO, Vector2(52, 52))
+	await get_tree().process_frame
+	var sstyle := slot.get_theme_stylebox("panel")
+	print("PRUI slot style=", sstyle is StyleBoxTexture)
+	GameState.customers_today = [{"dummy": true}]
+	GameState.phase = "customer"
+	walker_far_timer = 0.0
+	walker_mid_timer = 0.0
+	_update_walkers(0.25)
+	await get_tree().process_frame
+	print("PRUI walkers=", walkers.size(), " nodes=", walker_layer.get_child_count())
+	if walkers.size() > 0:
+		var before := (walkers[0]["rect"] as TextureRect).texture
+		_update_walkers(0.35)
+		await get_tree().process_frame
+		print("PRUI walker frame advanced=", (walkers[0]["rect"] as TextureRect).texture != before)
+	_play_customer_walkin()
+	print("PRUI walkin tint=", customer_rect.modulate)
+	await get_tree().process_frame
+	get_tree().quit(0)
 
 func _close_modal() -> void:
 	modal_layer.visible = false
@@ -5204,7 +5426,7 @@ func _on_event_started(event: Dictionary) -> void:
 	var choices: Array = event.get("choices", [])
 	for i in range(choices.size()):
 		actions.append({"label": choices[i].get("label", "选择"), "cb": _on_event_choice.bind(i, choices[i].get("result", ""))})
-	_show_modal(title, text, actions)
+	_show_news(title, text, actions)
 
 func _on_event_choice(index: int, result: String) -> void:
 	_play_sfx("page")

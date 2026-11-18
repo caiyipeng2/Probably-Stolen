@@ -34,8 +34,8 @@ for t in "${TESTS[@]}"; do
   printf '%-28s %s  %s\n' "$t" "$STATUS" "${FAILS_LINE:-$ERR}" | tee -a "$OUT/summary.txt"
 done
 # Godot UI automation hooks: headless, no window, no phone.
-UI_HOOKS=(testmachineui testcontainerui testbarterui testphoneui testcombatui testsecurityui)
-UI_MARKERS=(MUI CUI BUI PUI CUI SUI)
+UI_HOOKS=(testmachineui testcontainerui testbarterui testphoneui testcombatui testsecurityui testpresentationui)
+UI_MARKERS=(MUI CUI BUI PUI CUI SUI PRUI)
 for i in "${!UI_HOOKS[@]}"; do
   h="${UI_HOOKS[$i]}"
   marker="${UI_MARKERS[$i]}"

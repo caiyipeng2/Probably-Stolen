@@ -43,6 +43,17 @@ func _init() -> void:
 				ui_count += 1
 	check(ui_count >= 250, "original UI icon slices present", str(ui_count))
 	check(FileAccess.file_exists("res://assets_private/ui_icons/BREWER.png"), "upgrade icon present")
+	var panel_names := ["panel.png", "window_frame.png", "slot_frame.png", "inspection_receipt.png", "newspaper.png"]
+	var panel_found := 0
+	for pn in panel_names:
+		if FileAccess.file_exists("res://assets_private/ui_panels/" + pn):
+			panel_found += 1
+	check(panel_found == panel_names.size(), "original 9-slice panels present", "%d/%d" % [panel_found, panel_names.size()])
+	var walker_found := 0
+	for i in range(8):
+		if FileAccess.file_exists("res://assets_private/walkers/walker1_%d.png" % i):
+			walker_found += 1
+	check(walker_found == 8, "original walker frames present", "%d/8" % walker_found)
 	var public_audio := load("res://assets_public/audio/music_main.ogg")
 	check(public_audio != null, "public audio fallback present")
 	print("FAILS=", fails)
