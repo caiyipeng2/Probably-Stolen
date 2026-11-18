@@ -4763,6 +4763,16 @@ func _combat_muzzle_flash() -> void:
 	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
 	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	combat_layer.add_child(flash)
+	if combat_enemy_sprite != null:
+		var line := Line2D.new()
+		line.width = 3.0
+		line.default_color = Color(1.0, 0.85, 0.45, 0.85)
+		var enemy_pos := combat_enemy_sprite.global_position - combat_layer.global_position + combat_enemy_sprite.size * 0.5
+		line.points = PackedVector2Array([Vector2(140, 430), enemy_pos])
+		combat_layer.add_child(line)
+		var ltw := create_tween()
+		ltw.tween_property(line, "modulate:a", 0.0, 0.16)
+		ltw.tween_callback(line.queue_free)
 	var tw := create_tween()
 	tw.tween_property(flash, "color:a", 0.0, 0.18)
 	tw.tween_callback(flash.queue_free)
@@ -4778,6 +4788,9 @@ func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
 
 func _show_modal(title: String, text: String, actions: Array) -> void:
+	modal_panel.add_theme_stylebox_override("panel", _style(C_PANEL, C_CYAN, 3))
+	modal_title.add_theme_color_override("font_color", C_AMBER)
+	modal_text.add_theme_color_override("font_color", C_TEXT)
 	move_child(modal_layer, get_child_count() - 1)
 	modal_layer.modulate.a = 0.0
 	create_tween().tween_property(modal_layer, "modulate:a", 1.0, 0.15)
@@ -4796,6 +4809,12 @@ func _show_modal(title: String, text: String, actions: Array) -> void:
 		b.add_theme_font_size_override("font_size", fs)
 	modal_close_btn.visible = true
 	modal_layer.visible = true
+
+func _show_receipt(title: String, text: String) -> void:
+	_show_modal(title, text, [{"label": "收起", "cb": _close_modal}])
+	modal_panel.add_theme_stylebox_override("panel", _style(Color("#efe6cf"), Color("#8a7a5a"), 3))
+	modal_title.add_theme_color_override("font_color", Color("#3a2f22"))
+	modal_text.add_theme_color_override("font_color", Color("#2b241b"))
 
 func _close_modal() -> void:
 	modal_layer.visible = false
