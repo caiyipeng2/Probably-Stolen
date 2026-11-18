@@ -99,6 +99,11 @@ var showcase_grid: Control
 var showcase_info: Label
 var showcase_actions: VBoxContainer
 var showcase_selected_uid := -1
+var trash_layer: Control
+var trash_grid: Control
+var trash_info: Label
+var trash_actions: VBoxContainer
+var trash_selected_uid := -1
 var inspection_owned := false
 var promotion_prompt_day := -1
 var select_layer: Control
@@ -239,6 +244,7 @@ func _ready() -> void:
 	GameState.story_available.connect(_on_story_available)
 	GameState.inspection_arrived.connect(_on_inspection_arrived)
 	GameState.security_officer_arrived.connect(_on_security_officer_arrived)
+	GameState.permit_revoke_arrived.connect(_on_permit_revoke_arrived)
 	GameState.combat_hit.connect(_on_combat_hit)
 	GameState.combat_started.connect(_on_combat_started)
 	GameState.combat_updated.connect(_on_combat_updated)
@@ -635,11 +641,40 @@ func _testsecurityui_if_requested() -> void:
 	print("SUI inspection title=", modal_title.text, " actions=", modal_actions.get_child_count())
 	_close_modal()
 	GameState.sec_inspection_pending = false
+	GameState.sec_inspection_personality = 2
+	GameState.sec_inspection_pending = true
+	GameState.sec_inspection_fake = false
+	_on_inspection_arrived()
+	await get_tree().process_frame
+	print("SUI lazy title=", modal_title.text)
+	_close_modal()
+	GameState.sec_inspection_pending = false
+	var trash_item := GameState.make_item("handmade_pistol", 100, true, false)
+	GameState.add_item(trash_item)
+	var moved := GameState.move_to_trash(int(trash_item.get("uid", -1)))
+	_open_trash()
+	await get_tree().process_frame
+	print("SUI trash moved=", moved, " count=", GameState.trash_items.size(), " title=", trash_info.text.substr(0, 24))
+	_close_trash()
+	GameState.active_permits = [{"type": "FIREARM", "level": 1}]
+	GameState.sec_permit_revoke_pending = true
+	GameState.sec_permit_revoke_levels = [1]
+	_on_permit_revoke_arrived()
+	await get_tree().process_frame
+	print("SUI permit title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	GameState.sec_permit_revoke_pending = false
+	GameState.sec_permit_revoke_levels = []
 	_open_info_tab("security")
 	await get_tree().process_frame
 	print("SUI tab name=", info_name.text, " meta=", info_meta.text)
 	print("SUI body=", info_body.text.replace("
-", " | ").substr(0, 80))
+", " | ").substr(0, 120))
+	_open_info_tab("network")
+	info_selected_id = "EVIDENCE_REMOVAL"
+	_refresh_info_detail()
+	await get_tree().process_frame
+	print("SUI evidence removal status=", info_status.text, " action=", info_action.text)
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -925,6 +960,7 @@ func _build_ui() -> void:
 	_build_inspection_layer()
 	_build_container_layer()
 	_build_showcase_layer()
+	_build_trash_layer()
 	_build_barter_layer()
 	_build_wholesale_layer()
 	_build_phone_layer()
@@ -1032,9 +1068,10 @@ func _build_drawer() -> void:
 	for i in range(3):
 		var pb := _button(p, page_names[i], Vector2(1480 + i * 52, 10), Vector2(44, 44), C_MUTED, _on_page.bind(i))
 		page_buttons.append(pb)
-	capacity_label = _label(p, "", Vector2(1640, 18), Vector2(250, 28), 22, C_MUTED)
-	_button(p, "展示柜", Vector2(1900, 8), Vector2(150, 48), C_CYAN, _open_showcase)
-	_button(p, "整理", Vector2(2140, 8), Vector2(160, 48), C_CYAN, _auto_sort)
+	capacity_label = _label(p, "", Vector2(1600, 18), Vector2(140, 28), 22, C_MUTED)
+	_button(p, "垃圾桶", Vector2(1745, 8), Vector2(120, 48), C_MUTED, _open_trash)
+	_button(p, "展示柜", Vector2(1875, 8), Vector2(145, 48), C_CYAN, _open_showcase)
+	_button(p, "整理", Vector2(2035, 8), Vector2(160, 48), C_CYAN, _auto_sort)
 	var ledger := _panel(p, Vector2(24, 64), Vector2(330, 250), C_PAPER, Color("#b9a98a"), 3)
 	_label(ledger, "今日流水", Vector2(16, 10), Vector2(200, 36), 26, C_INK)
 	ledger_label = _label(ledger, "", Vector2(16, 50), Vector2(298, 186), 22, C_INK)
@@ -1196,6 +1233,36 @@ func _build_showcase_layer() -> void:
 	showcase_actions.size = Vector2(320, 660)
 	showcase_actions.add_theme_constant_override("separation", 10)
 	right.add_child(showcase_actions)
+
+func _build_trash_layer() -> void:
+	trash_layer = Control.new()
+	trash_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	trash_layer.visible = false
+	trash_layer.z_index = 145
+	trash_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(trash_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.8)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	trash_layer.add_child(dim)
+	var panel := _panel(trash_layer, Vector2(680, 230), Vector2(980, 620), C_PANEL, C_MUTED, 3)
+	_label(panel, "垃圾桶 · TRASH", Vector2(30, 16), Vector2(700, 46), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(820, 14), Vector2(130, 48), C_MUTED, _close_trash)
+	var left := _panel(panel, Vector2(24, 80), Vector2(620, 520), C_PANEL2, C_LINE, 2)
+	trash_info = _label(left, "", Vector2(16, 12), Vector2(590, 44), 20, C_TEXT)
+	trash_grid = Control.new()
+	trash_grid.position = Vector2(16, 64)
+	trash_grid.size = Vector2(580, 440)
+	left.add_child(trash_grid)
+	var right := _panel(panel, Vector2(660, 80), Vector2(296, 520), C_PANEL2, C_LINE, 2)
+	_label(right, "垃圾桶操作", Vector2(20, 12), Vector2(260, 32), 24, C_AMBER)
+	trash_actions = VBoxContainer.new()
+	trash_actions.position = Vector2(20, 56)
+	trash_actions.size = Vector2(256, 440)
+	trash_actions.add_theme_constant_override("separation", 10)
+	right.add_child(trash_actions)
+	dim.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	trash_layer.mouse_filter = Control.MOUSE_FILTER_IGNORE
 
 func _load_window_positions() -> void:
 	container_positions = {}
@@ -1613,6 +1680,64 @@ func _showcase_arrange() -> void:
 		GameState.display.append(it)
 	_rebuild_showcase()
 	_refresh()
+
+func _open_trash() -> void:
+	trash_layer.visible = true
+	move_child(trash_layer, get_child_count() - 1)
+	trash_selected_uid = -1
+	_rebuild_trash()
+
+func _close_trash() -> void:
+	trash_layer.visible = false
+	trash_selected_uid = -1
+
+func _rebuild_trash() -> void:
+	_clear_children(trash_grid)
+	_clear_children(trash_actions)
+	trash_info.text = "垃圾 %d/%d · 检查官会翻找垃圾桶，懒惰的检查官会跳过。" % [GameState.trash_items.size(), GameState.sec_trash_capacity()]
+	for i in range(GameState.sec_trash_capacity()):
+		var col := i % 4
+		var row := int(floor(float(i) / 4.0))
+		var cell := _panel(trash_grid, Vector2(col * 72, row * 72), Vector2(68, 68), Color("#11151d"), Color("#2a3140"), 1)
+		cell.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	for it in GameState.trash_items:
+		var def := GameState.get_item_def(String(it.get("def_id", "")))
+		var shape := GameState.item_shape(it)
+		var w := int(shape[0]) * 64 + (int(shape[0]) - 1) * 4
+		var h := int(shape[1]) * 64 + (int(shape[1]) - 1) * 4
+		var icon := TextureButton.new()
+		icon.position = Vector2(int(it.get("x", 0)) * 72, int(it.get("y", 0)) * 72)
+		icon.size = Vector2(w, h)
+		var gip := GameState.item_icon_path(def)
+		icon.texture_normal = load(gip) if gip != "" else null
+		icon.ignore_texture_size = true
+		icon.stretch_mode = TextureButton.STRETCH_KEEP_ASPECT_CENTERED
+		icon.texture_filter = CanvasItem.TEXTURE_FILTER_NEAREST
+		icon.focus_mode = Control.FOCUS_NONE
+		var uid := int(it.get("uid", -1))
+		icon.pressed.connect(_trash_select.bind(uid))
+		icon.gui_input.connect(_on_drag_gui_input.bind(uid, icon, "trash"))
+		if uid == trash_selected_uid:
+			icon.self_modulate = Color(1.3, 1.2, 0.85)
+		trash_grid.add_child(icon)
+		_add_count_badge(trash_grid, icon.position, icon.size, int(it.get("unit_count", 1)))
+	if trash_selected_uid >= 0:
+		var b := _button(trash_actions, "取回背包", Vector2.ZERO, Vector2(256, 52), C_CYAN, _trash_take)
+		b.custom_minimum_size = Vector2(256, 52)
+		b.size_flags_horizontal = Control.SIZE_EXPAND_FILL
+		b.add_theme_font_size_override("font_size", 18)
+
+func _trash_select(uid: int) -> void:
+	trash_selected_uid = uid
+	_rebuild_trash()
+
+func _trash_take() -> void:
+	if trash_selected_uid < 0:
+		return
+	if GameState.take_from_trash(trash_selected_uid):
+		trash_selected_uid = -1
+		_rebuild_trash()
+		_refresh()
 
 func _build_barter_layer() -> void:
 	barter_layer = Control.new()
@@ -2803,6 +2928,7 @@ func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source
 						"main": call_deferred("_on_item_selected", uid)
 						"container": _container_select_child(uid)
 						"showcase": _showcase_select(uid)
+						"trash": _trash_select(uid)
 	elif event is InputEventMouseMotion and dragging_uid == uid and drag_icon:
 		dragged = true
 		var parent_ctrl := drag_icon.get_parent() as Control
@@ -2817,9 +2943,16 @@ func _finish_drag(uid: int, source: String) -> void:
 		target = "container"
 	elif showcase_layer and showcase_layer.visible and showcase_grid.get_global_rect().has_point(mouse):
 		target = "showcase"
+	elif trash_layer and trash_layer.visible and trash_grid.get_global_rect().has_point(mouse):
+		target = "trash"
 	elif grid_root.get_global_rect().has_point(mouse):
 		target = "main"
-	if target == "container":
+	if target == "trash":
+		if source != "trash":
+			handled = GameState.move_to_trash(uid)
+		else:
+			handled = true
+	elif target == "container":
 		var gx := int(floor((mouse.x - container_grid.global_position.x) / float(CONTAINER_STEP)))
 		var gy := int(floor((mouse.y - container_grid.global_position.y) / float(CONTAINER_STEP)))
 		var parent := GameState.find_item(open_container_uid)
@@ -2848,6 +2981,8 @@ func _finish_drag(uid: int, source: String) -> void:
 		_rebuild_container_grid()
 	if showcase_layer.visible:
 		_rebuild_showcase()
+	if trash_layer.visible:
+		_rebuild_trash()
 
 func _on_display_slot(uid: int) -> void:
 	selected_uid = uid
@@ -3023,6 +3158,8 @@ func _load_slot(slot: int) -> void:
 		_refresh()
 		if GameState.sec_officer_pending:
 			_on_security_officer_arrived()
+		elif GameState.sec_permit_revoke_pending:
+			_on_permit_revoke_arrived()
 		elif GameState.sec_inspection_pending:
 			_on_inspection_arrived()
 		else:
@@ -3615,8 +3752,14 @@ func _rebuild_info_list() -> void:
 		"network":
 			for u in GameState.upgrades:
 				var uid := String(u.get("id", ""))
-				var owned := GameState.owned_upgrades.has(uid)
-				var text := "%s · %s" % [u.get("name", uid), "已拥有" if owned else "%d₵" % int(u.get("cost", 0))]
+				var owned := GameState.upgrade_owned(uid)
+				var state_text := "已拥有"
+				if uid == "EVIDENCE_REMOVAL":
+					var cd := GameState.upgrade_cooldown(uid)
+					state_text = ("冷却 %d 天 · " % cd if cd > 0 else "") + "%d₵" % GameState.upgrade_cost(uid)
+				elif not owned:
+					state_text = "%d₵" % GameState.upgrade_cost(uid)
+				var text := "%s · %s" % [u.get("name", uid), state_text]
 				_add_info_button(text, uid)
 		"professions":
 			for p in GameState.professions:
@@ -3685,16 +3828,32 @@ func _refresh_info_detail() -> void:
 			if u.is_empty():
 				return
 			info_name.text = String(u.get("name", ""))
-			var owned := GameState.owned_upgrades.has(info_selected_id)
-			var udesc := String(u.get("desc", "")).replace("{0}", "15").replace("{1}", "1")
-			info_meta.text = "%d₵ · 效果：%s" % [int(u.get("cost", 0)), udesc]
+			var avail := GameState.upgrade_available(info_selected_id)
+			var cost := int(avail.get("cost", 0))
+			var udesc := String(u.get("desc", ""))
+			if info_selected_id == "EVIDENCE_REMOVAL":
+				udesc = udesc.replace("{0}", str(int(GameState.security_defs.get("evidence_removal", {}).get("cooldown_days", 14))))
+			elif info_selected_id.begins_with("GUN_PERMIT"):
+				for p in GameState.security_defs.get("permits", []):
+					if String(p.get("id", "")) == info_selected_id:
+						udesc = udesc.replace("{0}", str(int(p.get("threshold", 0))))
+			udesc = udesc.replace("{1}", "1")
+			info_meta.text = "价格 %d₵" % cost
+			var status := String(avail.get("reason", ""))
+			var extra := "购买后立即生效，状态随存档保存。"
+			if info_selected_id.begins_with("GUN_PERMIT"):
+				extra = "购买后需达到对应治安声望才会在次日签发；声望跌破门槛会被吊销。"
+			elif info_selected_id == "EVIDENCE_REMOVAL":
+				extra = "可重复购买；每次购买后价格 +%d₵，冷却 %d 天。" % [int(GameState.security_defs.get("evidence_removal", {}).get("cost_step", 100)), int(GameState.security_defs.get("evidence_removal", {}).get("cooldown_days", 14))]
 			info_body.text = udesc + "
 
-" + ("已拥有" if owned else "购买后立即生效，状态随存档保存。")
+" + extra + "
+
+状态：" + status
 			info_action.visible = true
-			info_action.text = "购买 %d₵" % int(u.get("cost", 0))
-			info_action.disabled = owned or GameState.cash < int(u.get("cost", 0))
-			info_status.text = "已拥有" if owned else ("现金不足" if GameState.cash < int(u.get("cost", 0)) else "可购买")
+			info_action.text = ("清除证据 %d₵" if info_selected_id == "EVIDENCE_REMOVAL" else "购买 %d₵") % cost
+			info_action.disabled = not bool(avail.get("ok", false))
+			info_status.text = status
 		"professions":
 			var p := {}
 			for x in GameState.professions:
@@ -3800,9 +3959,31 @@ func _refresh_info_detail() -> void:
 最大案件：%s
 贿赂参考：%d₵" % [GameState.sec_total_crime(), GameState.sec_biggest_crime(), GameState.sec_bribe_amount()]
 			body += "
-
 " + ("
 ".join(crime_lines) if not crime_lines.is_empty() else "目前没有犯罪记录。")
+			var neg_perks: Array = []
+			var pos_perks: Array = []
+			for pid in GameState.security_defs.get("reputation_perks", {}).keys():
+				var pd: Dictionary = GameState.security_defs["reputation_perks"][pid]
+				var threshold := int(pd.get("threshold", 0))
+				var pname := GameState.loc("RepPerkTable", "rep_perk_%s_name" % pid, String(pid))
+				var mark := "●" if GameState.sec_perk_unlocked(String(pid)) else "○"
+				if int(pd.get("type", 1)) < 0:
+					neg_perks.append("%s%s≤%d" % [mark, pname, threshold])
+				else:
+					pos_perks.append("%s%s≥%d" % [mark, pname, threshold])
+			body += "
+治安特权（●已解锁 ○未解锁）：
+负面：" + "、".join(neg_perks) + "
+正面：" + "、".join(pos_perks)
+			var permit_text := "无"
+			if not GameState.active_permits.is_empty():
+				var plist: Array = []
+				for p in GameState.active_permits:
+					plist.append("%s级" % str(int(p.get("level", 0))))
+				permit_text = "、".join(plist)
+			body += "
+武器许可证：%s" % permit_text
 			info_body.text = body
 			info_status.text = "治安声望 %+d" % int(GameState.rep.get("security", 0))
 		"wanted":
@@ -3874,9 +4055,31 @@ func _info_action() -> void:
 最大案件：%s
 贿赂参考：%d₵" % [GameState.sec_total_crime(), GameState.sec_biggest_crime(), GameState.sec_bribe_amount()]
 			body += "
-
 " + ("
 ".join(crime_lines) if not crime_lines.is_empty() else "目前没有犯罪记录。")
+			var neg_perks: Array = []
+			var pos_perks: Array = []
+			for pid in GameState.security_defs.get("reputation_perks", {}).keys():
+				var pd: Dictionary = GameState.security_defs["reputation_perks"][pid]
+				var threshold := int(pd.get("threshold", 0))
+				var pname := GameState.loc("RepPerkTable", "rep_perk_%s_name" % pid, String(pid))
+				var mark := "●" if GameState.sec_perk_unlocked(String(pid)) else "○"
+				if int(pd.get("type", 1)) < 0:
+					neg_perks.append("%s%s≤%d" % [mark, pname, threshold])
+				else:
+					pos_perks.append("%s%s≥%d" % [mark, pname, threshold])
+			body += "
+治安特权（●已解锁 ○未解锁）：
+负面：" + "、".join(neg_perks) + "
+正面：" + "、".join(pos_perks)
+			var permit_text := "无"
+			if not GameState.active_permits.is_empty():
+				var plist: Array = []
+				for p in GameState.active_permits:
+					plist.append("%s级" % str(int(p.get("level", 0))))
+				permit_text = "、".join(plist)
+			body += "
+武器许可证：%s" % permit_text
 			info_body.text = body
 			info_status.text = "治安声望 %+d" % int(GameState.rep.get("security", 0))
 		"wanted":
@@ -4035,13 +4238,51 @@ func _inspection_bribe() -> void:
 func _on_inspection_arrived() -> void:
 	if not GameState.sec_inspection_pending:
 		return
-	var body := String(GameState.dialogue_lines.get("dialog_sec_inspect_last_open", "检查官要求检查你的柜台与库存。"))
-	body += "\n\n最近案件：%s\n证据：%d/100" % [GameState.sec_biggest_crime(), GameState.sec_evidence]
+	var title := "治安检查"
+	if GameState.sec_inspection_personality == 1:
+		title = GameState.loc("ClientName", "name_shady_security_inspector", "可疑的治安部盘查员")
+	elif GameState.sec_inspection_personality == 2:
+		title = GameState.loc("ClientName", "name_lazy_security_inspector", "懒惰的治安部盘查员")
+	else:
+		title = GameState.loc("ClientName", "name_security_inspector", "治安部盘查员")
+	var body := String(GameState.dialogue_lines.get("dialog_inspection_routine_1", "别紧张。"))
+	body += " " + String(GameState.dialogue_lines.get("dialog_inspection_routine_2", "这是一次例行治安盘查。"))
+	body += "
+
+" + String(GameState.dialogue_lines.get("dialog_sec_inspect_last_open", "检查官要求检查你的柜台与库存。"))
+	body += "
+
+最近案件：%s
+证据：%d/100" % [GameState.sec_biggest_crime(), GameState.sec_evidence]
+	if GameState.sec_inspection_fake and GameState.sec_perk_unlocked("SEC_VIP"):
+		body += "
+
+他的制服似乎不太合身……"
 	var actions: Array = [{"label": "接受检查", "cb": _inspection_accept}]
 	if GameState.sec_inspection_personality == 1 and GameState.cash >= GameState.sec_bribe_amount():
 		var amt := GameState.sec_bribe_amount()
 		actions.append({"label": "贿赂 %d₵" % amt, "color": C_RUST, "cb": _inspection_bribe})
-	_show_modal("治安检查", body, actions)
+	_show_modal(title, body, actions)
+
+func _on_permit_revoke_arrived() -> void:
+	if not GameState.sec_permit_revoke_pending:
+		return
+	var lines: Array = [
+		String(GameState.dialogue_lines.get("dialog_sec_revoke_1", "你好。鉴于你近期的所作所为，")),
+		String(GameState.dialogue_lines.get("dialog_sec_revoke_2", "现正式吊销你的许可证。")),
+		String(GameState.dialogue_lines.get("dialog_sec_revoke_3", "祝你当班平安。")),
+	]
+	var levels: Array = []
+	for level in GameState.sec_permit_revoke_levels:
+		levels.append(str(level))
+	lines.append("吊销等级：%s" % "、".join(levels))
+	_show_modal("治安部", "
+".join(lines), [{"label": "交还许可证", "cb": _permit_revoke_confirm, "color": C_RUST}])
+
+func _permit_revoke_confirm() -> void:
+	var res := GameState.revoke_permits()
+	_security_result_modal(res)
+	_refresh()
 
 func _on_combat_hit(uid: int, amount: int) -> void:
 	_play_sfx("hit")

@@ -9,6 +9,7 @@ signal story_available(node_id)
 signal combat_hit(target_uid, amount)
 signal inspection_arrived
 signal security_officer_arrived
+signal permit_revoke_arrived
 signal combat_started
 signal combat_updated
 signal combat_finished(victory, message)
@@ -99,8 +100,15 @@ var sec_state := 0
 var sec_officer_pending := false
 var sec_inspection_pending := false
 var sec_inspection_personality := 0
+var sec_inspection_fake := false
 var sec_last_inspection_day := -99
 var sec_bribe_tracker := 0
+var sec_permit_revoke_pending := false
+var sec_permit_revoke_levels: Array = []
+var active_permits: Array = []
+var trash_items: Array = []
+var upgrade_cooldowns: Dictionary = {}
+var evidence_removal_purchases := 0
 var _suppress_sec_tick := false
 var ending_id := ""
 var machine_jobs: Array = []
@@ -1597,6 +1605,12 @@ func find_item(uid: int) -> Dictionary:
 		var nested2 := _find_child_item(it, uid)
 		if not nested2.is_empty():
 			return nested2
+	for it in trash_items:
+		if int(it.get("uid", -1)) == uid:
+			return it
+		var nested_trash := _find_child_item(it, uid)
+		if not nested_trash.is_empty():
+			return nested_trash
 	if not counter_item.is_empty():
 		if int(counter_item.get("uid", -1)) == uid:
 			return counter_item
@@ -1981,6 +1995,14 @@ func detach_item(uid: int) -> Dictionary:
 		var nestedd := _detach_from_tree(display[i], uid)
 		if not nestedd.is_empty():
 			return nestedd
+	for i in range(trash_items.size()):
+		if int(trash_items[i].get("uid", -1)) == uid:
+			var topt: Dictionary = trash_items[i]
+			trash_items.remove_at(i)
+			return topt
+		var nestedt := _detach_from_tree(trash_items[i], uid)
+		if not nestedt.is_empty():
+			return nestedt
 	if int(counter_item.get("uid", -1)) == uid:
 		var topc := counter_item
 		counter_item = {}
@@ -2100,8 +2122,15 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	sec_officer_pending = false
 	sec_inspection_pending = false
 	sec_inspection_personality = 0
+	sec_inspection_fake = false
 	sec_last_inspection_day = -99
 	sec_bribe_tracker = 0
+	sec_permit_revoke_pending = false
+	sec_permit_revoke_levels = []
+	active_permits = []
+	trash_items = []
+	upgrade_cooldowns = {}
+	evidence_removal_purchases = 0
 	phase = "open"
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	uid_counter = 1
@@ -2200,6 +2229,178 @@ func _decay_stolen_item(it: Dictionary) -> void:
 func sec_crime_name(cid: String) -> String:
 	return String(security_defs.get("crimes", {}).get(cid, cid))
 
+func _sec_perk_def(perk_id: String) -> Dictionary:
+	return security_defs.get("reputation_perks", {}).get(perk_id, {})
+
+func sec_perk_unlocked(perk_id: String) -> bool:
+	var def := _sec_perk_def(perk_id)
+	if def.is_empty():
+		return false
+	var faction := String(def.get("faction", "security"))
+	var value := int(rep.get(faction, 0))
+	var threshold := int(def.get("threshold", 0))
+	if int(def.get("type", 1)) < 0:
+		return value <= threshold
+	return value >= threshold
+
+func sec_investigation_multiplier() -> float:
+	var mult := 1.0
+	if sec_perk_unlocked("SEC_TRUSTED"):
+		mult *= 0.5
+	if sec_perk_unlocked("SEC_PRIORITY"):
+		mult *= float(_sec_perk_def("SEC_PRIORITY").get("investigation_mult", 1.5))
+	elif sec_perk_unlocked("SEC_WATCHLIST"):
+		mult *= float(_sec_perk_def("SEC_WATCHLIST").get("investigation_mult", 1.2))
+	if sec_perk_unlocked("UL_PETITION"):
+		mult *= float(_sec_perk_def("UL_PETITION").get("investigation_mult", 1.5))
+	return mult
+
+func sec_inspection_chance_multiplier() -> float:
+	var mult := 1.0
+	if sec_perk_unlocked("SEC_TRUSTED"):
+		mult *= float(_sec_perk_def("SEC_TRUSTED").get("inspection_chance_mult", 0.5))
+	if sec_perk_unlocked("SEC_THOROUGH_INSPECTION"):
+		mult *= float(_sec_perk_def("SEC_THOROUGH_INSPECTION").get("inspection_chance_mult", 1.25))
+	return mult
+
+func sec_inspection_disabled() -> bool:
+	return sec_perk_unlocked("SEC_VIP")
+
+func sec_is_firearm(it: Dictionary) -> bool:
+	for t in _item_tags(it):
+		if String(t).to_lower() == "firearm":
+			return true
+	return false
+
+func sec_has_permit(level: int) -> bool:
+	for p in active_permits:
+		if String(p.get("type", "")) == "FIREARM" and int(p.get("level", 0)) == level:
+			return true
+	return false
+
+func sec_item_contraband_level(it: Dictionary) -> int:
+	var level := int(get_item_def(String(it.get("def_id", ""))).get("contraband", 0))
+	if level > 0 and sec_is_firearm(it) and sec_has_permit(level):
+		return 0
+	return level
+
+func _sec_grant_permits() -> void:
+	for p in security_defs.get("permits", []):
+		var uid := String(p.get("id", ""))
+		var level := int(p.get("level", 0))
+		if not bool(owned_upgrades.get(uid, false)) or sec_has_permit(level):
+			continue
+		if int(rep.get("security", 0)) < int(p.get("threshold", 0)):
+			continue
+		active_permits.append({"type": "FIREARM", "level": level})
+		var item_id := String(p.get("item", ""))
+		if items_def.has(item_id) and inventory_count(item_id) == 0:
+			var it := make_item(item_id, 100, true, false)
+			it["known"] = true
+			add_item(it)
+		_add_night_log("治安部签发了 %s。" % String(get_item_def(item_id).get("name", item_id)))
+
+func _sec_check_permit_revocation() -> void:
+	if sec_permit_revoke_pending or sec_officer_pending or sec_inspection_pending:
+		return
+	var levels: Array = []
+	for p in security_defs.get("permits", []):
+		var level := int(p.get("level", 0))
+		if sec_has_permit(level) and int(rep.get("security", 0)) < int(p.get("threshold", 0)):
+			levels.append(level)
+	if levels.is_empty():
+		return
+	sec_permit_revoke_pending = true
+	sec_permit_revoke_levels = levels
+	_add_night_log("治安部将吊销你的武器许可证。")
+
+func _sec_collect_item_uids(it: Dictionary, item_id: String, uids: Array) -> void:
+	if String(it.get("def_id", "")) == item_id:
+		uids.append(int(it.get("uid", -1)))
+	for ch in it.get("children", []):
+		_sec_collect_item_uids(ch, item_id, uids)
+
+func _sec_remove_permit_items(level: int) -> void:
+	var item_id := "permit_gun_%d" % level
+	var uids: Array = []
+	for it in inventory:
+		_sec_collect_item_uids(it, item_id, uids)
+	for it in display:
+		_sec_collect_item_uids(it, item_id, uids)
+	for it in trash_items:
+		_sec_collect_item_uids(it, item_id, uids)
+	if not counter_item.is_empty():
+		_sec_collect_item_uids(counter_item, item_id, uids)
+	for uid in uids:
+		detach_item(int(uid))
+
+func revoke_permits() -> Dictionary:
+	if not sec_permit_revoke_pending:
+		return {"ok": false, "text": "没有需要吊销的许可证。"}
+	var removed: Array = []
+	for level in sec_permit_revoke_levels:
+		var kept: Array = []
+		for p in active_permits:
+			if String(p.get("type", "")) == "FIREARM" and int(p.get("level", 0)) == int(level):
+				continue
+			kept.append(p)
+		active_permits = kept
+		_sec_remove_permit_items(int(level))
+		removed.append(int(level))
+	sec_permit_revoke_pending = false
+	sec_permit_revoke_levels = []
+	var parts: Array = []
+	for level in removed:
+		parts.append(str(level))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "吊销的许可证等级：%s。" % "、".join(parts)}
+
+func sec_trash_capacity() -> int:
+	return int(security_defs.get("inspection", {}).get("trash_capacity", 12))
+
+func sec_trash_free_slot() -> Vector2i:
+	var cap := sec_trash_capacity()
+	var used := {}
+	for it in trash_items:
+		used["%d,%d" % [int(it.get("x", -1)), int(it.get("y", -1))]] = true
+	for i in range(cap):
+		var col := i % 4
+		var row := int(floor(float(i) / 4.0))
+		var key := "%d,%d" % [col, row]
+		if not used.has(key):
+			return Vector2i(col, row)
+	return Vector2i(-1, -1)
+
+func move_to_trash(uid: int) -> bool:
+	if trash_items.size() >= sec_trash_capacity():
+		return false
+	var it := detach_item(uid)
+	if it.is_empty():
+		return false
+	var slot := sec_trash_free_slot()
+	it["location"] = "trash"
+	it["x"] = slot.x
+	it["y"] = slot.y
+	it["page"] = 0
+	trash_items.append(it)
+	_refresh_pages()
+	emit_signal("state_changed")
+	return true
+
+func take_from_trash(uid: int) -> bool:
+	for i in range(trash_items.size()):
+		if int(trash_items[i].get("uid", -1)) == uid:
+			var it: Dictionary = trash_items[i]
+			trash_items.remove_at(i)
+			it["location"] = "backpack"
+			it["x"] = -1
+			it["y"] = -1
+			add_item(it)
+			_refresh_pages()
+			emit_signal("state_changed")
+			return true
+	return false
+
 func commit_crime(cid: String, amount: int) -> void:
 	if amount <= 0:
 		return
@@ -2281,6 +2482,11 @@ func _sec_decay_all_stolen() -> void:
 				_decay_stolen_item(sub)
 	if not counter_item.is_empty():
 		_decay_stolen_item(counter_item)
+	for it in trash_items:
+		_decay_stolen_item(it)
+		for ch in it.get("children", []):
+			for sub in _iter_inventory_items([ch]):
+				_decay_stolen_item(sub)
 
 func _sec_on_new_day() -> void:
 	if _suppress_sec_tick:
@@ -2298,8 +2504,8 @@ func _sec_on_new_day() -> void:
 		for row in security_defs.get("evidence_gain", []):
 			if total >= int(row.get("min", 0)):
 				gain = int(row.get("gain", 0))
-	if bool(owned_upgrades.get("SEC_TRUSTED", false)):
-		gain = gain / 2
+	if gain > 0:
+		gain = maxi(1, int(round(float(gain) * sec_investigation_multiplier())))
 	sec_evidence = mini(100, sec_evidence + gain)
 	if sec_evidence >= 100 and total > 0 and not sec_officer_pending:
 		sec_officer_pending = true
@@ -2307,6 +2513,8 @@ func _sec_on_new_day() -> void:
 		_add_night_log("治安部已掌握足够证据，探员将上门。")
 	elif gain > 0:
 		_add_night_log("治安调查推进：证据 %d/100。" % sec_evidence)
+	_sec_grant_permits()
+	_sec_check_permit_revocation()
 
 func sec_commit_sale(item: Dictionary, price: int, faction: String) -> void:
 	var mod := 1.0
@@ -2318,7 +2526,7 @@ func sec_commit_sale(item: Dictionary, price: int, faction: String) -> void:
 	if bool(item.get("stolen", false)):
 		var heat := int(item.get("stolen_heat", 50))
 		commit_crime("FENCING", int(round(float(value) * float(heat) / 100.0)))
-	var level := int(get_item_def(String(item.get("def_id", ""))).get("contraband", 0))
+	var level := sec_item_contraband_level(item)
 	if level > 0:
 		var def := get_item_def(String(item.get("def_id", "")))
 		var cat := String(def.get("category", ""))
@@ -2394,8 +2602,7 @@ func sec_resolve_officer(pay: bool) -> Dictionary:
 	return {"ok": true, "text": "你的罪行足够处决。"}
 
 func _sec_scan_item(it: Dictionary, flagged: Array, from_hidden: bool = false) -> void:
-	var def := get_item_def(String(it.get("def_id", "")))
-	var level := int(def.get("contraband", 0))
+	var level := sec_item_contraband_level(it)
 	var stolen := bool(it.get("stolen", false))
 	if stolen and level <= 0:
 		if rng.randi_range(1, 100) > int(it.get("stolen_heat", 50)):
@@ -2419,6 +2626,9 @@ func sec_inspection_candidates() -> Array:
 		_sec_scan_item(it, flagged, false)
 	if not counter_item.is_empty():
 		_sec_scan_item(counter_item, flagged, false)
+	if sec_inspection_personality != 2:
+		for it in trash_items:
+			_sec_scan_item(it, flagged, false)
 	return flagged
 
 func sec_bribe_amount() -> int:
@@ -2430,7 +2640,7 @@ func _sec_inspection_level(flagged: Array) -> int:
 	var highest := 0
 	var has_stolen := false
 	for it in flagged:
-		var level := int(get_item_def(String(it.get("def_id", ""))).get("contraband", 0))
+		var level := sec_item_contraband_level(it)
 		if level > highest:
 			highest = level
 		if bool(it.get("stolen", false)):
@@ -2442,7 +2652,7 @@ func _sec_inspection_level(flagged: Array) -> int:
 func _sec_seize_flagged(flagged: Array) -> Array:
 	var seized: Array = []
 	for it in flagged:
-		var level := int(get_item_def(String(it.get("def_id", ""))).get("contraband", 0))
+		var level := sec_item_contraband_level(it)
 		if level == 1:
 			continue
 		var uid := int(it.get("uid", -1))
@@ -2451,7 +2661,7 @@ func _sec_seize_flagged(flagged: Array) -> Array:
 	return seized
 
 func _sec_contains_flags(it: Dictionary) -> bool:
-	var level := int(get_item_def(String(it.get("def_id", ""))).get("contraband", 0))
+	var level := sec_item_contraband_level(it)
 	if level > 0 or bool(it.get("stolen", false)):
 		return true
 	for ch in it.get("children", []):
@@ -2474,26 +2684,31 @@ func _sec_has_concealed() -> bool:
 func sec_resolve_inspection(accept: bool, bribe: bool) -> Dictionary:
 	if not sec_inspection_pending:
 		return {"ok": false, "text": "没有检查正在进行。", "result": "none"}
+	var fake := sec_inspection_fake
+	var personality := sec_inspection_personality
 	sec_inspection_pending = false
+	sec_inspection_fake = false
 	sec_last_inspection_day = day
 	if bribe:
+		if fake:
+			return {"ok": false, "text": "他根本不是治安部的人。", "result": "none"}
 		var amt := sec_bribe_amount()
 		if cash < amt:
 			return {"ok": false, "text": "现金不足，无法贿赂（需要 %d₵）。" % amt, "result": "none"}
 		cash -= amt
 		sec_bribe_tracker += amt
 		emit_signal("state_changed")
-		return {"ok": true, "text": "你塞了 %d₵，检查官收下后离开了。" % amt, "result": "bribed", "fine": amt}
+		return {"ok": true, "text": "你塞了 %d₵，检查官收下后离开了。" % amt, "result": "bribed", "fine": amt, "fake": false, "personality": personality}
 	if not accept:
 		return {"ok": false, "text": "你必须接受检查。", "result": "none"}
 	var flagged := sec_inspection_candidates()
 	var luck := int(security_defs.get("inspection", {}).get("luck_save", 5))
 	if not flagged.is_empty() and rng.randi_range(1, 100) <= luck:
 		emit_signal("state_changed")
-		return {"ok": true, "text": String(dialogue_lines.get("mech_inspection_luck_saved", "检查官今天心情不错，什么也没发现。")), "result": "lucky", "seized": []}
+		return {"ok": true, "text": String(dialogue_lines.get("mech_inspection_luck_saved", "检查官今天心情不错，什么也没发现。")), "result": "lucky", "seized": [], "fake": fake, "personality": personality}
 	var suspicion := 0
 	for it in flagged:
-		var level := int(get_item_def(String(it.get("def_id", ""))).get("contraband", 0))
+		var level := sec_item_contraband_level(it)
 		suspicion += 1 + level
 		var basev := int(get_item_def(String(it.get("def_id", ""))).get("base_value", 0))
 		if bool(it.get("stolen", false)) and basev > 17:
@@ -2510,6 +2725,10 @@ func sec_resolve_inspection(accept: bool, bribe: bool) -> Dictionary:
 	var fine := 0
 	for it in flagged:
 		fine += effective_value(it)
+	if fake:
+		suspicion = 0
+		if level >= 3:
+			level = 2
 	var sec_grace := bool(owned_upgrades.get("SEC_GRACE", false))
 	var outcome := "cleared"
 	var text := String(dialogue_lines.get("dialog_sec_inspect_cleared_1", "你没有问题。"))
@@ -2519,14 +2738,16 @@ func sec_resolve_inspection(accept: bool, bribe: bool) -> Dictionary:
 		if sec_grace:
 			outcome = "grace"
 			text = String(dialogue_lines.get("dialog_sec_inspect_grace_1", "这次从轻发落。"))
-			add_rep("security", -suspicion)
+			if not fake:
+				add_rep("security", -suspicion)
 		else:
 			outcome = "arrest"
 			phase = "gameover"
 			ending_id = "arrest"
 			text = String(dialogue_lines.get("dialog_sec_inspect_arrest_1", "你被逮捕了。"))
 	elif level == 3:
-		add_rep("security", -suspicion)
+		if not fake:
+			add_rep("security", -suspicion)
 		if cash >= fine:
 			cash -= fine
 			fine_paid = fine
@@ -2541,26 +2762,31 @@ func sec_resolve_inspection(accept: bool, bribe: bool) -> Dictionary:
 			ending_id = "arrest"
 			text = String(dialogue_lines.get("dialog_sec_inspect_fine_arrest", "你付不起罚款，被捕了。"))
 	elif level == 2:
-		add_rep("security", -suspicion)
+		if not fake:
+			add_rep("security", -suspicion)
 		outcome = "seizure"
 		text = String(dialogue_lines.get("dialog_sec_inspect_seizure_1", "违禁品被没收了。"))
 	elif level == -1:
-		add_rep("security", -suspicion)
+		if not fake:
+			add_rep("security", -suspicion)
 		outcome = "seizure"
 		text = String(dialogue_lines.get("dialog_sec_inspect_seizure_stolen_1", "赃物被没收了。"))
 	elif level == 1:
-		add_rep("security", -suspicion)
+		if not fake:
+			add_rep("security", -suspicion)
 		outcome = "warning"
 		text = String(dialogue_lines.get("dialog_sec_inspect_warning_1", "这次只是警告。"))
 	else:
-		if sec_inspection_personality != 2 and not _sec_has_concealed():
+		if not fake and personality != 2 and not _sec_has_concealed():
 			add_rep("security", 3)
 		text = String(dialogue_lines.get("dialog_sec_inspect_cleared_1", "你没有问题。"))
+	if fake and sec_perk_unlocked("SEC_VIP"):
+		text += " " + String(dialogue_lines.get("dialog_wanted9_vip_last_open", "那个，呃。打开货舱门，然后退一边去。快点，在我当班……我是说，在我下班之前。"))
 	if outcome in ["seizure", "fine", "grace"] or level in [2, -1]:
 		seized = _sec_seize_flagged(flagged)
 	if outcome == "arrest":
 		sec_officer_pending = false
-	if not seized.is_empty() or fine_paid > 0:
+	if not fake and (not seized.is_empty() or fine_paid > 0):
 		var slip := make_item("sec_slip", 100, true, false)
 		slip["custom_name"] = String(dialogue_lines.get("mech_inspection_slip_title", "检查报告"))
 		var slip_lines: Array = []
@@ -2574,15 +2800,19 @@ func sec_resolve_inspection(accept: bool, bribe: bool) -> Dictionary:
 		add_item(slip)
 	sec_state = 0
 	emit_signal("state_changed")
-	return {"ok": true, "text": text, "result": outcome, "fine": fine_paid, "seized": seized, "suspicion": suspicion, "level": level}
+	return {"ok": true, "text": text, "result": outcome, "fine": fine_paid, "seized": seized, "suspicion": suspicion, "level": level, "fake": fake, "personality": personality}
 
 func _sec_contraband_on_hand() -> bool:
-	for it in sec_inspection_candidates():
-		return true
-	return false
+	var saved := sec_inspection_personality
+	sec_inspection_personality = 0
+	var items := sec_inspection_candidates()
+	sec_inspection_personality = saved
+	return not items.is_empty()
 
 func _sec_maybe_start_inspection() -> void:
-	if sec_inspection_pending or sec_officer_pending:
+	if sec_inspection_pending or sec_officer_pending or sec_permit_revoke_pending:
+		return
+	if sec_inspection_disabled():
 		return
 	if day - sec_last_inspection_day < 3:
 		return
@@ -2591,11 +2821,25 @@ func _sec_maybe_start_inspection() -> void:
 		return
 	var cfg: Dictionary = security_defs.get("inspection", {})
 	var chance := int(cfg.get("chance_base", 8)) + total / 50
+	chance = int(round(float(chance) * sec_inspection_chance_multiplier()))
 	chance = clampi(chance, 0, int(cfg.get("chance_cap", 45)))
 	if rng.randi_range(1, 100) > chance:
 		return
 	sec_inspection_pending = true
-	sec_inspection_personality = 0 if sec_bribe_tracker >= 500 else rng.randi_range(0, 2)
+	sec_inspection_fake = rng.randi_range(1, 100) <= int(cfg.get("fake_chance", 8))
+	if sec_inspection_fake:
+		sec_inspection_personality = 0
+	else:
+		var personality := 0
+		if sec_bribe_tracker < 500:
+			var roll := rng.randi_range(1, 100)
+			var shady := int(cfg.get("shady_chance", 20))
+			var lazy := int(cfg.get("lazy_chance", 20))
+			if roll <= shady:
+				personality = 1
+			elif roll <= shady + lazy:
+				personality = 2
+		sec_inspection_personality = personality
 	emit_signal("inspection_arrived")
 
 func start_day() -> void:
@@ -2651,6 +2895,8 @@ func start_day() -> void:
 		emit_signal("security_officer_arrived")
 	if sec_inspection_pending:
 		emit_signal("inspection_arrived")
+	if sec_permit_revoke_pending:
+		emit_signal("permit_revoke_arrived")
 	if pending_story != "":
 		emit_signal("story_available", pending_story)
 	next_customer()
@@ -3600,6 +3846,8 @@ func add_rep(faction: String, amount: int) -> void:
 	var final_amount := amount
 	if amount > 0:
 		final_amount = int(round(float(amount) * (1.0 + float(upgrade_total("rep")) / 100.0)))
+	elif amount < 0 and faction == "security" and sec_perk_unlocked("UL_PETITION"):
+		final_amount = int(round(float(amount) * float(_sec_perk_def("UL_PETITION").get("rep_loss_mult", 2.0))))
 	rep[faction] = clampi(int(rep[faction]) + final_amount, -100, 100)
 
 func finish_day() -> Dictionary:
@@ -4821,16 +5069,64 @@ func upgrade_def(id: String) -> Dictionary:
 			return u
 	return {}
 
-func buy_upgrade(id: String) -> Dictionary:
+const UPGRADE_PREREQS := {
+	"GUN_PERMIT_II": "GUN_PERMIT_I",
+	"GUN_PERMIT_III": "GUN_PERMIT_II",
+	"WILD_FIXER2": "WILD_FIXER",
+	"WILD_FIXER3": "WILD_FIXER2",
+}
+
+func upgrade_cost(id: String) -> int:
+	var u := upgrade_def(id)
+	var cost := int(u.get("cost", 0))
+	if id == "EVIDENCE_REMOVAL":
+		cost += evidence_removal_purchases * int(security_defs.get("evidence_removal", {}).get("cost_step", 100))
+	return cost
+
+func upgrade_owned(id: String) -> bool:
+	if id == "EVIDENCE_REMOVAL":
+		return false
+	return owned_upgrades.has(id)
+
+func upgrade_cooldown(id: String) -> int:
+	if id != "EVIDENCE_REMOVAL":
+		return 0
+	return maxi(0, int(upgrade_cooldowns.get(id, 0)) - day)
+
+func upgrade_available(id: String) -> Dictionary:
 	var u := upgrade_def(id)
 	if u.is_empty():
-		return {"ok": false, "text": "没有这项升级。"}
-	if owned_upgrades.has(id):
-		return {"ok": false, "text": "已经购买过了。"}
-	var cost := int(u.get("cost", 0))
+		return {"ok": false, "reason": "没有这项升级。", "cost": 0}
+	if upgrade_owned(id):
+		return {"ok": false, "reason": "已经购买过了。", "cost": upgrade_cost(id)}
+	var req := String(UPGRADE_PREREQS.get(id, ""))
+	if req != "" and not bool(owned_upgrades.get(req, false)):
+		return {"ok": false, "reason": "需要先购买 %s。" % String(upgrade_def(req).get("name", req)), "cost": upgrade_cost(id)}
+	var cooldown := upgrade_cooldown(id)
+	if cooldown > 0:
+		return {"ok": false, "reason": "冷却中，还需 %d 天。" % cooldown, "cost": upgrade_cost(id)}
+	var cost := upgrade_cost(id)
 	if cash < cost:
-		return {"ok": false, "text": "现金不足，需要 %d₵。" % cost}
+		return {"ok": false, "reason": "现金不足，需要 %d₵。" % cost, "cost": cost}
+	return {"ok": true, "reason": "可购买", "cost": cost}
+
+func buy_upgrade(id: String) -> Dictionary:
+	var check := upgrade_available(id)
+	if not bool(check.get("ok", false)):
+		return {"ok": false, "text": String(check.get("reason", "无法购买。"))}
+	var cost := int(check.get("cost", 0))
+	var u := upgrade_def(id)
 	cash -= cost
+	if id == "EVIDENCE_REMOVAL":
+		evidence_removal_purchases += 1
+		upgrade_cooldowns[id] = day + int(security_defs.get("evidence_removal", {}).get("cooldown_days", 14))
+		sec_evidence = 0
+		sec_state = 0
+		sec_officer_pending = false
+		_add_night_log("王尔德清除了治安部收集的所有证据。")
+		_refresh_upgrades()
+		emit_signal("state_changed")
+		return {"ok": true, "text": "证据已清除。下次价格 %d₵。" % upgrade_cost(id)}
 	owned_upgrades[id] = true
 	if String(u.get("effect", "")) == "power":
 		power += int(u.get("value", 0))
@@ -6288,7 +6584,7 @@ func save_game(slot: int = 1) -> bool:
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
 		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
-		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
 		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
@@ -6345,6 +6641,19 @@ func load_game(slot: int = 1) -> bool:
 	sec_bribe_tracker = int(data.get("sec_bribe_tracker", 0))
 	sec_inspection_pending = bool(data.get("sec_inspection_pending", false))
 	sec_inspection_personality = int(data.get("sec_inspection_personality", 0))
+	sec_inspection_fake = bool(data.get("sec_inspection_fake", false))
+	sec_permit_revoke_pending = bool(data.get("sec_permit_revoke_pending", false))
+	sec_permit_revoke_levels = []
+	for lv in data.get("sec_permit_revoke_levels", []):
+		sec_permit_revoke_levels.append(int(lv))
+	active_permits = []
+	for p in data.get("active_permits", []):
+		active_permits.append({"type": String(p.get("type", "")), "level": int(p.get("level", 0))})
+	trash_items = data.get("trash_items", []).duplicate(true)
+	for it in trash_items:
+		_normalize_item(it)
+	upgrade_cooldowns = data.get("upgrade_cooldowns", {}).duplicate(true)
+	evidence_removal_purchases = int(data.get("evidence_removal_purchases", 0))
 	profession_id = String(data.get("profession_id", ""))
 	profession_chosen = bool(data.get("profession_chosen", false))
 	commissions = data.get("commissions", []).duplicate(true)

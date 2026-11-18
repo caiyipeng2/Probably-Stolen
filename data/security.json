@@ -74,7 +74,35 @@
     "chance_base": 8,
     "chance_per_crime": 1,
     "chance_cap": 45,
-    "luck_save": 5
+    "luck_save": 5,
+    "fake_chance": 8,
+    "shady_chance": 20,
+    "lazy_chance": 20,
+    "trash_capacity": 12
+  },
+  "reputation_perks": {
+    "SEC_ALARM_IGNORED": {"threshold": -40, "type": -1},
+    "SEC_WATCHLIST": {"threshold": -20, "type": -1, "investigation_mult": 1.2},
+    "SEC_PRIORITY": {"threshold": -60, "type": -1, "investigation_mult": 1.5},
+    "SEC_THOROUGH_INSPECTION": {"threshold": -80, "type": -1, "inspection_chance_mult": 1.25},
+    "SEC_CONTRABAND_TOLERANCE": {"threshold": -100, "type": -1},
+    "SEC_IMMEDIATE_ARREST": {"threshold": -100, "type": -1},
+    "SEC_PROTECTION": {"threshold": 40, "type": 1},
+    "SEC_SURPLUS": {"threshold": 20, "type": 1},
+    "SEC_TRUSTED": {"threshold": 60, "type": 1, "investigation_mult": 0.5, "inspection_chance_mult": 0.5},
+    "SEC_RELIABLE_VENDOR": {"threshold": 80, "type": 1},
+    "SEC_VIP": {"threshold": 100, "type": 1, "no_inspection": true},
+    "UL_PETITION": {"threshold": -60, "type": -1, "faction": "upper", "investigation_mult": 1.5, "rep_loss_mult": 2.0}
+  },
+  "permits": [
+    {"id": "GUN_PERMIT_I", "level": 1, "threshold": 20, "item": "permit_gun_1"},
+    {"id": "GUN_PERMIT_II", "level": 2, "threshold": 50, "item": "permit_gun_2"},
+    {"id": "GUN_PERMIT_III", "level": 3, "threshold": 80, "item": "permit_gun_3"}
+  ],
+  "evidence_removal": {
+    "base_cost": 500,
+    "cost_step": 100,
+    "cooldown_days": 14
   },
   "fixer": [
     {

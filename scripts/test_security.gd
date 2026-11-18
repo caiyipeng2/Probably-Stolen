@@ -154,7 +154,97 @@ func _init() -> void:
 	gs.sec_inspection_personality = 0
 	gs.sec_resolve_inspection(true, false)
 	check(int(gs.rep.get("security", 0)) == 0, "concealed blocks rep gain", str(gs.rep.get("security", 0)))
-	# save/load
+	# permits cover matching firearms
+	gs.new_game()
+	gs.inventory.clear()
+	gs.active_permits = [{"type": "FIREARM", "level": 2}]
+	gs.add_item(gs.make_item("glock_receiver", 100, true, false))
+	check(gs.sec_inspection_candidates().is_empty(), "permit covers level 2 firearm")
+	gs.active_permits = []
+	check(gs.sec_inspection_candidates().size() == 1, "permit removed exposes firearm")
+	# permit grant requires upgrade and reputation, no duplicates
+	gs.new_game()
+	gs.sec_inspection_pending = false
+	gs.sec_officer_pending = false
+	gs.inventory.clear()
+	gs.owned_upgrades["GUN_PERMIT_I"] = true
+	gs.rep["security"] = 20
+	gs._sec_grant_permits()
+	gs._sec_grant_permits()
+	check(gs.sec_has_permit(1) and gs.inventory_count("permit_gun_1") == 1, "permit granted once", str(gs.active_permits))
+	# permit revocation
+	gs.rep["security"] = -1
+	gs.sec_permit_revoke_pending = false
+	gs._sec_check_permit_revocation()
+	check(gs.sec_permit_revoke_pending and gs.sec_permit_revoke_levels == [1], "permit revocation queued", str(gs.sec_permit_revoke_levels))
+	gs.revoke_permits()
+	check(gs.active_permits.is_empty() and gs.inventory_count("permit_gun_1") == 0, "permit revoked")
+	# nested permit item removed on revocation
+	gs.new_game()
+	gs.inventory.clear()
+	var permit_bag = gs.make_item("backpack_small", 100, true, false)
+	gs.add_item(permit_bag)
+	gs.container_auto_add(permit_bag, gs.make_item("permit_gun_1", 100, true, false))
+	gs.active_permits = [{"type": "FIREARM", "level": 1}]
+	gs.sec_permit_revoke_pending = true
+	gs.sec_permit_revoke_levels = [1]
+	gs.revoke_permits()
+	check(gs.inventory_count("permit_gun_1") == 0, "nested permit revoked")
+	# fake inspector downgrades and gives no reputation loss
+	gs.new_game()
+	gs.inventory.clear()
+	gs.rep["security"] = 0
+	gs.add_item(gs.make_item("smg", 100, true, false))
+	gs.sec_inspection_pending = true
+	gs.sec_inspection_fake = true
+	gs.sec_inspection_personality = 0
+	var rf = gs.sec_resolve_inspection(true, false)
+	check(bool(rf.get("fake", false)) and rf.get("result", "") == "seizure" and int(rf.get("suspicion", -1)) == 0, "fake inspector downgrades", str(rf.get("result", "")))
+	check(int(gs.rep.get("security", 0)) == 0 and gs.inventory_count("sec_slip") == 0, "fake inspector no rep loss or slip")
+	# lazy inspector skips trash unless thorough
+	gs.new_game()
+	gs.inventory.clear()
+	var trash_gun = gs.make_item("glock_receiver", 100, true, false)
+	gs.add_item(trash_gun)
+	gs.move_to_trash(int(trash_gun.get("uid", -1)))
+	gs.sec_inspection_personality = 2
+	check(gs.sec_inspection_candidates().is_empty(), "lazy inspector skips trash")
+	gs.sec_inspection_personality = 0
+	check(gs.sec_inspection_candidates().size() == 1, "normal inspector searches trash")
+	# evidence removal is repeatable with cooldown and rising price
+	gs.new_game()
+	gs.cash = 5000
+	gs.sec_evidence = 80
+	gs.sec_crimes = {"FRAUD": 300}
+	var er1 = gs.buy_upgrade("EVIDENCE_REMOVAL")
+	check(er1.get("ok", false) and gs.sec_evidence == 0 and gs.evidence_removal_purchases == 1, "evidence removal clears evidence", str(er1))
+	check(gs.upgrade_cooldown("EVIDENCE_REMOVAL") == 14 and gs.upgrade_cost("EVIDENCE_REMOVAL") == 600, "evidence removal cooldown and cost", "%d/%d" % [gs.upgrade_cooldown("EVIDENCE_REMOVAL"), gs.upgrade_cost("EVIDENCE_REMOVAL")])
+	check(not bool(gs.buy_upgrade("EVIDENCE_REMOVAL").get("ok", true)), "evidence removal blocked by cooldown")
+	gs.day += 15
+	var er2 = gs.buy_upgrade("EVIDENCE_REMOVAL")
+	check(er2.get("ok", false) and gs.evidence_removal_purchases == 2 and gs.cash == 5000 - 500 - 600, "evidence removal second purchase", str(er2))
+	# reputation perk multipliers
+	gs.new_game()
+	gs.rep["security"] = 60
+	check(gs.sec_perk_unlocked("SEC_TRUSTED") and is_equal_approx(gs.sec_investigation_multiplier(), 0.5), "trusted halves investigation")
+	gs.rep["security"] = -60
+	check(gs.sec_investigation_multiplier() > 1.49 and not bool(gs.sec_perk_unlocked("SEC_TRUSTED")), "priority speeds investigation")
+	gs.rep["security"] = -20
+	check(is_equal_approx(gs.sec_investigation_multiplier(), 1.2), "watchlist speeds investigation")
+	gs.rep["upper"] = -60
+	gs.rep["security"] = 60
+	check(is_equal_approx(gs.sec_investigation_multiplier(), 0.75), "petition stacks with trusted")
+	gs.rep["upper"] = -60
+	gs.rep["security"] = 0
+	gs.add_rep("security", -10)
+	check(int(gs.rep.get("security", 0)) == -20, "petition doubles security rep loss", str(gs.rep.get("security", 0)))
+	# save/load extended security fields
+	gs.new_game()
+	gs.active_permits = [{"type": "FIREARM", "level": 1}]
+	gs.trash_items = [gs.make_item("glock_receiver", 100, true, false)]
+	gs.upgrade_cooldowns = {"EVIDENCE_REMOVAL": 15}
+	gs.evidence_removal_purchases = 2
+	gs.sec_inspection_fake = true
 	gs.commit_crime("FRAUD", 123)
 	gs.sec_evidence = 42
 	gs.sec_bribe_tracker = 77
@@ -162,5 +252,6 @@ func _init() -> void:
 	gs.new_game()
 	gs.load_game(3)
 	check(int(gs.sec_crimes.get("FRAUD", 0)) == 123 and gs.sec_evidence == 42 and gs.sec_bribe_tracker == 77, "security state saved", str(gs.sec_crimes))
+	check(gs.active_permits.size() == 1 and gs.trash_items.size() == 1 and int(gs.upgrade_cooldowns.get("EVIDENCE_REMOVAL", 0)) > 0 and gs.evidence_removal_purchases == 2, "extended security state saved", "%d/%d/%d" % [gs.active_permits.size(), gs.trash_items.size(), gs.evidence_removal_purchases])
 	print("FAILS=", fails)
 	quit(0 if fails == 0 else 1)
