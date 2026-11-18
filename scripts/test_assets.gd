@@ -35,6 +35,14 @@ func _init() -> void:
 	check(FileAccess.file_exists("res://assets_private/audio_original/01_a_bao_a_qu_pristine.ogg"), "radio pristine song present")
 	check(FileAccess.file_exists("res://assets_private/audio_original/sfx_meaty_drop.ogg"), "material drag sfx present")
 	check(FileAccess.file_exists("res://assets/art/shop_scene_base.png"), "original scene base present")
+	var ui_count := 0
+	var uidir := DirAccess.open("res://assets_private/ui_icons")
+	if uidir:
+		for f in uidir.get_files():
+			if f.ends_with(".png"):
+				ui_count += 1
+	check(ui_count >= 250, "original UI icon slices present", str(ui_count))
+	check(FileAccess.file_exists("res://assets_private/ui_icons/BREWER.png"), "upgrade icon present")
 	var public_audio := load("res://assets_public/audio/music_main.ogg")
 	check(public_audio != null, "public audio fallback present")
 	print("FAILS=", fails)

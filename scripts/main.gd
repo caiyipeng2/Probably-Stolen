@@ -142,6 +142,7 @@ var info_list_box: VBoxContainer
 var info_list_buttons: Dictionary = {}
 var info_selected_id := ""
 var info_name: Label
+var info_icon: TextureRect
 var info_meta: Label
 var info_body: Label
 var info_action: Button
@@ -2479,7 +2480,8 @@ func _build_info_bay() -> void:
 	info_list_box.add_theme_constant_override("separation", 8)
 	scroll.add_child(info_list_box)
 	var detail := _panel(panel, Vector2(570, 130), Vector2(1280, 760), C_PANEL2, C_LINE, 2)
-	info_name = _label(detail, "", Vector2(24, 16), Vector2(1000, 44), 34, C_TEXT)
+	info_name = _label(detail, "", Vector2(24, 16), Vector2(940, 44), 34, C_TEXT)
+	info_icon = _texture_rect(detail, Vector2(1160, 16), Vector2(96, 96), "")
 	info_meta = _label(detail, "", Vector2(24, 64), Vector2(1230, 30), 22, C_AMBER)
 	info_body = _label(detail, "", Vector2(24, 108), Vector2(1230, 500), 20, C_TEXT)
 	archive_scroll = ScrollContainer.new()
@@ -4112,6 +4114,8 @@ func _select_info_entry(id: String) -> void:
 
 func _refresh_info_detail() -> void:
 	info_name.text = ""
+	if info_icon:
+		info_icon.texture = null
 	info_meta.text = ""
 	info_body.text = ""
 	info_status.text = ""
@@ -4125,6 +4129,9 @@ func _refresh_info_detail() -> void:
 			if u.is_empty():
 				return
 			info_name.text = String(u.get("name", ""))
+			var uicon := "res://assets_private/ui_icons/" + info_selected_id + ".png"
+			if ResourceLoader.exists(uicon):
+				info_icon.texture = load(uicon)
 			var avail := GameState.upgrade_available(info_selected_id)
 			var cost := int(avail.get("cost", 0))
 			var udesc := String(u.get("desc", ""))
@@ -4207,6 +4214,9 @@ func _refresh_info_detail() -> void:
 			var v := int(GameState.rep.get(info_selected_id, 0))
 			var tier := GameState.faction_tier(info_selected_id)
 			info_name.text = String(f.get("name", ""))
+			var ficon := "res://assets_private/ui_icons/" + info_selected_id.to_upper() + ".png"
+			if ResourceLoader.exists(ficon):
+				info_icon.texture = load(ficon)
 			info_meta.text = "声望 %+d · 已解锁 %d/%d 档" % [v, tier, f.get("perks", []).size()]
 			var body := ""
 			for perk in f.get("perks", []):
