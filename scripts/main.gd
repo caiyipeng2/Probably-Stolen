@@ -3015,6 +3015,12 @@ func _update_customer() -> void:
 	customer_name_label.text = arche.get("name", "顾客")
 	var intent_text := "出售物品" if c.get("intent") == "sell" else ("委托估价" if c.get("intent") == "appraise" else "想买东西")
 	customer_info_label.text = "阵营：%s\n意图：%s\n今日第 %d / %d 位" % [_faction_name(arche.get("faction", "lower")), intent_text, GameState.current_index + 1, GameState.customers_today.size()]
+	var waiting := GameState.customers_today.size() - GameState.current_index - 1
+	var next_names: Array = []
+	for i in range(GameState.current_index + 1, mini(GameState.customers_today.size(), GameState.current_index + 3)):
+		var nc: Dictionary = GameState.customers_today[i]
+		next_names.append(String(nc.get("arche", {}).get("name", "顾客")))
+	queue_label.text = "排队 %d 位%s" % [waiting, ("：" + "、".join(next_names)) if not next_names.is_empty() else ""]
 	var sprite := String(arche.get("sprite", "maleUpper_0.png"))
 	var path := _customer_path(sprite)
 	if ResourceLoader.exists(path):
@@ -4862,6 +4868,7 @@ func _facility_fill_select() -> void:
 	if items.is_empty():
 		_toast("没有液体容器。")
 		return
+	_close_modal()
 	_open_select("水龙头：选择容器", items, _facility_fill_uid)
 
 func _facility_fill_uid(id: String) -> void:
@@ -4877,6 +4884,7 @@ func _facility_drain_select() -> void:
 	if items.is_empty():
 		_toast("没有可倒空的容器。")
 		return
+	_close_modal()
 	_open_select("排水槽：选择容器", items, _facility_drain_uid)
 
 func _facility_drain_uid(id: String) -> void:
@@ -5957,6 +5965,16 @@ func _refresh_bargain_modal() -> void:
 		text = "顾客开价：%d¥\n你的报价：%d¥\n\n压低价格会降低成交率；鉴定后再出价更安全。\n现金：%d¥" % [int(it.get("asking_price", 0)), bargain_price, GameState.cash]
 	else:
 		text = "顾客出价：%d¥\n你的报价：%d¥\n\n顾客预算：%d¥\n现金：%d¥" % [int(c.get("offer", 0)), bargain_price, int(c.get("budget", 0)), GameState.cash]
+	var pct := 0
+	if c.get("intent") == "sell":
+		var asking := maxi(1, int(it.get("asking_price", 1)))
+		pct = int(round((1.0 - float(bargain_price) / float(asking)) * 100.0))
+	else:
+		var base_offer := maxi(1, int(c.get("offer", 1)))
+		pct = int(round((float(bargain_price) / float(base_offer) - 1.0) * 100.0))
+	if pct != 0:
+		var pv: Dictionary = GameState.bargain_preview(absi(pct))
+		text += "\n\n当前%s %d%%：成功 %d%% · 离店 %d%% · 声望 %+d" % ["压价" if pct > 0 else "抬价", absi(pct), int(pv.get("success", 0)), int(pv.get("leave", 0)), int(pv.get("rep", 0))]
 	var actions: Array = [
 		{"label": "-10%", "cb": _bargain_adjust.bind(0.9)},
 		{"label": "-5%", "cb": _bargain_adjust.bind(0.95)},
