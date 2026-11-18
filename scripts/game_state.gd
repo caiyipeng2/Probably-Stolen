@@ -2936,6 +2936,10 @@ func start_day() -> void:
 				market_modifiers[type_id] = maxi(0, mv - 10)
 			elif mv < 0:
 				market_modifiers[type_id] = mini(0, mv + 10)
+	if rent_due == 1:
+		customers_today.append(_gen_due_customer("rent"))
+	if loan_due == 1:
+		customers_today.append(_gen_due_customer("loan"))
 	_gen_commissions()
 	var due: Array = []
 	var remain_future: Array = []
@@ -4448,6 +4452,36 @@ func _market_customer(type_id: String, shortage: bool) -> Dictionary:
 		"wholesale_stock": stock, "wholesale_free": false, "wholesale_done_key": "",
 		"market_type": type_id, "market_kind": "surplus",
 	}
+
+func _gen_due_customer(kind: String) -> Dictionary:
+	if kind == "rent":
+		return {"arche": {"faction": "lower", "name": "房东"}, "intent": "rent", "amount": rent, "done": false, "line": "房租该交了。"}
+	return {"arche": {"faction": "blackmarket", "name": "放贷人"}, "intent": "loan", "amount": loan, "done": false, "line": "欠款到期了。"}
+
+func pay_rent_early() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "rent":
+		return {"ok": false, "text": "当前没有房东。"}
+	var amount := int(current_customer.get("amount", rent))
+	if cash < amount:
+		return {"ok": false, "text": "现金不足，需要 %d₵。" % amount}
+	cash -= amount
+	rent = int(round(float(rent) * float(diff_rule("rent_increase", 1.1))))
+	rent_due = 7
+	complete_customer(true)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "支付房租 %d₵。" % amount}
+
+func pay_loan_early() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "loan":
+		return {"ok": false, "text": "当前没有放贷人。"}
+	var amount := int(current_customer.get("amount", loan))
+	if cash < amount:
+		return {"ok": false, "text": "现金不足，需要 %d₵。" % amount}
+	cash -= amount
+	loan_due = 12
+	complete_customer(true)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "偿还欠款 %d₵。" % amount}
 
 func _gen_special_customer(t: Dictionary) -> Dictionary:
 	var name := String(t.get("name", ""))

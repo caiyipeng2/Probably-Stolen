@@ -39,5 +39,30 @@ func _init() -> void:
 	gs.pending_event = {"choices": [{"market": {"MEDICAL": 45}}]}
 	gs.apply_event(0)
 	check(int(gs.market_modifiers.get("MEDICAL", 0)) == 45, "event market modifier", str(gs.market_modifiers.get("MEDICAL", 0)))
+	gs.rent_due = 1
+	gs.cash = 1000
+	gs.customers_today = []
+	gs.start_day()
+	var rent_c: Dictionary = {}
+	for c in gs.customers_today:
+		if String(c.get("intent", "")) == "rent":
+			rent_c = c
+	check(not rent_c.is_empty(), "landlord due customer appears")
+	gs.current_customer = rent_c
+	var rent_before: int = gs.rent
+	var rent_pay: Dictionary = gs.pay_rent_early()
+	check(bool(rent_pay.get("ok", false)) and gs.rent_due == 7 and gs.cash < 1000, "rent paid early", str(rent_pay))
+	gs.loan_due = 1
+	gs.cash = 1000
+	gs.customers_today = []
+	gs.start_day()
+	var loan_c: Dictionary = {}
+	for c in gs.customers_today:
+		if String(c.get("intent", "")) == "loan":
+			loan_c = c
+	check(not loan_c.is_empty(), "loan shark due customer appears")
+	gs.current_customer = loan_c
+	var loan_pay: Dictionary = gs.pay_loan_early()
+	check(bool(loan_pay.get("ok", false)) and gs.loan_due == 12, "loan paid early", str(loan_pay))
 	print("FAILS=", fails)
 	quit(0 if fails == 0 else 1)

@@ -1962,6 +1962,26 @@ func _wholesale_buy() -> void:
 		return
 	_rebuild_wholesale()
 
+func _open_due_customer(kind: String) -> void:
+	var c := GameState.current_customer
+	if c.is_empty():
+		return
+	var amount := int(c.get("amount", 0))
+	var title := "房东" if kind == "rent" else "放贷人"
+	_show_modal(title, String(c.get("line", "")) + "
+
+应付：%d₵" % amount, [
+		{"label": "支付 %d₵" % amount, "cb": _pay_due.bind(kind), "color": C_GREEN},
+		{"label": "稍后", "cb": _decline_procurement, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _pay_due(kind: String) -> void:
+	var res: Dictionary = GameState.pay_rent_early() if kind == "rent" else GameState.pay_loan_early()
+	_close_modal()
+	_refresh()
+	_toast(String(res.get("text", "")))
+
 func _open_expedition() -> void:
 	var c := GameState.current_customer
 	if c.is_empty() or String(c.get("intent", "")) != "expedition":
@@ -3237,6 +3257,10 @@ func _on_customer_changed() -> void:
 		if wholesale_layer:
 			wholesale_layer.visible = false
 		_open_expedition()
+	elif intent == "rent":
+		_open_due_customer("rent")
+	elif intent == "loan":
+		_open_due_customer("loan")
 	else:
 		if barter_layer:
 			barter_layer.visible = false
