@@ -1683,6 +1683,39 @@ func find_item(uid: int) -> Dictionary:
 			return nested4
 	return {}
 
+func item_drag_sfx_key(it: Dictionary, action: String) -> String:
+	var def := get_item_def(String(it.get("def_id", "")))
+	var cat := String(def.get("category", ""))
+	var did := String(it.get("def_id", ""))
+	var tags := _item_tags(it)
+	var prefix := "sfx_"
+	var suffix := "_drag" if action == "drag" else "_drop"
+	if cat == "weapon":
+		if did in ["shotgun", "smg"]:
+			return prefix + "heavy_gun" + suffix
+		if did.contains("rifle") or did.contains("ump"):
+			return prefix + "gun" + suffix
+		return prefix + "small_gun" + suffix
+	if cat == "weapon_mod":
+		return prefix + "module" + suffix
+	if cat in ["food", "animal"]:
+		if tags.has("PRODUCE") or tags.has("SEED"):
+			return prefix + "produce" + suffix
+		return prefix + "meaty" + suffix
+	if cat == "medical":
+		return prefix + "plastic_vial" + ("_open" if action == "drag" else "_close")
+	if cat == "document":
+		return prefix + "paper_sheet" + suffix
+	if cat == "material":
+		if tags.has("METAL"):
+			return prefix + "solid_metal" + suffix
+		return prefix + "tiny_item" + suffix
+	if tags.has("TEXTILE"):
+		return prefix + "textile" + suffix
+	if tags.has("GLASS") or did.contains("bottle"):
+		return prefix + "full_plastic_bottle" + suffix
+	return prefix + "tiny_item" + suffix
+
 func _item_tags(it: Dictionary) -> Array:
 	var def := get_item_def(String(it.get("def_id", "")))
 	var tags: Array = def.get("tags", []).duplicate()

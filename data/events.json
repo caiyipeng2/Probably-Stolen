@@ -371,7 +371,10 @@
           "FOOD": 50
         }
       }
-    ]
+    ],
+    "display_key": "event_normal_bad_harvest_display",
+    "news_key": "event_normal_bad_harvest_news",
+    "desc_key": "event_normal_bad_harvest_desc"
   },
   {
     "id": "market_food_surplus",
@@ -384,7 +387,10 @@
           "FOOD": -20
         }
       }
-    ]
+    ],
+    "display_key": "event_normal_nutrifruit_harvest_display",
+    "news_key": "event_normal_nutrifruit_harvest_news",
+    "desc_key": "event_normal_nutrifruit_harvest_desc"
   },
   {
     "id": "market_medical_shortage",

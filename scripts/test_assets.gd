@@ -25,6 +25,16 @@ func _init() -> void:
 			pfound += 1
 	check(pfound == portraits.size(), "original character portraits present", "%d/%d" % [pfound, portraits.size()])
 	check(FileAccess.file_exists("res://assets_private/items/glock_receiver.png"), "original item sprite present")
+	var audio_count := 0
+	var dir := DirAccess.open("res://assets_private/audio_original")
+	if dir:
+		for f in dir.get_files():
+			if f.ends_with(".ogg") and not f.ends_with(".ogg.import"):
+				audio_count += 1
+	check(audio_count >= 270, "full original audio bank converted", str(audio_count))
+	check(FileAccess.file_exists("res://assets_private/audio_original/01_a_bao_a_qu_pristine.ogg"), "radio pristine song present")
+	check(FileAccess.file_exists("res://assets_private/audio_original/sfx_meaty_drop.ogg"), "material drag sfx present")
+	check(FileAccess.file_exists("res://assets/art/shop_scene_base.png"), "original scene base present")
 	var public_audio := load("res://assets_public/audio/music_main.ogg")
 	check(public_audio != null, "public audio fallback present")
 	print("FAILS=", fails)

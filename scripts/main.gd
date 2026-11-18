@@ -20,6 +20,7 @@ var font: FontFile
 var game_view: Control
 var bg_window: TextureRect
 var customer_rect: TextureRect
+var customer_idle_tween: Tween
 var fg: TextureRect
 var day_label: Label
 var rent_label: Label
@@ -83,6 +84,8 @@ var machine_io_out_btn: Button
 var inspection_layer: Control
 var inspection_title: Label
 var inspection_info: Label
+var inspection_pixel_icon: TextureRect
+var inspection_pixel_meta: Label
 var inspection_actions: VBoxContainer
 var inspection_status: Label
 var inspection_appraisal_input: LineEdit
@@ -168,6 +171,9 @@ var tab_buttons: Dictionary = {}
 var page_buttons: Array = []
 
 var music_player: AudioStreamPlayer
+var radio_player: AudioStreamPlayer
+var radio_index := 0
+var radio_playing := false
 var ambience_player: AudioStreamPlayer
 var sfx_players: Array = []
 var sfx_next := 0
@@ -814,6 +820,9 @@ func _setup_audio() -> void:
 		ambience_player.stream = load(amb_path)
 		if audio_enabled:
 			ambience_player.play()
+	radio_player = AudioStreamPlayer.new()
+	radio_player.volume_db = -14.0
+	add_child(radio_player)
 	for i in range(4):
 		var p := AudioStreamPlayer.new()
 		p.volume_db = -8.0
@@ -850,6 +859,31 @@ func _save_audio_setting() -> void:
 	if f:
 		f.store_string(JSON.stringify({"enabled": audio_enabled}))
 		f.close()
+
+func _toggle_radio() -> void:
+	if radio_player == null:
+		return
+	if radio_playing:
+		radio_player.stop()
+		radio_playing = false
+		_toast("电台关闭。")
+		return
+	var songs := [
+		"01_a_bao_a_qu", "02_the_wailing", "03_long_star_river", "04_deluge",
+		"05_spellsinger_radio_edition", "06_golden_lotus", "07_junkyard_jockey",
+	]
+	var qualities := ["pristine", "slightly_degraded", "very_degraded"]
+	var song := String(songs[radio_index % songs.size()])
+	var quality := String(qualities[int(floor(float(radio_index) / float(songs.size()))) % qualities.size()])
+	radio_index += 1
+	var path := _audio_path("%s_%s.ogg" % [song, quality])
+	if path == "":
+		_toast("电台没有信号。")
+		return
+	radio_player.stream = load(path)
+	radio_player.play()
+	radio_playing = true
+	_toast("电台：%s（%s）" % [song.replace("_", " ").capitalize(), quality.replace("_", " ")])
 
 func _on_music_toggled(on: bool) -> void:
 	if music_player == null:
@@ -972,6 +1006,7 @@ func _build_ui() -> void:
 	back.color = Color("#0b0e14")
 	back.size = Vector2(1920, 1080)
 	game_view.add_child(back)
+	_texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_scene_base.png"))
 	bg_window = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_bg_window.png"))
 	customer_rect = _texture_rect(game_view, Vector2(635, 5), Vector2(677, 496), _customer_path("maleUpper_0.png"))
 	fg = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_fg.png"))
@@ -1033,6 +1068,7 @@ func _build_left_rail() -> void:
 			color = C_RUST
 		var b := _button(rail, items[i][0], Vector2(20, 50 + i * 64), Vector2(170, 56), color, _on_rail.bind(key))
 		rail_buttons[key] = b
+	_button(rail, "电台", Vector2(20, 548), Vector2(170, 44), C_AMBER, _toggle_radio)
 	status_label = _label(rail, "营业中", Vector2(20, 606), Vector2(170, 44), 20, C_GREEN)
 
 func _build_right_rail() -> void:
@@ -1167,16 +1203,19 @@ func _build_inspection_layer() -> void:
 	inspection_title = _label(panel, "验货", Vector2(30, 16), Vector2(900, 48), 34, C_AMBER)
 	_button(panel, "关闭", Vector2(1660, 14), Vector2(130, 48), C_MUTED, _close_inspection)
 	var left := _panel(panel, Vector2(30, 80), Vector2(1100, 880), C_PANEL2, C_LINE, 2)
+	inspection_pixel_icon = _texture_rect(left, Vector2(20, 20), Vector2(260, 260), "")
+	inspection_pixel_meta = _label(left, "", Vector2(20, 286), Vector2(260, 80), 18, C_AMBER)
+	inspection_pixel_meta.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 	var lscroll := ScrollContainer.new()
-	lscroll.position = Vector2(20, 20)
-	lscroll.size = Vector2(1060, 840)
+	lscroll.position = Vector2(300, 20)
+	lscroll.size = Vector2(780, 840)
 	lscroll.horizontal_scroll_mode = ScrollContainer.SCROLL_MODE_DISABLED
 	lscroll.vertical_scroll_mode = ScrollContainer.SCROLL_MODE_AUTO
 	lscroll.add_theme_stylebox_override("panel", _style(C_PANEL, C_LINE, 1))
 	left.add_child(lscroll)
-	inspection_info = _label(lscroll, "", Vector2(10, 10), Vector2(1030, 800), 22, C_TEXT)
+	inspection_info = _label(lscroll, "", Vector2(10, 10), Vector2(750, 800), 21, C_TEXT)
 	inspection_info.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
-	inspection_info.custom_minimum_size = Vector2(1030, 800)
+	inspection_info.custom_minimum_size = Vector2(750, 800)
 	var right := _panel(panel, Vector2(1150, 80), Vector2(640, 880), C_PANEL2, C_LINE, 2)
 	_label(right, "工具与操作", Vector2(20, 14), Vector2(300, 32), 24, C_AMBER)
 	var rscroll := ScrollContainer.new()
@@ -3102,7 +3141,11 @@ func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source
 			dragging_uid = uid
 			drag_icon = icon
 			drag_source = source
-			_play_sfx("pickup")
+			var drag_item := GameState.find_item(uid)
+			if drag_item.is_empty():
+				_play_sfx("pickup")
+			else:
+				_play_sfx(GameState.item_drag_sfx_key(drag_item, "drag"))
 			drag_offset = icon.get_global_mouse_position() - icon.global_position
 			icon.z_index = 10
 			icon.modulate.a = 0.75
@@ -3130,6 +3173,7 @@ func _on_drag_gui_input(event: InputEvent, uid: int, icon: TextureButton, source
 			drag_icon.position = drag_icon.get_global_mouse_position() - drag_offset - parent_ctrl.global_position
 
 func _finish_drag(uid: int, source: String) -> void:
+	var drop_item := GameState.find_item(uid)
 	var mouse := get_global_mouse_position()
 	var handled := false
 	var target := ""
@@ -3168,6 +3212,8 @@ func _finish_drag(uid: int, source: String) -> void:
 			handled = GameState.move_item(uid, gx2, gy2, current_page)
 		else:
 			handled = GameState.place_item_in_player(uid, current_page, gx2, gy2)
+	if not drop_item.is_empty():
+		_play_sfx(GameState.item_drag_sfx_key(drop_item, "drop"))
 	if not handled:
 		_toast("这个位置放不下。")
 	_refresh()
@@ -3270,7 +3316,17 @@ func _on_put_counter() -> void:
 		GameState.put_display_on_counter(selected_uid)
 	_refresh()
 
+func _start_customer_idle() -> void:
+	if customer_idle_tween:
+		customer_idle_tween.kill()
+	if customer_rect == null:
+		return
+	customer_idle_tween = create_tween().set_loops()
+	customer_idle_tween.tween_property(customer_rect, "position:y", 8.0, 1.2).set_trans(Tween.TRANS_SINE)
+	customer_idle_tween.tween_property(customer_rect, "position:y", 5.0, 1.2).set_trans(Tween.TRANS_SINE)
+
 func _on_customer_changed() -> void:
+	_start_customer_idle()
 	selected_uid = int(GameState.counter_item["uid"]) if not GameState.counter_item.is_empty() else -1
 	var intent := String(GameState.current_customer.get("intent", "")) if not GameState.current_customer.is_empty() else ""
 	if intent == "barter":
@@ -4564,6 +4620,11 @@ func _on_combat_hit(uid: int, amount: int) -> void:
 	lbl.position = base_pos + Vector2(160 if not is_player else 120, 20)
 	lbl.add_theme_font_size_override("font_size", 34)
 	lbl.add_theme_color_override("font_color", Color("#ff7a6a") if is_player else Color("#ffd166"))
+	lbl.add_theme_constant_override("outline_size", 8)
+	lbl.add_theme_color_override("font_outline_color", Color(0.05, 0.03, 0.02, 0.95))
+	lbl.add_theme_constant_override("shadow_offset_x", 2)
+	lbl.add_theme_constant_override("shadow_offset_y", 2)
+	lbl.add_theme_color_override("font_shadow_color", Color(0, 0, 0, 0.65))
 	lbl.mouse_filter = Control.MOUSE_FILTER_IGNORE
 	host.add_child(lbl)
 	var tw := create_tween()
@@ -4679,8 +4740,22 @@ func _combat_use_skill(id: String, item_uid: int) -> void:
 	if item_uid < 0:
 		sfx_key = "shotgun" if id.contains("shotgun") else ("gun" if id.contains("attack") else "soft")
 	_play_sfx(sfx_key)
+	if item_uid < 0 and (id.contains("attack") or id.contains("shotgun")):
+		_combat_muzzle_flash()
 	GameState.combat_player_action(id, GameState.combat_target_uid, item_uid)
 	_update_combat_ui()
+
+func _combat_muzzle_flash() -> void:
+	if combat_layer == null:
+		return
+	var flash := ColorRect.new()
+	flash.color = Color(1.0, 0.86, 0.45, 0.28)
+	flash.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	flash.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	combat_layer.add_child(flash)
+	var tw := create_tween()
+	tw.tween_property(flash, "color:a", 0.0, 0.18)
+	tw.tween_callback(flash.queue_free)
 
 func _combat_action(action: String) -> void:
 	if not GameState.combat_active:
@@ -4903,6 +4978,10 @@ func _refresh_inspection_modal() -> void:
 	if intent == "appraise":
 		text += "\n【估价】\n输入你认为的真实价值，误差越小评级越高。\n"
 	inspection_info.text = text
+	var icon_path := GameState.item_icon_path(def)
+	inspection_pixel_icon.texture = load(icon_path) if icon_path != "" else null
+	inspection_pixel_meta.text = "%s
+品相 %d%% · %s" % [GameState.item_display_name(it), int(it.get("condition", 100)), String(fam.get("name", "普通物品"))]
 	_clear_children(inspection_actions)
 	var tools := GameState.inspection_tools_for_counter()
 	var relevant := ["magnifier", "flashlight", "scale"]
@@ -5084,12 +5163,19 @@ func _do_dismiss() -> void:
 	_refresh()
 
 func _on_event_started(event: Dictionary) -> void:
+	var title := String(event.get("title", "夜间事件"))
+	if String(event.get("display_key", "")) != "":
+		title = GameState.loc("Mechanic", String(event.get("display_key", "")), title)
 	var text := String(event.get("text", ""))
+	if String(event.get("news_key", "")) != "":
+		text = GameState.loc("Mechanic", String(event.get("news_key", "")), text)
+	if String(event.get("desc_key", "")) != "":
+		text = GameState.loc("Mechanic", String(event.get("desc_key", "")), text)
 	var actions: Array = []
 	var choices: Array = event.get("choices", [])
 	for i in range(choices.size()):
 		actions.append({"label": choices[i].get("label", "选择"), "cb": _on_event_choice.bind(i, choices[i].get("result", ""))})
-	_show_modal(String(event.get("title", "夜间事件")), text, actions)
+	_show_modal(title, text, actions)
 
 func _on_event_choice(index: int, result: String) -> void:
 	_play_sfx("page")
