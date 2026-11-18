@@ -41,6 +41,8 @@ var tradable_pool: Array = []
 var pages_unlocked := 2
 var max_pages_unlocked := 2
 var customer_defs: Array = []
+var client_pools: Dictionary = {}
+var client_cooldowns: Dictionary = {}
 var events: Array = []
 var machines: Array = []
 var factions: Array = []
@@ -50,6 +52,14 @@ var professions: Array = []
 var profession_id := ""
 var profession_chosen := false
 var commissions: Array = []
+var procurement_defs: Dictionary = {}
+var special_customers: Dictionary = {}
+var difficulty_rules: Dictionary = {}
+var starting_perks: Array = []
+var rep_perk_defs: Array = []
+var starting_perk_id := ""
+var starting_perk_chosen := false
+var procurement_orders: Array = []
 var story_nodes: Dictionary = {}
 var story_seen: Array = []
 var story_flags: Dictionary = {}
@@ -91,6 +101,7 @@ var combat_target_uid := -1
 var combat_ended := false
 var combat_pending_victory := false
 var combat_armor_defs: Dictionary = {}
+var combat_parties: Dictionary = {}
 var equipped_armor_uid := -1
 var security_defs: Dictionary = {}
 var locale_text: Dictionary = {}
@@ -288,6 +299,36 @@ func _load_defs() -> void:
 		var data = JSON.parse_string(f.get_as_text())
 		if data is Array:
 			customer_defs = data
+	var perk_file := FileAccess.open("res://data_private/starting_perks.json", FileAccess.READ)
+	if perk_file:
+		var pkdata = JSON.parse_string(perk_file.get_as_text())
+		if pkdata is Array:
+			starting_perks = pkdata
+	var rep_file := FileAccess.open("res://data_private/reputation_perks.json", FileAccess.READ)
+	if rep_file:
+		var rpdata = JSON.parse_string(rep_file.get_as_text())
+		if rpdata is Array:
+			rep_perk_defs = rpdata
+	f = FileAccess.open("res://data/difficulty_rules.json", FileAccess.READ)
+	if f:
+		var drdata = JSON.parse_string(f.get_as_text())
+		if drdata is Dictionary:
+			difficulty_rules = drdata
+	f = FileAccess.open("res://data/special_customers.json", FileAccess.READ)
+	if f:
+		var spdata = JSON.parse_string(f.get_as_text())
+		if spdata is Dictionary:
+			special_customers = spdata
+	f = FileAccess.open("res://data/procurements.json", FileAccess.READ)
+	if f:
+		var prdata = JSON.parse_string(f.get_as_text())
+		if prdata is Dictionary:
+			procurement_defs = prdata
+	f = FileAccess.open("res://data/client_pools.json", FileAccess.READ)
+	if f:
+		var pdata = JSON.parse_string(f.get_as_text())
+		if pdata is Dictionary:
+			client_pools = pdata
 	f = FileAccess.open("res://data/events.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -400,6 +441,11 @@ func _load_defs() -> void:
 		var cdata = JSON.parse_string(f.get_as_text())
 		if cdata is Dictionary:
 			commissary_defs = cdata.get("items", [])
+	f = FileAccess.open("res://data/combat_parties.json", FileAccess.READ)
+	if f:
+		var pdata = JSON.parse_string(f.get_as_text())
+		if pdata is Dictionary:
+			combat_parties = pdata.get("parties", {})
 	f = FileAccess.open("res://data/combat.json", FileAccess.READ)
 	if f:
 		var data = JSON.parse_string(f.get_as_text())
@@ -1645,6 +1691,10 @@ func _item_tags(it: Dictionary) -> Array:
 			tags.append("MOD_SPECIAL_TAG")
 	if cat == "weapon" and did.contains("ammo"):
 		tags.append("AMMUNITION")
+	if did.contains("armor") or cat == "armor":
+		tags.append("ARMOR")
+	if int(def.get("contraband", 0)) > 0:
+		tags.append("CONTRABAND")
 	if did.ends_with("_seed") or cat == "plant":
 		tags.append("SEED")
 	if did in ["dream_dust", "nightmare_dust", "fanta_pill", "pink_alt_injector", "black_injector"]:
@@ -2125,9 +2175,12 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	sec_inspection_fake = false
 	sec_last_inspection_day = -99
 	sec_bribe_tracker = 0
+	client_cooldowns = {}
 	sec_permit_revoke_pending = false
 	sec_permit_revoke_levels = []
 	active_permits = []
+	starting_perk_id = ""
+	starting_perk_chosen = false
 	trash_items = []
 	upgrade_cooldowns = {}
 	evidence_removal_purchases = 0
@@ -2165,6 +2218,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile") -> void:
 	profession_id = ""
 	profession_chosen = false
 	commissions = []
+	procurement_orders = []
 	story_seen = []
 	story_flags = {}
 	pending_story = ""
@@ -2854,6 +2908,9 @@ func start_day() -> void:
 	counter_item = {}
 	daily = {"sales": 0, "purchases": 0, "rent": 0, "fees": 0, "sold": 0, "bought": 0, "inspected": 0}
 	customers_today = []
+	if not _suppress_sec_tick:
+		for cid in client_cooldowns.keys():
+			client_cooldowns[cid] = maxi(0, int(client_cooldowns[cid]) - 1)
 	_gen_commissions()
 	var due: Array = []
 	var remain_future: Array = []
@@ -2868,6 +2925,33 @@ func start_day() -> void:
 	if day > 1:
 		commissary_restock()
 	_grant_dividends()
+	for t in special_customers.get("tier", []):
+		if day == int(t.get("day", -1)):
+			customers_today.append(_gen_special_customer(t))
+	for r in special_customers.get("retired", []):
+		if day <= 0 or day % 7 != int(r.get("weekday", -1)):
+			continue
+		if bool(owned_upgrades.get(String(r.get("upgrade", "")), false)):
+			customers_today.append(_gen_special_customer(r))
+	for u in special_customers.get("unique", []):
+		if day < int(u.get("min_day", 0)):
+			continue
+		if int(u.get("chance", 100)) < 100 and rng.randi_range(1, 100) > int(u.get("chance", 100)):
+			continue
+		var day_mod: Array = u.get("day_mod", [])
+		if not day_mod.is_empty() and not day_mod.has(day % 7):
+			continue
+		var req := String(u.get("requires", ""))
+		if req != "" and not bool(owned_upgrades.get(req, false)):
+			continue
+		customers_today.append(_gen_special_customer(u))
+	for order in procurement_orders:
+		if int(order.get("due_day", 0)) <= day:
+			customers_today.append(_gen_procurement_collect_customer(order))
+	if day >= 2 and rng.randi_range(1, 100) <= int(procurement_defs.get("offer_chance", 10)):
+		var procurement_offer := _gen_procurement_offer_customer()
+		if not procurement_offer.is_empty():
+			customers_today.append(procurement_offer)
 	for sid in phone_clients.keys():
 		var pc: Dictionary = phone_clients[sid]
 		if String(pc.get("state", "")) == "Cooldown":
@@ -2875,14 +2959,17 @@ func start_day() -> void:
 			if int(pc["cooldown"]) <= 0:
 				pc["state"] = "Regular"
 				_add_night_log("联系人可再次联系：%s。" % String(phone_contacts.get(sid, {}).get("name", sid)))
+	var regular_start := customers_today.size()
 	var count := rng.randi_range(3, 5)
 	if attraction_bonus >= 110:
 		count += 1
 	for i in range(count):
 		customers_today.append(_gen_customer())
-	if appraisal_introduced and not customers_today.is_empty():
+	var regular_count := customers_today.size() - regular_start
+	if appraisal_introduced and regular_count > 0:
 		if rng.randi_range(1, 100) <= appraisal_attraction_chance():
-			customers_today[rng.randi_range(0, customers_today.size() - 1)] = _gen_appraisal_customer()
+			var replace_index := regular_start + rng.randi_range(0, regular_count - 1)
+			customers_today[replace_index] = _gen_appraisal_customer()
 			appraisal_days_missed = 0
 		else:
 			appraisal_days_missed += 1
@@ -2901,10 +2988,260 @@ func start_day() -> void:
 		emit_signal("story_available", pending_story)
 	next_customer()
 
+func store_attractiveness() -> int:
+	var score := 250
+	for uid in ["RENOVATION1", "RENOVATION2", "RENOVATION3"]:
+		if bool(owned_upgrades.get(uid, false)):
+			score += 150
+	score += maxi(0, attraction_bonus - 100)
+	return score
+
+func client_attractiveness_tier() -> int:
+	var thresholds: Array = client_pools.get("tier_thresholds", [400, 650])
+	var score := store_attractiveness()
+	if score >= int(thresholds[1]):
+		return 2
+	if score >= int(thresholds[0]):
+		return 1
+	return 0
+
+func _client_pool_perk_active(perk_id: String) -> bool:
+	return rep_perk_unlocked(perk_id)
+
+func _pool_chance(pool: Dictionary) -> int:
+	var chance := int(pool.get("chance_base", 0))
+	for rule in pool.get("chance_rules", []):
+		var applies := true
+		if rule.has("perk") and not _client_pool_perk_active(String(rule.get("perk", ""))):
+			applies = false
+		if applies and rule.has("rep"):
+			var value := int(rep.get(String(rule.get("rep", "")), 0))
+			if rule.has("lt") and value >= int(rule.get("lt", 0)):
+				applies = false
+			if rule.has("gte") and value < int(rule.get("gte", 0)):
+				applies = false
+		if not applies:
+			continue
+		if rule.has("set"):
+			chance = int(rule.get("set", 0))
+			break
+		if rule.has("add"):
+			chance += int(rule.get("add", 0))
+	return clampi(chance, 0, 100)
+
+func _weighted_client_entry(entries: Array, tier: int) -> Dictionary:
+	var candidates: Array = []
+	var total := 0
+	for entry in entries:
+		var eid := String(entry.get("id", ""))
+		if int(client_cooldowns.get(eid, 0)) > 0:
+			continue
+		var weights: Array = entry.get("weights", [1, 1, 1])
+		var weight := int(weights[clampi(tier, 0, weights.size() - 1)])
+		if weight <= 0:
+			continue
+		candidates.append({"entry": entry, "weight": weight})
+		total += weight
+	if candidates.is_empty() or total <= 0:
+		return {}
+	var pick := rng.randi_range(1, total)
+	for c in candidates:
+		pick -= int(c.get("weight", 0))
+		if pick <= 0:
+			return c.get("entry", {})
+	return candidates[0].get("entry", {})
+
+func _pick_client_pool_entry() -> Dictionary:
+	var tier := client_attractiveness_tier()
+	for pool in client_pools.get("faction_pools", []):
+		if rng.randi_range(1, 100) > _pool_chance(pool):
+			continue
+		var entry := _weighted_client_entry(pool.get("entries", []), tier)
+		if not entry.is_empty():
+			return {"entry": entry, "faction": String(pool.get("faction", "lower"))}
+	var general := _weighted_client_entry(client_pools.get("general", []), tier)
+	if general.is_empty():
+		return {}
+	return {"entry": general, "faction": String(general.get("faction", "lower"))}
+
+func _pool_dialogue_line(entry: Dictionary) -> String:
+	var dialogue := String(entry.get("dialogue", entry.get("id", "")))
+	var alias := {
+		"scav_general": "scav", "scav_crate": "scav", "scav_inspectable": "scav",
+		"stamp_seller": "scav", "broke_upper": "broke_upper",
+	}
+	var prefixes: Array = [dialogue]
+	var alt := String(alias.get(dialogue, ""))
+	if alt != "" and not prefixes.has(alt):
+		prefixes.append(alt)
+	var lines: Array = []
+	for prefix in prefixes:
+		for pattern in ["dialog_%s_greet_1", "dialog_%s_1", "dialog_%s_intro_1", "dialog_%s_offer_1", "dialog_%s_deal_1", "dialog_%s_2"]:
+			var key := String(pattern) % String(prefix)
+			var text := String(dialogue_lines.get(key, ""))
+			if text != "" and not lines.has(text):
+				lines.append(text)
+		if lines.size() >= 2:
+			break
+	if lines.is_empty():
+		return "……"
+	return "\n".join(lines)
+
+func diff_rule(key: String, fallback: Variant) -> Variant:
+	var key_id := difficulty
+	if key_id == "easy":
+		key_id = "cozy"
+	var rules: Dictionary = difficulty_rules.get(key_id, {})
+	return rules.get(key, fallback)
+
+func _pool_budget(entry: Dictionary) -> int:
+	var base := int(entry.get("budget_base", 0))
+	var spread := int(entry.get("budget_rand", 0))
+	var amount := base
+	if spread > 0:
+		amount += rng.randi_range(0, spread)
+	amount += day * int(entry.get("budget_day", 0))
+	if amount <= 0:
+		return 0
+	var mult := (1.0 + float(upgrade_total("budget")) / 100.0) * float(DIFFICULTY[difficulty]["budget"])
+	mult *= float(attraction_bonus) / 100.0
+	return maxi(1, int(round(float(amount) * mult)))
+
+func _pool_stock_items(entry: Dictionary) -> Array:
+	var rows: Array = entry.get("stock", [])
+	var has_groups := false
+	for row in rows:
+		if row.has("group"):
+			has_groups = true
+			break
+	var chosen_group := -1
+	if has_groups:
+		var groups: Array = []
+		for row in rows:
+			if row.has("group") and not groups.has(int(row.get("group", 0))):
+				groups.append(int(row.get("group", 0)))
+		for g in groups:
+			var group_chance := 0.0
+			for row in rows:
+				if int(row.get("group", -1)) == int(g):
+					group_chance = float(row.get("chance", 100))
+					break
+			if rng.randf() * 100.0 < group_chance:
+				chosen_group = int(g)
+				break
+		if chosen_group < 0:
+			for row in rows:
+				if bool(row.get("fallback", false)):
+					chosen_group = int(row.get("group", -1))
+					break
+	var out: Array = []
+	for row in rows:
+		if has_groups and row.has("group") and int(row.get("group", -1)) != chosen_group:
+			continue
+		if row.has("min_day") and day < int(row.get("min_day", 0)):
+			continue
+		if row.has("chance") and not row.has("group"):
+			if rng.randf() * 100.0 >= float(row.get("chance", 100)):
+				continue
+		var count := int(row.get("count", 0))
+		if count <= 0:
+			var cmin := int(row.get("count_min", 1))
+			var cmax := int(row.get("count_max", cmin))
+			count = rng.randi_range(cmin, maxi(cmin, cmax))
+		for bonus in row.get("day_bonus", []):
+			if day >= int(bonus.get("day", 0)) and rng.randf() * 100.0 < float(bonus.get("chance", 100)):
+				count += int(bonus.get("add", 0))
+		var item_id := String(row.get("id", ""))
+		for n in range(count):
+			var it := make_item(item_id, rng.randi_range(70, 100), true, bool(row.get("stolen", false)))
+			it["known"] = false
+			out.append(it)
+	return out
+
+func _gen_pool_customer(entry: Dictionary, pool_faction: String) -> Dictionary:
+	var intent := String(entry.get("intent", "buy"))
+	if intent == "barter":
+		return _gen_barter_customer(String(entry.get("barter_id", "")))
+	var faction := String(entry.get("faction", pool_faction))
+	if faction == "":
+		faction = "lower"
+	var name := loc("ClientName", String(entry.get("name_key", "")), String(entry.get("id", "")))
+	var line := _pool_dialogue_line(entry)
+	var base := {
+		"pool_id": String(entry.get("id", "")),
+		"arche": {"faction": faction, "name": name},
+		"patience": 3,
+		"done": false,
+		"line": line,
+		"cooldown": int(entry.get("cooldown", 0)),
+	}
+	if intent == "buy":
+		base["intent"] = "buy"
+		base["want_tags"] = entry.get("buy_tags", []).duplicate()
+		base["exclude_contraband"] = base["want_tags"].has("ALL_TYPE_EXCEPT_CONTRABAND")
+		if base["exclude_contraband"]:
+			base["want_tags"] = []
+		base["discount_buy"] = int(entry.get("discount_buy", 0))
+		base["variety"] = bool(entry.get("variety", false))
+		base["budget"] = _pool_budget(entry)
+		base["offer"] = 0
+		base["max_price"] = 0
+		base["cooldown"] = int(entry.get("cooldown", 0))
+		return base
+	var stock := _pool_stock_items(entry)
+	if String(entry.get("sell_mode", "counter")) == "wholesale":
+		var discount_range: Array = entry.get("wholesale_discount", [-20, -20])
+		var discounted := int(discount_range[0])
+		if int(discount_range[1]) != int(discount_range[0]):
+			discounted = rng.randi_range(int(discount_range[0]), int(discount_range[1]))
+		base["intent"] = "wholesale"
+		base["wholesale_name"] = name
+		base["wholesale_supplier"] = ""
+		base["wholesale_discount"] = discounted
+		base["wholesale_stock"] = stock
+		base["wholesale_free"] = false
+		base["wholesale_done_key"] = ""
+		base["sellbuy"] = intent == "sellbuy"
+		if base["sellbuy"]:
+			base["want_tags"] = entry.get("buy_tags", []).duplicate()
+			base["budget"] = _pool_budget(entry)
+			base["discount_buy"] = 0
+		return base
+	base["intent"] = "sell"
+	base["items"] = stock
+	base["item_index"] = 0
+	var item: Dictionary = stock[0] if not stock.is_empty() else make_item(String(entry.get("id", "")), 100, true, false)
+	item["known"] = false
+	var val := market_value(item, false, faction)
+	item["asking_price"] = int(round(val * rng.randf_range(1.15, 1.45)))
+	item["min_price"] = int(round(val * rng.randf_range(0.7, 0.9)))
+	base["item"] = item
+	base["cooldown"] = int(entry.get("cooldown", 0))
+	return base
+
+func _buy_tag_match(it: Dictionary, wanted: Array) -> bool:
+	if wanted.is_empty():
+		return true
+	var tags := _item_tags(it)
+	for w in wanted:
+		var wl := String(w).to_lower()
+		for t in tags:
+			if String(t).to_lower() == wl:
+				return true
+	return false
+
 func _gen_customer() -> Dictionary:
 	var forced_tutorial := day == 1 and not tutorial_done and customers_today.is_empty()
-	if not forced_tutorial and rng.randf() < 0.20:
-		return _gen_barter_customer()
+	if not forced_tutorial and not client_pools.is_empty():
+		var picked := _pick_client_pool_entry()
+		if not picked.is_empty():
+			var pooled := _gen_pool_customer(picked.get("entry", {}), String(picked.get("faction", "lower")))
+			if not pooled.is_empty():
+				var cd := int(pooled.get("cooldown", 0))
+				var pid := String(pooled.get("pool_id", ""))
+				if cd > 0 and pid != "":
+					client_cooldowns[pid] = cd
+				return pooled
 	var arche: Dictionary = customer_defs[rng.randi_range(0, customer_defs.size() - 1)].duplicate(true)
 	if forced_tutorial:
 		arche = customer_defs[1].duplicate(true)
@@ -2962,20 +3299,23 @@ func _barter_intro_key(client_id: String) -> String:
 		"food": return "dialog_barter_food_normal_1"
 	return "dialog_barter_addict_gen_1"
 
-func _gen_barter_customer() -> Dictionary:
+func _gen_barter_customer(preferred_id: String = "") -> Dictionary:
 	var ids: Array = []
 	var total := 0
 	for cid in barter_offer_defs.keys():
 		var w := int(barter_offer_defs[cid].get("weight", 10))
 		ids.append(cid)
 		total += w
-	var pick := rng.randi_range(1, maxi(1, total))
 	var client_id := String(ids[0])
-	for cid in ids:
-		pick -= int(barter_offer_defs[cid].get("weight", 10))
-		if pick <= 0:
-			client_id = String(cid)
-			break
+	if preferred_id != "" and barter_offer_defs.has(preferred_id):
+		client_id = preferred_id
+	else:
+		var pick := rng.randi_range(1, maxi(1, total))
+		for cid in ids:
+			pick -= int(barter_offer_defs[cid].get("weight", 10))
+			if pick <= 0:
+				client_id = String(cid)
+				break
 	var def: Dictionary = barter_offer_defs[client_id]
 	var arche: Dictionary = customer_defs[rng.randi_range(0, customer_defs.size() - 1)].duplicate(true)
 	arche["faction"] = String(def.get("faction", arche.get("faction", "lower")))
@@ -3300,11 +3640,17 @@ func buy_wholesale() -> Dictionary:
 	var sid := String(current_customer.get("wholesale_supplier", ""))
 	if sid != "" and phone_clients.has(sid):
 		phone_clients[sid]["amount_spent"] = int(phone_clients[sid].get("amount_spent", 0)) + total
-	current_customer["done"] = true
-	current_customer["done_total"] = total
-	current_customer["line"] = String(dialogue_lines.get(String(current_customer.get("wholesale_done_key", "")), "验货完毕，合作愉快。"))
+	var sellbuy := bool(current_customer.get("sellbuy", false)) and int(current_customer.get("budget", 0)) > 0
+	if sellbuy:
+		current_customer["intent"] = "buy"
+		current_customer["done"] = false
+		current_customer["line"] = "货我收下了。你这里还有什么适合我的？"
+	else:
+		current_customer["done"] = true
+		current_customer["done_total"] = total
+		current_customer["line"] = String(dialogue_lines.get(String(current_customer.get("wholesale_done_key", "")), "验货完毕，合作愉快。"))
 	emit_signal("state_changed")
-	return {"ok": true, "text": "买下 %d 件，支付 %d₵。" % [got.size(), total], "got": got}
+	return {"ok": true, "text": "买下 %d 件，支付 %d₵。" % [got.size(), total], "got": got, "next_intent": "buy" if sellbuy else ""}
 
 func phone_contact_by_number(num: String) -> String:
 	for sid in phone_contacts.keys():
@@ -3590,7 +3936,7 @@ func market_value(item: Dictionary, for_sale: bool = false, faction: String = ""
 	var v := float(effective_value(item))
 	var def2 := get_item_def(item.get("def_id", ""))
 	if for_sale:
-		v *= 1.0 + (RETAIL_MARKUP + float(upgrade_total("retail"))) / 100.0
+		v *= 1.0 + (float(diff_rule("retail_markup", RETAIL_MARKUP)) + float(upgrade_total("retail"))) / 100.0
 	if int(def2.get("contraband", 0)) > 0:
 		v *= 1.0 + float(upgrade_total("contraband")) / 100.0
 	if String(def2.get("category", "")) == "water":
@@ -3611,12 +3957,11 @@ func put_display_on_counter(uid: int) -> bool:
 		return false
 	counter_item = it
 	var def := get_item_def(it["def_id"])
-	var match_tag := false
-	for tag in current_customer.get("want_tags", []):
-		if tag in def.get("tags", []):
-			match_tag = true
-			break
+	var match_tag := _buy_tag_match(it, current_customer.get("want_tags", []))
 	var factor := 1.0 if match_tag else 0.55
+	if bool(current_customer.get("exclude_contraband", false)) and sec_item_contraband_level(it) > 0:
+		return false
+	factor *= 1.0 - float(current_customer.get("discount_buy", 0)) / 100.0
 	var arche: Dictionary = current_customer["arche"]
 	var val := market_value(it, true, arche.get("faction", "lower"))
 	var pm := float(arche.get("price_mod", 1.0)) * (float(attraction_bonus) / 100.0)
@@ -3734,6 +4079,24 @@ func _true_desc(it: Dictionary) -> String:
 		feat_text = "，特征：" + feat_text
 	return "%s，品相 %d%%%s%s，估值 %d₵" % [auth, cond, stolen, feat_text, effective_value(it)]
 
+func _advance_sell_item() -> bool:
+	var items: Array = current_customer.get("items", [])
+	var next_index := int(current_customer.get("item_index", 0)) + 1
+	if next_index < items.size():
+		current_customer["item_index"] = next_index
+		current_customer["item"] = items[next_index]
+		counter_item = items[next_index]
+		current_customer["patience"] = 3
+		return true
+	complete_customer(true)
+	return false
+
+func skip_current_sell_item() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "sell":
+		return {"ok": false, "text": "当前没有可跳过的物品。"}
+	var advanced := _advance_sell_item()
+	return {"ok": true, "advanced": advanced, "text": "跳过这件，看下一件。" if advanced else "没有更多物品了。"}
+
 func make_offer(price: int) -> Dictionary:
 	if current_customer.is_empty() or current_customer.get("intent") != "sell":
 		return {"accepted": false, "text": "当前没有可收购的物品。"}
@@ -3749,8 +4112,9 @@ func make_offer(price: int) -> Dictionary:
 		daily["purchases"] += price
 		daily["bought"] = int(daily.get("bought", 0)) + 1
 		add_rep(current_customer["arche"].get("faction", "lower"), 2)
-		complete_customer(true)
-		return {"accepted": true, "text": "成交。你花 %d₵ 收下了 %s。" % [price, item_display_name(item)]}
+		var advanced := _advance_sell_item()
+		var suffix := "" if advanced else ""
+		return {"accepted": true, "advanced": advanced, "text": "成交。你花 %d₵ 收下了 %s。%s" % [price, item_display_name(item), suffix]}
 	current_customer["patience"] = int(current_customer.get("patience", 0)) - 1
 	if int(current_customer["patience"]) >= 0:
 		item["asking_price"] = min_price
@@ -3806,8 +4170,8 @@ func threaten() -> Dictionary:
 			item["location"] = "backpack"
 			add_item(item)
 			daily["purchases"] += price
-			complete_customer(true)
-			return {"accepted": true, "text": "你压低声音威胁了几句，花 %d₵ 拿下了货。" % price}
+			var advanced2 := _advance_sell_item()
+			return {"accepted": true, "advanced": advanced2, "text": "你压低声音威胁了几句，花 %d₵ 拿下了货。" % price}
 		else:
 			if counter_item.is_empty():
 				return {"accepted": false, "text": "请先把商品放到柜台。"}
@@ -3845,9 +4209,11 @@ func add_rep(faction: String, amount: int) -> void:
 		rep[faction] = 0
 	var final_amount := amount
 	if amount > 0:
-		final_amount = int(round(float(amount) * (1.0 + float(upgrade_total("rep")) / 100.0)))
-	elif amount < 0 and faction == "security" and sec_perk_unlocked("UL_PETITION"):
-		final_amount = int(round(float(amount) * float(_sec_perk_def("UL_PETITION").get("rep_loss_mult", 2.0))))
+		final_amount = int(round(float(amount) * (1.0 + float(upgrade_total("rep")) / 100.0) * float(diff_rule("reputation_gain_mult", 1.0))))
+	elif amount < 0:
+		final_amount = int(round(float(amount) * float(diff_rule("reputation_loss_mult", 1.0))))
+		if faction == "security" and sec_perk_unlocked("UL_PETITION"):
+			final_amount = int(round(float(final_amount) * float(_sec_perk_def("UL_PETITION").get("rep_loss_mult", 2.0))))
 	rep[faction] = clampi(int(rep[faction]) + final_amount, -100, 100)
 
 func finish_day() -> Dictionary:
@@ -3863,7 +4229,7 @@ func finish_day() -> Dictionary:
 		if cash >= rent_cost:
 			cash -= rent_cost
 			summary["rent_paid"] = rent_cost
-			rent = int(round(float(rent) * 1.1))
+			rent = int(round(float(rent) * float(diff_rule("rent_increase", 1.1))))
 			rent_due = 7
 		else:
 			summary["gameover"] = "rent"
@@ -3986,6 +4352,196 @@ func apply_profession(pid: String) -> Dictionary:
 		add_rep(String(k), int(reps[k]))
 	emit_signal("state_changed")
 	return {"ok": true, "text": "已选择专精：%s。" % p.get("name", pid)}
+
+func _gen_special_customer(t: Dictionary) -> Dictionary:
+	var name := String(t.get("name", ""))
+	if name == "":
+		name = loc("ClientName", String(t.get("name_key", "")), String(t.get("id", "")))
+	var line := _pool_dialogue_line(t)
+	var base := {
+		"special_id": String(t.get("id", "")),
+		"arche": {"faction": String(t.get("faction", "lower")), "name": name},
+		"patience": 3,
+		"done": false,
+		"line": line,
+	}
+	if String(t.get("intent", "sell")) == "buy":
+		base["intent"] = "buy"
+		base["want_tags"] = t.get("buy_tags", []).duplicate()
+		base["exclude_contraband"] = false
+		base["budget"] = _pool_budget(t)
+		base["offer"] = 0
+		base["max_price"] = 0
+		base["discount_buy"] = 0
+		return base
+	var stock := _pool_stock_items(t)
+	base["intent"] = "wholesale"
+	base["wholesale_name"] = name
+	base["wholesale_supplier"] = ""
+	base["wholesale_discount"] = int(t.get("wholesale_discount", [0, 0])[0])
+	base["wholesale_stock"] = stock
+	base["wholesale_free"] = false
+	base["wholesale_done_key"] = ""
+	return base
+
+func starting_perk_def(pid: String) -> Dictionary:
+	for p in starting_perks:
+		if String(p.get("id", "")) == pid:
+			return p
+	return {}
+
+func choose_starting_perk(pid: String) -> Dictionary:
+	if starting_perk_chosen:
+		return {"ok": false, "text": "本局已经选择过天赋。"}
+	var p := starting_perk_def(pid)
+	if p.is_empty():
+		return {"ok": false, "text": "没有这个天赋。"}
+	starting_perk_id = pid
+	starting_perk_chosen = true
+	match pid:
+		"perk_saving": cash += 150
+		"perk_bad_lease": cash -= 40
+		"perk_well_connected": add_rep("upper", 15)
+		"perk_public_enemy": add_rep("security", -15)
+		"perk_model_citizen": add_rep("security", 30)
+		"perk_convict":
+			add_rep("security", -30)
+			add_rep("blackmarket", 25)
+		"perk_revolution_sympathizer": add_rep("rev", 25)
+	_rebuild_starting_perk_effects()
+	_add_night_log("选择天赋：%s。" % String(p.get("name", pid)))
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已选择天赋：%s。" % String(p.get("name", pid))}
+
+func _rebuild_starting_perk_effects() -> void:
+	pass
+
+func rep_perk_def(pid: String) -> Dictionary:
+	for p in rep_perk_defs:
+		if String(p.get("id", "")) == pid:
+			return p
+	return {}
+
+func rep_perk_unlocked(pid: String) -> bool:
+	var d := rep_perk_def(pid)
+	if d.is_empty():
+		return false
+	var faction := "lower"
+	if pid.begins_with("SEC_"):
+		faction = "security"
+	elif pid.begins_with("BM_"):
+		faction = "blackmarket"
+	elif pid.begins_with("UL_"):
+		faction = "upper"
+	elif pid.begins_with("REV_"):
+		faction = "rev"
+	elif pid.begins_with("CARTEL_"):
+		faction = "cartel"
+	var value := int(rep.get(faction, 0))
+	var threshold := int(d.get("threshold", 0))
+	if int(d.get("type", 1)) < 0:
+		return value <= threshold
+	return value >= threshold
+
+func procurement_template(tid: String) -> Dictionary:
+	for t in procurement_defs.get("templates", []):
+		if String(t.get("id", "")) == tid:
+			return t
+	return {}
+
+func _gen_procurement_offer_customer() -> Dictionary:
+	var active: Array = []
+	for o in procurement_orders:
+		active.append(String(o.get("template_id", "")))
+	var choices: Array = []
+	for t in procurement_defs.get("templates", []):
+		if not active.has(String(t.get("id", ""))):
+			choices.append(t)
+	if choices.is_empty():
+		return {}
+	var t: Dictionary = choices[rng.randi_range(0, choices.size() - 1)]
+	var name := String(t.get("name", ""))
+	var name_key := String(t.get("name_key", ""))
+	if name_key != "":
+		var localized_name := loc("ClientName", name_key, "")
+		if localized_name != "":
+			name = localized_name
+	var reward := int(t.get("reward_base", 0)) + (rng.randi_range(0, int(t.get("reward_rand", 0))) if int(t.get("reward_rand", 0)) > 0 else 0)
+	var body := String(t.get("slip_body", ""))
+	return {
+		"arche": {"faction": "lower", "name": name},
+		"intent": "procurement_offer",
+		"procurement_id": String(t.get("id", "")),
+		"item_id": String(t.get("item_id", "")),
+		"count": int(t.get("count", 0)),
+		"days": int(t.get("days", 0)),
+		"reward": reward,
+		"done": false,
+		"line": body,
+	}
+
+func _gen_procurement_collect_customer(order: Dictionary) -> Dictionary:
+	var name := String(order.get("client_name", "采购人"))
+	return {
+		"arche": {"faction": "lower", "name": name},
+		"intent": "procurement_collect",
+		"order_id": String(order.get("id", "")),
+		"item_id": String(order.get("item_id", "")),
+		"count": int(order.get("count", 0)),
+		"reward": int(order.get("reward", 0)),
+		"done": false,
+		"line": "我来取之前订的货。",
+	}
+
+func accept_procurement() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "procurement_offer":
+		return {"ok": false, "text": "当前没有采购委托。"}
+	var t := procurement_template(String(current_customer.get("procurement_id", "")))
+	if t.is_empty():
+		return {"ok": false, "text": "采购模板不存在。"}
+	var order := {
+		"id": "pr_%d_%d" % [day, int(current_customer.get("count", 0))],
+		"template_id": String(t.get("id", "")),
+		"item_id": String(t.get("item_id", "")),
+		"count": int(t.get("count", 0)),
+		"due_day": day + int(t.get("days", 0)),
+		"reward": int(current_customer.get("reward", 0)),
+		"client_name": String(current_customer.get("arche", {}).get("name", "采购人")),
+	}
+	procurement_orders.append(order)
+	var slip := make_item("procurement_slip", 100, true, false)
+	slip["custom_name"] = String(t.get("slip_name", "采购订单"))
+	slip["custom_desc"] = "%s
+报酬：%d₵
+期限：第 %d 天" % [String(t.get("slip_body", "")), int(order.get("reward", 0)), int(order.get("due_day", 0))]
+	add_item(slip)
+	complete_customer(true)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已接下采购委托：%s，第 %d 天交货。" % [String(get_item_def(String(order.get("item_id", ""))).get("name", order.get("item_id", ""))), int(order.get("due_day", 0))]}
+
+func collect_procurement() -> Dictionary:
+	if current_customer.is_empty() or String(current_customer.get("intent", "")) != "procurement_collect":
+		return {"ok": false, "text": "当前没有待交付的采购。"}
+	var oid := String(current_customer.get("order_id", ""))
+	var order: Dictionary = {}
+	var oi := -1
+	for i in range(procurement_orders.size()):
+		if String(procurement_orders[i].get("id", "")) == oid:
+			order = procurement_orders[i]
+			oi = i
+			break
+	if order.is_empty():
+		return {"ok": false, "text": "找不到这张采购订单。"}
+	var item_id := String(order.get("item_id", ""))
+	var need := int(order.get("count", 0))
+	if inventory_count(item_id) < need:
+		return {"ok": false, "text": "货物不足：%s %d/%d。" % [String(get_item_def(item_id).get("name", item_id)), inventory_count(item_id), need]}
+	remove_inventory(item_id, need)
+	cash += int(order.get("reward", 0))
+	procurement_orders.remove_at(oi)
+	complete_customer(true)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "交付成功，获得 %d₵。" % int(order.get("reward", 0))}
 
 func _gen_commissions() -> void:
 	commissions = []
@@ -4140,7 +4696,7 @@ func _combat_weapon_choice() -> Dictionary:
 
 func _combat_item_abilities() -> Array:
 	var out: Array = []
-	var map := {"bandage_item": "bandage_ability", "smelling_salt": "smelling_salt_ability", "smoke_grenade": "smoke_grenade", "flashbang_grenade": "flashbang"}
+	var map := {"bandage_item": "bandage_ability", "hemostatic_bandage_item": "bandage_ability", "topical_bandage_item": "bandage_ability", "smelling_salt": "smelling_salt_ability", "smoke_grenade": "smoke_grenade", "flashbang_grenade": "flashbang", "bicarsole_pill": "bicarsole_ability", "large_purple_injector": "experimental_injector_purple", "black_injector": "experimental_injector_black", "pink_alt_injector": "experimental_injector_red"}
 	for it in _iter_inventory_items():
 		var did := String(it.get("def_id", ""))
 		if map.has(did):
@@ -4204,8 +4760,18 @@ func _combat_sync_legacy() -> void:
 		combat_player_hp = int(pl.get("hp", 0))
 		combat_player_max = int(pl.get("max_hp", 100))
 
-func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "", context: String = "") -> Dictionary:
+func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String = "", context: String = "", party_id: String = "") -> Dictionary:
 	var e := enemy_def(enemy_id)
+	var party: Dictionary = combat_parties.get(party_id, {}) if party_id != "" else {}
+	var enemy_ids: Array = []
+	if not party.is_empty():
+		var filtered: Array = []
+		for eid in party.get("enemies", []):
+			if not enemy_def(String(eid)).is_empty():
+				filtered.append(eid)
+		enemy_ids = filtered
+		if not enemy_ids.is_empty():
+			e = enemy_def(String(enemy_ids[0]))
 	if e.is_empty():
 		return {"ok": false, "text": "敌人不存在。"}
 	combat_uid_seq = 1
@@ -4232,13 +4798,18 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	}
 	combat_player_uid = 0
 	combat_units.append(player)
-	var enemy_unit := _combat_make_unit(e, 1)
-	if wanted_id != "":
-		var w := wanted_def(wanted_id)
-		if not w.is_empty():
-			enemy_unit["reward"] = int(w.get("reward", 0))
-			enemy_unit["rep"] = w.get("rep", {}).duplicate(true)
-	combat_units.append(enemy_unit)
+	if enemy_ids.is_empty():
+		enemy_ids = [enemy_id]
+	for idx in range(enemy_ids.size()):
+		var unit := _combat_make_unit(enemy_def(String(enemy_ids[idx])), 1)
+		if enemy_ids.size() > 1:
+			unit["name"] = "%s %d" % [String(unit.get("name", "")), idx + 1]
+		if idx == 0 and wanted_id != "":
+			var w := wanted_def(wanted_id)
+			if not w.is_empty():
+				unit["reward"] = int(w.get("reward", 0))
+				unit["rep"] = w.get("rep", {}).duplicate(true)
+		combat_units.append(unit)
 	combat_turn_order = []
 	for u in combat_units:
 		combat_turn_order.append(int(u.get("uid", -1)))
@@ -4251,7 +4822,10 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	)
 	combat_turn_pos = 0
 	combat_current_uid = -1
-	combat_log.append("遭遇：%s（第 %d 回合）" % [String(e.get("name", enemy_id)), combat_round])
+	var encounter_name := String(party.get("name", e.get("name", enemy_id)))
+	if party.is_empty() and enemy_ids.size() > 1:
+		encounter_name = "%s ×%d" % [String(e.get("name", enemy_id)), enemy_ids.size()]
+	combat_log.append("遭遇：%s（第 %d 回合）" % [encounter_name, combat_round])
 	_combat_sync_legacy()
 	emit_signal("combat_started")
 	emit_signal("state_changed")
@@ -4523,7 +5097,7 @@ func _combat_ai_pick_target(u: Dictionary) -> Dictionary:
 				if int(e.get("hp", 0)) < int(best.get("hp", 0)):
 					best = e
 			return best
-		"boss":
+		"boss", "pirate_chief":
 			var best2: Dictionary = enemies[0]
 			for e in enemies:
 				if int(e.get("priority", 0)) > int(best2.get("priority", 0)):
@@ -4547,7 +5121,7 @@ func _combat_ai_turn(u: Dictionary) -> void:
 	var abilities: Array = u.get("abilities", [])
 	var allies := _combat_allies_of(u, true)
 	match String(u.get("ai", "murderous")):
-		"medic":
+		"medic", "deserter_medic":
 			for a in allies:
 				if _combat_has_effect(a, "bleed") and abilities.has("bandage_ability"):
 					_combat_use_ability(u, "bandage_ability", int(a.get("uid", -1)))
@@ -4561,9 +5135,13 @@ func _combat_ai_turn(u: Dictionary) -> void:
 			if not _combat_has_effect(u, "buff") and abilities.has("herald_buff"):
 				_combat_use_ability(u, "herald_buff", int(u.get("uid", -1)))
 				return
-		"overwatch":
+		"overwatch", "pirate_veteran":
 			if not _combat_has_effect(u, "overwatch"):
 				_combat_use_ability(u, "overwatch", int(u.get("uid", -1)))
+				return
+		"deserter_marine":
+			if not _combat_has_effect(u, "buff") and abilities.has("take_aim_ability"):
+				_combat_use_ability(u, "take_aim_ability", int(u.get("uid", -1)))
 				return
 	var weapon := String(u.get("weapon", "weapon_attack"))
 	_combat_use_ability(u, weapon, int(target.get("uid", -1)))
@@ -5081,7 +5659,7 @@ func upgrade_cost(id: String) -> int:
 	var cost := int(u.get("cost", 0))
 	if id == "EVIDENCE_REMOVAL":
 		cost += evidence_removal_purchases * int(security_defs.get("evidence_removal", {}).get("cost_step", 100))
-	return cost
+	return int(round(float(cost) * float(diff_rule("upgrade_price_mult", 1.0))))
 
 func upgrade_owned(id: String) -> bool:
 	if id == "EVIDENCE_REMOVAL":
@@ -6584,8 +7162,8 @@ func save_game(slot: int = 1) -> bool:
 		"appraiser_level": appraiser_level, "appraisal_progress": appraisal_progress, "appraisal_promotion_day": appraisal_promotion_day,
 		"appraisal_promotion_declined": appraisal_promotion_declined, "appraisal_days_missed": appraisal_days_missed,
 		"appraisal_blacklist": appraisal_blacklist, "appraisal_introduced": appraisal_introduced, "pending_promotion": pending_promotion,
-		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
-		"commissions": commissions, "story_seen": story_seen, "story_flags": story_flags,
+		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
+		"commissions": commissions, "procurement_orders": procurement_orders, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
 		"tutorial_done": tutorial_done, "tutorial_step": tutorial_step, "difficulty": difficulty, "campaign_mode": campaign_mode,
 	}
@@ -6646,6 +7224,8 @@ func load_game(slot: int = 1) -> bool:
 	sec_permit_revoke_levels = []
 	for lv in data.get("sec_permit_revoke_levels", []):
 		sec_permit_revoke_levels.append(int(lv))
+	starting_perk_id = String(data.get("starting_perk_id", ""))
+	starting_perk_chosen = bool(data.get("starting_perk_chosen", false))
 	active_permits = []
 	for p in data.get("active_permits", []):
 		active_permits.append({"type": String(p.get("type", "")), "level": int(p.get("level", 0))})
@@ -6654,9 +7234,13 @@ func load_game(slot: int = 1) -> bool:
 		_normalize_item(it)
 	upgrade_cooldowns = data.get("upgrade_cooldowns", {}).duplicate(true)
 	evidence_removal_purchases = int(data.get("evidence_removal_purchases", 0))
+	client_cooldowns = data.get("client_cooldowns", {}).duplicate(true)
+	for cid in client_cooldowns.keys():
+		client_cooldowns[cid] = int(client_cooldowns[cid])
 	profession_id = String(data.get("profession_id", ""))
 	profession_chosen = bool(data.get("profession_chosen", false))
 	commissions = data.get("commissions", []).duplicate(true)
+	procurement_orders = data.get("procurement_orders", []).duplicate(true)
 	story_seen = data.get("story_seen", []).duplicate(true)
 	story_flags = data.get("story_flags", {}).duplicate(true)
 	scene_seen = data.get("scene_seen", []).duplicate(true)

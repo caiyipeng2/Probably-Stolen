@@ -194,7 +194,7 @@
     "reaction": 9,
     "priority": 5,
     "weapon": "weapon_attack",
-    "ai": "murderous",
+    "ai": "pirate_rookie",
     "loot": [
       [
         "small_pistol_ammo",
@@ -215,7 +215,7 @@
     "reaction": 10,
     "priority": 5,
     "weapon": "mp9_attack",
-    "ai": "overwatch",
+    "ai": "pirate_veteran",
     "loot": [
       [
         "small_pistol_ammo",
@@ -240,7 +240,7 @@
     "reaction": 9,
     "priority": 7,
     "weapon": "shotgun_attack",
-    "ai": "boss",
+    "ai": "pirate_chief",
     "loot": [
       [
         "small_pistol_ammo",
@@ -265,7 +265,7 @@
     "reaction": 11,
     "priority": 6,
     "weapon": "marine_attack",
-    "ai": "overwatch",
+    "ai": "deserter_marine",
     "loot": [
       [
         "small_pistol_ammo",
@@ -293,7 +293,7 @@
     "abilities": [
       "bandage_ability"
     ],
-    "ai": "medic",
+    "ai": "deserter_medic",
     "loot": [
       [
         "bandage_item",

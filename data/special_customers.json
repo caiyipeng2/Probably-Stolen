@@ -1,0 +1,368 @@
+{
+  "tier": [
+    {
+      "id": "lowerRepairman",
+      "day": 2,
+      "name_key": "name_lower_level_repairman",
+      "dialogue": "lower_repairman",
+      "intent": "buy",
+      "budget_base": 100,
+      "budget_rand": 25,
+      "buy_tags": [
+        "MATERIAL",
+        "TOOL",
+        "ENERGY_CELL"
+      ]
+    },
+    {
+      "id": "scavFood",
+      "day": 3,
+      "name_key": "name_spacer",
+      "dialogue": "scav_food",
+      "intent": "buy",
+      "budget_base": 80,
+      "budget_rand": 25,
+      "buy_tags": [
+        "FOOD"
+      ]
+    },
+    {
+      "id": "maintenanceWorker",
+      "day": 10,
+      "name_key": "name_maintenance_worker",
+      "dialogue": "maintenance",
+      "intent": "buy",
+      "budget_base": 100,
+      "budget_rand": 25,
+      "buy_tags": [
+        "MATERIAL",
+        "TOOL",
+        "ENERGY_CELL"
+      ]
+    }
+  ],
+  "retired": [
+    {
+      "id": "retired_gunsmith",
+      "upgrade": "RETIRED_GUNSMITH",
+      "weekday": 4,
+      "name_key": "name_retired_gunsmith",
+      "dialogue": "retired_generic",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        15,
+        15
+      ],
+      "stock": [
+        {
+          "id": "printer_chip_pistol",
+          "count": 1
+        },
+        {
+          "id": "printer_chip_box_cutter",
+          "count": 1
+        },
+        {
+          "id": "printer_chip_internal_springs_improved",
+          "count": 1
+        },
+        {
+          "id": "printer_chip_makeshift_rds",
+          "count": 1
+        },
+        {
+          "id": "printer_plastic",
+          "count": 4
+        },
+        {
+          "id": "screwdriver",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "retired_farmer",
+      "upgrade": "RETIRED_FARMER",
+      "weekday": 5,
+      "name_key": "name_retired_farmer",
+      "dialogue": "retired_generic",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        15,
+        15
+      ],
+      "stock": [
+        {
+          "id": "hydroponic",
+          "count": 1
+        },
+        {
+          "id": "hydroponic_guide",
+          "count": 1
+        },
+        {
+          "id": "dream_cap_seed",
+          "count": 3
+        },
+        {
+          "id": "kotton_seed",
+          "count": 3
+        },
+        {
+          "id": "nutrient_tablet",
+          "count": 3
+        },
+        {
+          "id": "plant_analyser",
+          "count": 1
+        },
+        {
+          "id": "water_pitcher",
+          "count": 1
+        },
+        {
+          "id": "water_filter",
+          "count": 2
+        }
+      ]
+    },
+    {
+      "id": "retired_water_merchant",
+      "upgrade": "WATER_TRADER",
+      "weekday": 3,
+      "name_key": "name_retired_water_merchant",
+      "dialogue": "retired_generic",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        15,
+        15
+      ],
+      "stock": [
+        {
+          "id": "water_purifier",
+          "count": 1
+        },
+        {
+          "id": "moisture_farm",
+          "count": 1
+        },
+        {
+          "id": "water_test_strip",
+          "count": 3
+        },
+        {
+          "id": "water_filter",
+          "count": 2
+        },
+        {
+          "id": "water_pitcher",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "retired_rancher",
+      "upgrade": "RETIRED_RANCHER",
+      "weekday": 5,
+      "name_key": "name_retired_rancher",
+      "dialogue": "retired_generic",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        15,
+        15
+      ],
+      "stock": [
+        {
+          "id": "animal_cage",
+          "count": 1
+        },
+        {
+          "id": "livestock_feed_dispenser",
+          "count": 1
+        },
+        {
+          "id": "auto_butcher",
+          "count": 1
+        },
+        {
+          "id": "marking_pen",
+          "count": 1
+        },
+        {
+          "id": "kitchen_cleaver",
+          "count": 1
+        },
+        {
+          "id": "vacuum_robot",
+          "count": 1
+        },
+        {
+          "id": "gene_scanner",
+          "count": 1
+        },
+        {
+          "id": "wire_cutter",
+          "count": 1
+        }
+      ]
+    },
+    {
+      "id": "retired_chemist",
+      "upgrade": "RETIRED_CHEMIST",
+      "weekday": 2,
+      "name_key": "name_retired_chemist",
+      "dialogue": "retired_generic",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        15,
+        15
+      ],
+      "stock": [
+        {
+          "id": "chem_finisher",
+          "count": 1
+        },
+        {
+          "id": "chem_scanner",
+          "count": 1
+        },
+        {
+          "id": "chem_module",
+          "count": 1
+        },
+        {
+          "id": "dream_dust",
+          "count": 2
+        },
+        {
+          "id": "common_chemical",
+          "count": 3
+        }
+      ]
+    }
+  ],
+  "unique": [
+    {
+      "id": "gunsmith_buyer",
+      "name_key": "name_mercenary",
+      "dialogue": "merc_buyer",
+      "intent": "buy",
+      "day_mod": [
+        4
+      ],
+      "requires": "GUN_PERMIT_I",
+      "budget_base": 400,
+      "budget_rand": 50,
+      "budget_day": 2,
+      "buy_tags": [
+        "WEAPON",
+        "ARMOR",
+        "AMMUNITION"
+      ],
+      "chance": 100
+    },
+    {
+      "id": "gunsmith_seller",
+      "name_key": "name_lower_level_citizen",
+      "dialogue": "gun_seller",
+      "intent": "sell",
+      "day_mod": [
+        4
+      ],
+      "requires": "GUN_PERMIT_I",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        10,
+        10
+      ],
+      "chance": 100,
+      "stock": [
+        {
+          "id": "handmade_pistol",
+          "count": 1,
+          "chance": 50
+        },
+        {
+          "id": "handmade_pistol",
+          "count": 1,
+          "chance": 50
+        },
+        {
+          "id": "mag_22",
+          "count": 1,
+          "chance": 40
+        },
+        {
+          "id": "mag_22_high",
+          "count": 1,
+          "chance": 30
+        },
+        {
+          "id": "mag_22_ext",
+          "count": 1,
+          "chance": 20
+        },
+        {
+          "id": "laser",
+          "count": 1,
+          "chance": 20
+        }
+      ]
+    },
+    {
+      "id": "cartel_dealer",
+      "name_key": "name_dealer",
+      "dialogue": "dealer_first",
+      "intent": "buy",
+      "min_day": 7,
+      "day_mod": [
+        2,
+        5
+      ],
+      "budget_base": 200,
+      "budget_rand": 0,
+      "budget_day": 4,
+      "buy_tags": [
+        "NARCOTIC"
+      ],
+      "discount_buy": 10,
+      "chance": 100
+    },
+    {
+      "id": "church_buyer",
+      "name": "Abby",
+      "dialogue": "church_abby",
+      "intent": "buy",
+      "day_mod": [
+        0
+      ],
+      "budget_base": 150,
+      "budget_rand": 0,
+      "budget_day": 0,
+      "buy_tags": [
+        "MODULE",
+        "NODE",
+        "MATERIAL"
+      ],
+      "chance": 100
+    },
+    {
+      "id": "rev_quartermaster",
+      "name_key": "name_revolutionary_fighter",
+      "dialogue": "rev_buyer",
+      "intent": "buy",
+      "day_mod": [
+        6
+      ],
+      "budget_base": 500,
+      "budget_rand": 0,
+      "budget_day": 2,
+      "buy_tags": [
+        "WEAPON",
+        "AMMUNITION",
+        "MEDICAL"
+      ],
+      "chance": 100
+    }
+  ]
+}

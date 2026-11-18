@@ -1,0 +1,1047 @@
+{
+  "tier_thresholds": [
+    400,
+    650
+  ],
+  "faction_pools": [
+    {
+      "id": "blackmarket",
+      "faction": "blackmarket",
+      "chance_base": 10,
+      "chance_rules": [
+        {
+          "rep": "blackmarket",
+          "lt": 0,
+          "add": -3
+        },
+        {
+          "rep": "blackmarket",
+          "lt": 25,
+          "add": -3
+        },
+        {
+          "rep": "blackmarket",
+          "gte": 25,
+          "add": 4
+        },
+        {
+          "rep": "blackmarket",
+          "gte": 50,
+          "add": 3
+        }
+      ],
+      "entries": [
+        {
+          "id": "thief",
+          "name_key": "name_thief",
+          "intent": "sell",
+          "sell_mode": "wholesale",
+          "wholesale_discount": [
+            0,
+            0
+          ],
+          "stock": [
+            {
+              "id": "bottled_water_premium",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "skincare_cream",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "neuroactive_perfume",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "pheromone_perfume",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "turbo_booster_adv",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "cmd_keycard",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "sec_keycard",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "med_keycard",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "eng_keycard",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "ser_keycard",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "blank_module",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "portable_water_purifier",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "water_filter_adv",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "large_purple_injector",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "crypto_module_sec",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "crypto_module_cmd",
+              "count": 1,
+              "stolen": true
+            }
+          ],
+          "weights": [
+            50,
+            50,
+            50
+          ],
+          "dialogue": "thief"
+        },
+        {
+          "id": "shadyMerchant",
+          "name_key": "name_shady_merchant",
+          "intent": "buy",
+          "budget_base": 250,
+          "budget_rand": 50,
+          "budget_day": 3,
+          "buy_tags": [
+            "CONTRABAND",
+            "ACCESS_CARD"
+          ],
+          "accept_retail_markup": false,
+          "weights": [
+            50,
+            50,
+            50
+          ],
+          "dialogue": "shady_merchant"
+        },
+        {
+          "id": "pettyThief",
+          "name_key": "name_thief",
+          "intent": "sell",
+          "sell_mode": "wholesale",
+          "wholesale_discount": [
+            -10,
+            -10
+          ],
+          "stock": [
+            {
+              "id": "nutrifruit",
+              "count": 4,
+              "stolen": true
+            },
+            {
+              "id": "processed_juice",
+              "count": 2,
+              "stolen": true
+            },
+            {
+              "id": "water_ration_small",
+              "count": 2,
+              "stolen": true
+            },
+            {
+              "id": "food_stamp",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "caffeine_pill",
+              "count": 1,
+              "stolen": true
+            },
+            {
+              "id": "wine_yeast_red",
+              "count": 3,
+              "stolen": true
+            }
+          ],
+          "weights": [
+            75,
+            50,
+            25
+          ],
+          "dialogue": "petty_thief"
+        },
+        {
+          "id": "foodThief",
+          "name_key": "name_thief",
+          "intent": "sell",
+          "sell_mode": "wholesale",
+          "wholesale_discount": [
+            -20,
+            -15
+          ],
+          "stock": [
+            {
+              "id": "galaxy_blend",
+              "count": 3,
+              "stolen": true
+            },
+            {
+              "id": "processed_milk",
+              "count": 4,
+              "stolen": true
+            },
+            {
+              "id": "processed_meat",
+              "count": 4,
+              "stolen": true
+            },
+            {
+              "id": "nutrifruit",
+              "count": 5,
+              "stolen": true
+            },
+            {
+              "id": "processed_juice",
+              "count": 4,
+              "stolen": true
+            }
+          ],
+          "weights": [
+            75,
+            50,
+            25
+          ],
+          "dialogue": "food_thief"
+        }
+      ]
+    },
+    {
+      "id": "upper",
+      "faction": "upper",
+      "chance_base": 8,
+      "chance_rules": [
+        {
+          "perk": "UL_TOURISTTRAP",
+          "add": -3
+        },
+        {
+          "rep": "upper",
+          "gte": 25,
+          "add": 4
+        },
+        {
+          "rep": "upper",
+          "gte": 50,
+          "add": 3
+        }
+      ],
+      "entries": [
+        {
+          "id": "upperLowerVisitor",
+          "name_key": "name_upper_level_visitor",
+          "intent": "buy",
+          "budget_base": 250,
+          "budget_rand": 50,
+          "budget_day": 2,
+          "buy_tags": [
+            "SUBSTANCE"
+          ],
+          "weights": [
+            100,
+            100,
+            100
+          ],
+          "dialogue": "upper_lower_visitor"
+        },
+        {
+          "id": "upperLowerVisitorLuxury",
+          "name_key": "name_upper_level_visitor",
+          "intent": "buy",
+          "budget_base": 250,
+          "budget_rand": 50,
+          "budget_day": 2,
+          "buy_tags": [
+            "LUXURY_ITEM"
+          ],
+          "weights": [
+            50,
+            50,
+            50
+          ],
+          "dialogue": "upper_lower_visitor_luxury"
+        },
+        {
+          "id": "cluelessTouristBuyer",
+          "name_key": "name_tourist",
+          "intent": "buy",
+          "faction": "tourist",
+          "budget_base": 180,
+          "budget_rand": 70,
+          "budget_day": 0,
+          "buy_tags": [
+            "FOOD",
+            "WATER",
+            "WATER_RATION",
+            "SUBSTANCE"
+          ],
+          "weights": [
+            50,
+            50,
+            50
+          ],
+          "dialogue": "tourist"
+        },
+        {
+          "id": "brokeUpperLevel",
+          "name_key": "name_upper_level_citizen",
+          "intent": "sell",
+          "sell_mode": "wholesale",
+          "wholesale_discount": [
+            35,
+            35
+          ],
+          "stock": [
+            {
+              "id": "tazer",
+              "count": 1,
+              "group": 0,
+              "chance": 14.28
+            },
+            {
+              "id": "stun_gun",
+              "count": 1,
+              "group": 0,
+              "chance": 14.28
+            },
+            {
+              "id": "water_filter_adv",
+              "count": 1,
+              "group": 1,
+              "chance": 14.28
+            },
+            {
+              "id": "portable_water_purifier",
+              "count": 1,
+              "group": 1,
+              "chance": 14.28
+            },
+            {
+              "id": "energy_credit_breeder",
+              "count": 1,
+              "group": 2,
+              "chance": 14.28
+            },
+            {
+              "id": "blank_module",
+              "count": 3,
+              "group": 3,
+              "chance": 14.28
+            },
+            {
+              "id": "blue_blood_bag",
+              "count": 1,
+              "group": 4,
+              "chance": 14.28,
+              "fallback": true
+            }
+          ],
+          "weights": [
+            30,
+            30,
+            30
+          ],
+          "dialogue": "broke_upper"
+        }
+      ]
+    },
+    {
+      "id": "revolution",
+      "faction": "rev",
+      "chance_base": 3,
+      "chance_rules": [
+        {
+          "perk": "REV_BLACKLISTED",
+          "set": 0
+        },
+        {
+          "rep": "rev",
+          "gte": 50,
+          "set": 9
+        },
+        {
+          "rep": "rev",
+          "gte": 25,
+          "set": 6
+        },
+        {
+          "rep": "rev",
+          "gte": 0,
+          "set": 3
+        },
+        {
+          "rep": "rev",
+          "lt": 0,
+          "set": 2
+        }
+      ],
+      "entries": [
+        {
+          "id": "revolutionaryBuyer",
+          "name_key": "name_revolutionary_fighter",
+          "intent": "buy",
+          "faction": "rev",
+          "budget_base": 150,
+          "budget_rand": 50,
+          "budget_day": 2,
+          "buy_tags": [
+            "WEAPON",
+            "MUNITION",
+            "AMMUNITION",
+            "MEDICAL"
+          ],
+          "weights": [
+            50,
+            50,
+            50
+          ],
+          "dialogue": "rev_buyer"
+        }
+      ]
+    }
+  ],
+  "general": [
+    {
+      "id": "merchant",
+      "name_key": "name_merchant",
+      "intent": "buy",
+      "budget_base": 200,
+      "budget_rand": 100,
+      "budget_day": 3,
+      "cooldown": 3,
+      "buy_tags": [
+        "ALL_TYPE_EXCEPT_CONTRABAND"
+      ],
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "merchant"
+    },
+    {
+      "id": "addictGeneralBarter",
+      "name_key": "name_scav_addict",
+      "intent": "barter",
+      "barter_id": "addict_general",
+      "weights": [
+        75,
+        30,
+        1
+      ],
+      "dialogue": "barter_addict_gen"
+    },
+    {
+      "id": "normalFoodBarter",
+      "name_key": "name_poor_scav",
+      "intent": "barter",
+      "barter_id": "food",
+      "weights": [
+        75,
+        30,
+        1
+      ],
+      "dialogue": "barter_food_normal"
+    },
+    {
+      "id": "miner",
+      "name_key": "name_miner",
+      "intent": "sellbuy",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -25,
+        -15
+      ],
+      "budget_base": 50,
+      "budget_rand": 25,
+      "budget_day": 0,
+      "buy_tags": [
+        "SUBSTANCE"
+      ],
+      "stock": [
+        {
+          "id": "common_ore",
+          "count_min": 3,
+          "count_max": 4,
+          "day_bonus": [
+            {
+              "day": 15,
+              "chance": 50,
+              "add": 1
+            },
+            {
+              "day": 30,
+              "chance": 50,
+              "add": 2
+            },
+            {
+              "day": 45,
+              "chance": 50,
+              "add": 1
+            },
+            {
+              "day": 60,
+              "chance": 50,
+              "add": 1
+            }
+          ]
+        }
+      ],
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "miner"
+    },
+    {
+      "id": "shadyPharma",
+      "name_key": "name_upper_levels_pharmacist",
+      "intent": "sell",
+      "faction": "upper",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        15,
+        15
+      ],
+      "stock": [
+        {
+          "id": "large_purple_injector",
+          "count": 2,
+          "stolen": true,
+          "chance": 50
+        },
+        {
+          "id": "topical_bandage_item",
+          "count": 2,
+          "stolen": true,
+          "chance": 100
+        },
+        {
+          "id": "pink_alt_injector",
+          "count": 2,
+          "stolen": true,
+          "chance": 50
+        },
+        {
+          "id": "pink_alt_injector",
+          "count": 2,
+          "stolen": true,
+          "chance": 25
+        }
+      ],
+      "weights": [
+        50,
+        50,
+        50
+      ],
+      "dialogue": "shady_pharma"
+    },
+    {
+      "id": "lowerLevelChemist",
+      "name_key": "name_lower_level_chemist",
+      "intent": "sellbuy",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -25,
+        -15
+      ],
+      "budget_base": 75,
+      "budget_rand": 50,
+      "budget_day": 0,
+      "buy_tags": [
+        "CHEMICAL_SUPPLIES"
+      ],
+      "stock": [
+        {
+          "id": "dream_dust",
+          "count": 2,
+          "chance": 50
+        },
+        {
+          "id": "salve",
+          "count": 1,
+          "chance": 50
+        },
+        {
+          "id": "caffeine_pill",
+          "count": 2,
+          "chance": 100
+        },
+        {
+          "id": "caffeine_pill",
+          "count": 1,
+          "chance": 50,
+          "min_day": 20
+        }
+      ],
+      "weights": [
+        150,
+        150,
+        150
+      ],
+      "dialogue": "ll_chemist"
+    },
+    {
+      "id": "spacerFood",
+      "name_key": "name_spacer",
+      "intent": "buy",
+      "use_client_budget": true,
+      "budget_base": 35,
+      "budget_rand": 15,
+      "budget_day": 2,
+      "buy_tags": [
+        "FOOD"
+      ],
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "spacer_food"
+    },
+    {
+      "id": "spacerFoodVariety",
+      "name_key": "name_spacer",
+      "intent": "buy",
+      "budget_base": 100,
+      "budget_rand": 20,
+      "budget_day": 2,
+      "buy_tags": [
+        "FOOD"
+      ],
+      "variety": true,
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "spacer_food_variety"
+    },
+    {
+      "id": "spacerAmenityVariety",
+      "name_key": "name_spacer",
+      "intent": "buy",
+      "budget_base": 50,
+      "budget_rand": 35,
+      "budget_day": 2,
+      "buy_tags": [
+        "HOUSEHOLD_GOOD"
+      ],
+      "variety": true,
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "spacer_amenity"
+    },
+    {
+      "id": "junker",
+      "name_key": "name_junker",
+      "intent": "sellbuy",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -15,
+        -15
+      ],
+      "budget_base": 50,
+      "budget_rand": 0,
+      "budget_day": 1,
+      "buy_tags": [
+        "SUBSTANCE"
+      ],
+      "stock": [
+        {
+          "id": "scrap_metal",
+          "count": 3
+        },
+        {
+          "id": "scrap_metal",
+          "count": 1,
+          "chance": 50
+        },
+        {
+          "id": "common_electronic",
+          "count": 1
+        },
+        {
+          "id": "common_electronic",
+          "count": 1,
+          "chance": 50
+        },
+        {
+          "id": "nuts_metal",
+          "count": 2
+        },
+        {
+          "id": "wire",
+          "count": 3
+        },
+        {
+          "id": "printer_plastic",
+          "count": 3
+        },
+        {
+          "id": "wine_bottle",
+          "count": 3
+        }
+      ],
+      "weights": [
+        100,
+        80,
+        60
+      ],
+      "dialogue": "junker"
+    },
+    {
+      "id": "scavGeneral",
+      "name_key": "name_scavenger",
+      "intent": "sell",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -25,
+        -15
+      ],
+      "stock": [
+        {
+          "id": "nutrifruit",
+          "count": 1,
+          "chance": 25
+        },
+        {
+          "id": "processed_cheese",
+          "count": 1,
+          "chance": 8
+        },
+        {
+          "id": "kitchen_knife",
+          "count": 1,
+          "chance": 8,
+          "min_day": 7
+        },
+        {
+          "id": "combat_knife",
+          "count": 1,
+          "chance": 5,
+          "min_day": 7
+        },
+        {
+          "id": "box_cutter",
+          "count": 1,
+          "chance": 8,
+          "min_day": 7
+        },
+        {
+          "id": "kitchen_cleaver",
+          "count": 1,
+          "chance": 5,
+          "min_day": 7
+        },
+        {
+          "id": "pipe_weapon",
+          "count": 1,
+          "chance": 12,
+          "min_day": 7
+        },
+        {
+          "id": "hatchet",
+          "count": 1,
+          "chance": 8,
+          "min_day": 7
+        },
+        {
+          "id": "screwdriver",
+          "count": 1,
+          "chance": 20
+        },
+        {
+          "id": "welder",
+          "count": 1,
+          "chance": 10
+        },
+        {
+          "id": "crowbar",
+          "count": 1,
+          "chance": 10
+        },
+        {
+          "id": "wire_cutter",
+          "count": 1,
+          "chance": 15
+        },
+        {
+          "id": "printer_plastic",
+          "count": 3,
+          "chance": 15
+        },
+        {
+          "id": "water_ration_small",
+          "count": 2,
+          "chance": 15
+        },
+        {
+          "id": "kotton_fabric",
+          "count": 1,
+          "chance": 15
+        }
+      ],
+      "weights": [
+        200,
+        200,
+        200
+      ],
+      "dialogue": "scav_general"
+    },
+    {
+      "id": "scavCrate",
+      "name_key": "name_scavenger",
+      "intent": "sell",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -25,
+        -15
+      ],
+      "stock": [
+        {
+          "id": "nutrifruit",
+          "count_min": 5,
+          "count_max": 6
+        },
+        {
+          "id": "processed_meat",
+          "count_min": 2,
+          "count_max": 3
+        },
+        {
+          "id": "water_ration_small",
+          "count_min": 2,
+          "count_max": 3
+        }
+      ],
+      "weights": [
+        150,
+        150,
+        150
+      ],
+      "dialogue": "scav_crate"
+    },
+    {
+      "id": "waterSeller",
+      "name_key": "name_water_trader",
+      "intent": "sell",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -20,
+        -15
+      ],
+      "stock": [
+        {
+          "id": "large_water_bottle_full",
+          "count": 3,
+          "chance": 100
+        },
+        {
+          "id": "large_water_bottle_full",
+          "count": 3,
+          "chance": 33
+        },
+        {
+          "id": "water_jug",
+          "count": 1,
+          "chance": 33
+        },
+        {
+          "id": "water_ration",
+          "count": 3,
+          "chance": 100
+        },
+        {
+          "id": "water_ration_small",
+          "count": 5,
+          "chance": 33
+        }
+      ],
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "water_seller"
+    },
+    {
+      "id": "scavBlood",
+      "name_key": "name_pale_scav",
+      "intent": "sellbuy",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        0,
+        0
+      ],
+      "budget_base": 0,
+      "budget_rand": 0,
+      "budget_day": 0,
+      "buy_tags": [
+        "FOOD",
+        "WATER_RATION"
+      ],
+      "stock": [
+        {
+          "id": "blood_bag",
+          "count": 2
+        },
+        {
+          "id": "blood_bag",
+          "count": 1,
+          "min_day": 25
+        },
+        {
+          "id": "blood_bag",
+          "count": 1,
+          "min_day": 50
+        },
+        {
+          "id": "blood_bag",
+          "count": 1,
+          "min_day": 75
+        }
+      ],
+      "weights": [
+        100,
+        66,
+        33
+      ],
+      "dialogue": "scav_blood"
+    },
+    {
+      "id": "stampSeller",
+      "name_key": "name_scavenger",
+      "intent": "sell",
+      "sell_mode": "counter",
+      "stock": [
+        {
+          "id": "food_stamp",
+          "count": 4
+        }
+      ],
+      "weights": [
+        70,
+        70,
+        70
+      ],
+      "dialogue": "stamp_seller"
+    },
+    {
+      "id": "mercBuyer",
+      "name_key": "name_mercenary",
+      "intent": "buy",
+      "budget_base": 300,
+      "budget_rand": 0,
+      "budget_day": 2,
+      "buy_tags": [
+        "WEAPON",
+        "ARMOR",
+        "AMMUNITION"
+      ],
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "merc_buyer"
+    },
+    {
+      "id": "foodBankBuyer",
+      "name_key": "name_food_bank_supplier",
+      "intent": "buy",
+      "budget_base": 150,
+      "budget_rand": 50,
+      "budget_day": 2,
+      "buy_tags": [
+        "FOOD"
+      ],
+      "discount_buy": 50,
+      "cooldown": 6,
+      "weights": [
+        50,
+        50,
+        50
+      ],
+      "dialogue": "food_bank"
+    },
+    {
+      "id": "insScav",
+      "name_key": "name_scavenger",
+      "intent": "sell",
+      "sell_mode": "wholesale",
+      "wholesale_discount": [
+        -20,
+        -10
+      ],
+      "cooldown": 3,
+      "stock": [
+        {
+          "id": "food_stamp",
+          "count": 1,
+          "chance": 100
+        },
+        {
+          "id": "packet_red_cigarette",
+          "count": 1,
+          "chance": 100
+        },
+        {
+          "id": "large_purple_injector",
+          "count": 1,
+          "chance": 100
+        },
+        {
+          "id": "nutrifruit",
+          "count": 5,
+          "chance": 100
+        }
+      ],
+      "weights": [
+        100,
+        100,
+        100
+      ],
+      "dialogue": "scav_inspectable"
+    }
+  ]
+}

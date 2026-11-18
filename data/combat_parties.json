@@ -1,0 +1,15 @@
+{
+  "parties": {
+    "standard": {"name": "掠夺者小队", "enemies": ["field_technician", "marine", "enforcer"]},
+    "sadist": {"name": "虐待者小队", "enemies": ["raider", "scav", "combat_medic", "scav"]},
+    "boss": {"name": "掠夺者头目", "enemies": ["raider_boss"]},
+    "easy": {"name": "拾荒者群", "enemies": ["scav", "scav", "scav"]},
+    "junker": {"name": "废品客", "enemies": ["junker", "junker"]},
+    "sadistDuo": {"name": "虐待者双人组", "enemies": ["enforcer", "enforcer"]},
+    "pirateRookieTriple": {"name": "海盗新兵三人组", "enemies": ["pirate_rookie", "pirate_rookie", "pirate_rookie"]},
+    "pirateRookieFull": {"name": "海盗新兵小队", "enemies": ["pirate_rookie", "pirate_rookie", "pirate_rookie", "pirate_rookie"]},
+    "pirateVeteranLeaderTriple": {"name": "海盗老兵领队", "enemies": ["pirate_veteran", "pirate_rookie", "pirate_rookie"]},
+    "pirateChiefLeaderTriple": {"name": "海盗首领领队", "enemies": ["pirate_chief", "pirate_veteran", "pirate_veteran"]},
+    "pirateChielfVeteranFull": {"name": "海盗首领老兵队", "enemies": ["pirate_chief", "pirate_veteran", "pirate_veteran", "pirate_veteran"]}
+  }
+}

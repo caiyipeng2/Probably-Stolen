@@ -136,7 +136,8 @@
           "security": -8
         },
         "combat": "raider",
-        "result": "你抄起武器，冲突爆发了。"
+        "result": "你抄起武器，冲突爆发了。",
+        "party": "standard"
       },
       {
         "label": "交罚款（-200₵）",

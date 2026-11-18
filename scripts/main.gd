@@ -58,6 +58,7 @@ var modal_panel: Panel
 var modal_title: Label
 var modal_text: Label
 var modal_actions: HBoxContainer
+var modal_close_btn: Button
 var machine_layer: Control
 var machine_list_box: VBoxContainer
 var machine_scroll: ScrollContainer
@@ -675,6 +676,22 @@ func _testsecurityui_if_requested() -> void:
 	_refresh_info_detail()
 	await get_tree().process_frame
 	print("SUI evidence removal status=", info_status.text, " action=", info_action.text)
+	GameState.procurement_orders = []
+	GameState.current_customer = GameState._gen_procurement_offer_customer()
+	_open_procurement_offer()
+	await get_tree().process_frame
+	print("SUI procurement title=", modal_title.text, " actions=", modal_actions.get_child_count())
+	_close_modal()
+	_open_info_tab("perks")
+	info_selected_id = "perk_saving"
+	_refresh_info_detail()
+	await get_tree().process_frame
+	print("SUI perk title=", info_name.text, " status=", info_status.text)
+	_open_info_tab("rep_perks")
+	info_selected_id = "SEC_TRUSTED"
+	_refresh_info_detail()
+	await get_tree().process_frame
+	print("SUI rep perk title=", info_name.text, " meta=", info_meta.text)
 	get_tree().quit()
 
 func _capture_if_requested() -> void:
@@ -1008,6 +1025,7 @@ func _build_right_rail() -> void:
 	var actions := [
 		["鉴定", "inspect", C_CYAN], ["议价", "bargain", C_AMBER], ["威胁", "threaten", C_RUST],
 		["成交", "deal", C_GREEN], ["送客", "dismiss", C_MUTED],
+		["下一件", "next_item", C_MUTED],
 	]
 	for i in range(actions.size()):
 		var key: String = actions[i][1]
@@ -1115,7 +1133,7 @@ func _build_modal() -> void:
 	modal_actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	modal_actions.add_theme_constant_override("separation", 16)
 	modal_panel.add_child(modal_actions)
-	_button(modal_panel, "关闭", Vector2(1080, 16), Vector2(90, 44), C_MUTED, _close_modal)
+	modal_close_btn = _button(modal_panel, "关闭", Vector2(1080, 16), Vector2(90, 44), C_MUTED, _close_modal)
 
 func _build_inspection_layer() -> void:
 	inspection_layer = Control.new()
@@ -1922,7 +1940,60 @@ func _wholesale_buy() -> void:
 		wholesale_status.text = String(res.get("text", ""))
 		return
 	_refresh()
+	if String(res.get("next_intent", "")) == "buy":
+		wholesale_layer.visible = false
+		_toast("顾客收下货物，开始看展示柜。")
+		return
 	_rebuild_wholesale()
+
+func _open_procurement_offer() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "procurement_offer":
+		return
+	var item := GameState.get_item_def(String(c.get("item_id", "")))
+	var body := String(c.get("line", ""))
+	body += "
+
+需要：%s ×%d
+期限：%d 天
+报酬：%d₵" % [String(item.get("name", c.get("item_id", ""))), int(c.get("count", 0)), int(c.get("days", 0)), int(c.get("reward", 0))]
+	_show_modal("采购委托 · %s" % String(c.get("arche", {}).get("name", "客户")), body, [
+		{"label": "接受委托", "cb": _accept_procurement_ui, "color": C_GREEN},
+		{"label": "拒绝", "cb": _decline_procurement, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _accept_procurement_ui() -> void:
+	var res := GameState.accept_procurement()
+	_show_modal("采购委托", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _decline_procurement() -> void:
+	GameState.complete_customer(true)
+	_close_modal()
+
+func _open_procurement_collect() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "procurement_collect":
+		return
+	var item := GameState.get_item_def(String(c.get("item_id", "")))
+	var have := GameState.inventory_count(String(c.get("item_id", "")))
+	var body := String(c.get("line", ""))
+	body += "
+
+需要：%s ×%d（持有 %d）
+报酬：%d₵" % [String(item.get("name", c.get("item_id", ""))), int(c.get("count", 0)), have, int(c.get("reward", 0))]
+	_show_modal("采购交付 · %s" % String(c.get("arche", {}).get("name", "客户")), body, [
+		{"label": "交付货物", "cb": _collect_procurement_ui, "color": C_GREEN},
+		{"label": "离开", "cb": _decline_procurement, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _collect_procurement_ui() -> void:
+	var res := GameState.collect_procurement()
+	if bool(res.get("ok", false)):
+		_show_modal("采购交付", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+	else:
+		_show_modal("采购交付", String(res.get("text", "")), [{"label": "离开", "cb": _decline_procurement, "color": C_MUTED}])
 
 func _build_phone_layer() -> void:
 	phone_layer = Control.new()
@@ -2242,9 +2313,9 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["档案", "archive"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"]]
 	for i in range(tabs.size()):
-		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 156, 70), Vector2(144, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
+		var tb := _button(panel, tabs[i][0], Vector2(30 + i * 142, 70), Vector2(132, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(24, 130)
@@ -2847,6 +2918,7 @@ func _update_action_buttons() -> void:
 	action_buttons["bargain"].disabled = not (has_customer and has_counter and intent == "sell")
 	action_buttons["threaten"].disabled = not (has_customer and has_counter and intent == "sell")
 	action_buttons["deal"].disabled = not (has_customer and has_counter and intent == "sell")
+	action_buttons["next_item"].disabled = not (has_customer and intent == "sell" and GameState.current_customer.get("items", []).size() > 1)
 	action_buttons["dismiss"].disabled = not has_customer
 	rail_buttons["end_day"].disabled = GameState.phase == "gameover"
 
@@ -2987,7 +3059,8 @@ func _finish_drag(uid: int, source: String) -> void:
 func _on_display_slot(uid: int) -> void:
 	selected_uid = uid
 	if GameState.current_customer.get("intent") == "buy":
-		GameState.put_display_on_counter(uid)
+		if not GameState.put_display_on_counter(uid):
+			_toast("这位顾客不收这种货。")
 	_refresh()
 
 func _on_equip_armor() -> void:
@@ -3086,6 +3159,18 @@ func _on_customer_changed() -> void:
 		if barter_layer:
 			barter_layer.visible = false
 		_open_wholesale()
+	elif intent == "procurement_offer":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_procurement_offer()
+	elif intent == "procurement_collect":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_procurement_collect()
 	else:
 		if barter_layer:
 			barter_layer.visible = false
@@ -3122,8 +3207,15 @@ func _on_action(key: String) -> void:
 			_do_threaten()
 		"deal":
 			_do_deal()
+		"next_item":
+			_skip_sell_item()
 		"dismiss":
 			_do_dismiss()
+
+func _skip_sell_item() -> void:
+	var res := GameState.skip_current_sell_item()
+	_toast(String(res.get("text", "")))
+	_refresh()
 
 func _on_save() -> void:
 	_play_sfx("soft")
@@ -3774,6 +3866,15 @@ func _rebuild_info_list() -> void:
 			for f in GameState.factions:
 				var fid := String(f.get("id", ""))
 				_add_info_button("%s  %+d" % [f.get("name", fid), int(GameState.rep.get(fid, 0))], fid)
+		"perks":
+			for p in GameState.starting_perks:
+				var chosen := GameState.starting_perk_id == String(p.get("id", ""))
+				_add_info_button("%s%s" % [p.get("name", p.get("id", "")), " · 已选" if chosen else ""], String(p.get("id", "")))
+		"rep_perks":
+			for p in GameState.rep_perk_defs:
+				var pid := String(p.get("id", ""))
+				var pname := GameState.loc("RepPerkTable", "rep_perk_%s_name" % pid, pid)
+				_add_info_button("%s %s" % ["●" if GameState.rep_perk_unlocked(pid) else "○", pname], pid)
 		"customers":
 			for c in GameState.customer_defs:
 				var cid := String(c.get("id", ""))
@@ -3917,6 +4018,27 @@ func _refresh_info_detail() -> void:
 				body += "%s %d · %s — %s
 " % ["[已解锁]" if unlocked else "[未解锁]", int(perk.get("threshold", 0)), perk.get("name", ""), perk.get("desc", "")]
 			info_body.text = body
+		"perks":
+			var p := GameState.starting_perk_def(info_selected_id)
+			if p.is_empty():
+				return
+			info_name.text = String(p.get("name", info_selected_id))
+			info_meta.text = "开局天赋 · %s" % ("已选择" if GameState.starting_perk_chosen else "可选择")
+			info_body.text = String(p.get("desc", ""))
+			info_action.visible = true
+			info_action.text = "选择天赋"
+			info_action.disabled = GameState.starting_perk_chosen
+			info_status.text = "本局已选择：%s" % GameState.starting_perk_def(GameState.starting_perk_id).get("name", GameState.starting_perk_id) if GameState.starting_perk_chosen else "选择后立即生效"
+		"rep_perks":
+			var rp := GameState.rep_perk_def(info_selected_id)
+			if rp.is_empty():
+				return
+			var rpname := GameState.loc("RepPerkTable", "rep_perk_%s_name" % info_selected_id, info_selected_id)
+			var rpdesc := GameState.loc("RepPerkTable", "rep_perk_%s_desc" % info_selected_id, "")
+			info_name.text = rpname
+			info_meta.text = "%s %d · %s" % ["≤" if int(rp.get("type", 1)) < 0 else "≥", int(rp.get("threshold", 0)), "已解锁" if GameState.rep_perk_unlocked(info_selected_id) else "未解锁"]
+			info_body.text = rpdesc
+			info_status.text = "声望特权"
 		"customers":
 			var c := {}
 			for x in GameState.customer_defs:
@@ -4028,6 +4150,12 @@ func _info_action() -> void:
 		"professions":
 			var res := GameState.apply_profession(info_selected_id)
 			_refresh()
+			_refresh_info_detail()
+			info_status.text = String(res.get("text", ""))
+		"perks":
+			var res := GameState.choose_starting_perk(info_selected_id)
+			_refresh()
+			_rebuild_info_list()
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
 		"appraisal":
@@ -4432,6 +4560,7 @@ func _show_modal(title: String, text: String, actions: Array) -> void:
 		var b := _button(modal_actions, String(a.get("label", "确定")), Vector2.ZERO, Vector2(bw, 64), a.get("color", C_CYAN), a.get("cb", _close_modal))
 		b.custom_minimum_size = Vector2(bw, 64)
 		b.add_theme_font_size_override("font_size", fs)
+	modal_close_btn.visible = true
 	modal_layer.visible = true
 
 func _close_modal() -> void:
@@ -4828,7 +4957,7 @@ func _on_event_choice(index: int, result: String) -> void:
 		return
 	if choice.has("combat"):
 		_close_modal()
-		GameState.start_combat(String(choice.get("combat", "")), "security", "", String(ev.get("id", "")))
+		GameState.start_combat(String(choice.get("combat", "")), "security", "", String(ev.get("id", "")), String(choice.get("party", "")))
 	else:
 		_show_modal("事件结果", result, [{"label": "继续", "cb": _close_modal}])
 

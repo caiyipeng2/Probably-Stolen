@@ -487,6 +487,199 @@
       "bonus_accuracy": 1000,
       "trigger_overwatch": false,
       "effects": []
+    },
+    "combat_stim": {
+      "name": "战斗兴奋剂",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "buff",
+          "target": "singleFriendly",
+          "stat": "accuracy",
+          "value": 20,
+          "duration": 3
+        },
+        {
+          "type": "buff",
+          "target": "singleFriendly",
+          "stat": "crit",
+          "value": 10,
+          "duration": 3
+        }
+      ]
+    },
+    "experimental_injector_red": {
+      "name": "实验注射剂（红）",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "heal",
+          "target": "singleFriendly",
+          "value": 40
+        }
+      ]
+    },
+    "experimental_injector_black": {
+      "name": "实验注射剂（黑）",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "heal",
+          "target": "singleFriendly",
+          "value": 30
+        },
+        {
+          "type": "stun",
+          "target": "singleFriendly",
+          "value": 1,
+          "duration": 1
+        }
+      ]
+    },
+    "experimental_injector_green": {
+      "name": "实验注射剂（绿）",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "heal",
+          "target": "singleFriendly",
+          "value": 20
+        },
+        {
+          "type": "overtime_heal",
+          "target": "singleFriendly",
+          "value": 5,
+          "duration": 3
+        }
+      ]
+    },
+    "experimental_injector_white": {
+      "name": "实验注射剂（白）",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "heal",
+          "target": "singleFriendly",
+          "value": 50
+        }
+      ]
+    },
+    "experimental_injector_purple": {
+      "name": "实验注射剂（紫）",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "heal",
+          "target": "singleFriendly",
+          "value": 30
+        },
+        {
+          "type": "buff",
+          "target": "singleFriendly",
+          "stat": "accuracy",
+          "value": 15,
+          "duration": 3
+        }
+      ]
+    },
+    "mark_ability": {
+      "name": "标记",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "debuff",
+          "target": "singleEnemy",
+          "stat": "dodge",
+          "value": -20,
+          "duration": 3
+        }
+      ]
+    },
+    "spotter_ability": {
+      "name": "观察手",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "buff",
+          "target": "singleFriendly",
+          "stat": "accuracy",
+          "value": 20,
+          "duration": 2
+        }
+      ]
+    },
+    "take_aim_ability": {
+      "name": "瞄准",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "buff",
+          "target": "self",
+          "stat": "accuracy",
+          "value": 25,
+          "duration": 2
+        },
+        {
+          "type": "buff",
+          "target": "self",
+          "stat": "crit",
+          "value": 15,
+          "duration": 2
+        },
+        {
+          "type": "debuff",
+          "target": "self",
+          "stat": "dodge",
+          "value": -10,
+          "duration": 2
+        }
+      ]
+    },
+    "diversion_ability": {
+      "name": "牵制",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "buff",
+          "target": "self",
+          "stat": "priority",
+          "value": 10,
+          "duration": 2
+        }
+      ]
+    },
+    "medical_assist_ability": {
+      "name": "医疗协助",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": [
+        {
+          "type": "remove_stun",
+          "target": "singleFriendly"
+        }
+      ]
+    },
+    "medical_proficiency": {
+      "name": "医疗专精",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": []
+    },
+    "medical_proficiency_2": {
+      "name": "医疗专精 II",
+      "bonus_accuracy": 1000,
+      "trigger_overwatch": false,
+      "effects": []
     }
   },
   "weapon_map": {

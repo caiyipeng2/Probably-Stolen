@@ -1,0 +1,54 @@
+{
+  "cozy": {
+    "retail_markup": 20, "rent_increase": 1.025, "landlord_grace_at_start": true,
+    "power_cost_mult": 1, "insurance_cost_mult": 1, "start_power_bonus": 0, "start_janitorial_bonus": 0, "start_insurance_bonus": 0,
+    "appraisal_join_mult": 1, "vendor_permit_fee": 500, "new_customer_discount": 75, "upgrade_price_mult": 1.0,
+    "supplier_markup_mult": 1.0, "inventor_markup": 0, "retired_supplier_markup": 0, "merchant_discount": 10,
+    "scalper_markup_base": 0, "scalper_markup_per_day": 0.5,
+    "property_base_price": 12000, "property_price_per_day": 25, "property_price_cap": 3000,
+    "mortgage_interest": 25, "mortgage_weeks": 8, "mortgage_down_share": 0.2,
+    "reputation_gain_mult": 1.5, "reputation_loss_mult": 0.5, "appraisal_gain_mult": 1.25, "appraisal_loss_mult": 0.5,
+    "trade_favor_rate": 0.1, "wild_refund": 0.75, "network_intro_favor": 300,
+    "aug_kill_presence_drop": 25, "aug_left_alive_presence_rise": 10, "aug_warning": true, "aug_gameover_full": false,
+    "lou_demand": 500, "wild_bailout": true, "wild_reminders": true, "display_tip": true, "event_countdown": true, "impostor_tell": true
+  },
+  "normal": {
+    "retail_markup": 15, "rent_increase": 1.05, "landlord_grace_at_start": true,
+    "power_cost_mult": 1, "insurance_cost_mult": 1, "start_power_bonus": 0, "start_janitorial_bonus": 0, "start_insurance_bonus": 0,
+    "appraisal_join_mult": 1, "vendor_permit_fee": 1500, "new_customer_discount": 75, "upgrade_price_mult": 1.0,
+    "supplier_markup_mult": 1.0, "inventor_markup": 15, "retired_supplier_markup": 15, "merchant_discount": 15,
+    "scalper_markup_base": 15, "scalper_markup_per_day": 1.0,
+    "property_base_price": 12000, "property_price_per_day": 50, "property_price_cap": 5000,
+    "mortgage_interest": 50, "mortgage_weeks": 12, "mortgage_down_share": 0.15,
+    "reputation_gain_mult": 1.0, "reputation_loss_mult": 1.0, "appraisal_gain_mult": 1.0, "appraisal_loss_mult": 1.0,
+    "trade_favor_rate": 0.05, "wild_refund": 0.5, "network_intro_favor": 200,
+    "aug_kill_presence_drop": 25, "aug_left_alive_presence_rise": 10, "aug_warning": true, "aug_gameover_full": false,
+    "lou_demand": 750, "wild_bailout": true, "wild_reminders": true, "display_tip": true, "event_countdown": true, "impostor_tell": true
+  },
+  "hard": {
+    "retail_markup": 0, "rent_increase": 1.1, "landlord_grace_at_start": false,
+    "power_cost_mult": 2, "insurance_cost_mult": 2, "start_power_bonus": 3, "start_janitorial_bonus": 3, "start_insurance_bonus": 4,
+    "appraisal_join_mult": 2, "vendor_permit_fee": 2000, "new_customer_discount": 35, "upgrade_price_mult": 1.5,
+    "supplier_markup_mult": 2.0, "inventor_markup": 50, "retired_supplier_markup": 30, "merchant_discount": 20,
+    "scalper_markup_base": 25, "scalper_markup_per_day": 2.0,
+    "property_base_price": 24000, "property_price_per_day": 50, "property_price_cap": 10000,
+    "mortgage_interest": 75, "mortgage_weeks": 16, "mortgage_down_share": 0.125,
+    "reputation_gain_mult": 0.75, "reputation_loss_mult": 1.25, "appraisal_gain_mult": 1.0, "appraisal_loss_mult": 1.5,
+    "trade_favor_rate": 0.0, "wild_refund": 0.25, "network_intro_favor": 100,
+    "aug_kill_presence_drop": 10, "aug_left_alive_presence_rise": 15, "aug_warning": false, "aug_gameover_full": true,
+    "lou_demand": 1000, "wild_bailout": false, "wild_reminders": false, "display_tip": false, "event_countdown": false, "impostor_tell": false
+  },
+  "challenge": {
+    "retail_markup": 0, "rent_increase": 1.1, "landlord_grace_at_start": false,
+    "power_cost_mult": 2, "insurance_cost_mult": 3, "start_power_bonus": 3, "start_janitorial_bonus": 3, "start_insurance_bonus": 5,
+    "appraisal_join_mult": 3, "vendor_permit_fee": 3000, "new_customer_discount": 10, "upgrade_price_mult": 2.0,
+    "supplier_markup_mult": 3.0, "inventor_markup": 100, "retired_supplier_markup": 45, "merchant_discount": 25,
+    "scalper_markup_base": 25, "scalper_markup_per_day": 3.0,
+    "property_base_price": 36000, "property_price_per_day": 100, "property_price_cap": 20000,
+    "mortgage_interest": 100, "mortgage_weeks": 16, "mortgage_down_share": 0.2,
+    "reputation_gain_mult": 0.5, "reputation_loss_mult": 2.0, "appraisal_gain_mult": 0.75, "appraisal_loss_mult": 2.0,
+    "trade_favor_rate": 0.0, "wild_refund": 0.15, "network_intro_favor": 0,
+    "aug_kill_presence_drop": 8, "aug_left_alive_presence_rise": 16, "aug_warning": false, "aug_gameover_full": true,
+    "lou_demand": 1500, "wild_bailout": false, "wild_reminders": false, "display_tip": false, "event_countdown": false, "impostor_tell": false
+  }
+}

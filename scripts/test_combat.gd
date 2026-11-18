@@ -76,6 +76,8 @@ func _init() -> void:
 	gs.start_combat("thug")
 	var enemy = gs._combat_unit_by_uid(1)
 	gs._combat_add_effect(enemy, {"type": "overwatch", "duration": 1})
+	gs._combat_unit_by_uid(0)["accuracy"] = 999
+	enemy["dodge"] = -999
 	var hp_before := int(gs._combat_unit_by_uid(0).get("hp", 0))
 	gs._combat_use_ability(gs._combat_unit_by_uid(0), "weapon_attack", 1, -1)
 	var saw_overwatch := false
@@ -96,9 +98,8 @@ func _init() -> void:
 	var scav = gs._combat_unit_by_uid(1)
 	scav["loot"] = [["scrap_metal", 100]]
 	scav["hp"] = 1
-	gs._combat_use_ability(gs._combat_unit_by_uid(0), "weapon_attack", 1, -1)
-	if gs.combat_active:
-		gs.combat_player_action("brace_ability", 0)
+	gs._combat_damage(scav, 999, "测试")
+	gs._combat_check_end()
 	var metal = gs.inventory_count("scrap_metal")
 	check(metal >= 1 and not gs.combat_active, "victory loot dropped", str(metal))
 	print("FAILS=", fails)

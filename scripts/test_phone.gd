@@ -53,7 +53,7 @@ func _init() -> void:
 	gs.start_day()
 	var paid_c: Dictionary = {}
 	for c in gs.customers_today:
-		if String(c.get("intent", "")) == "wholesale" and not bool(c.get("wholesale_free", true)):
+		if String(c.get("intent", "")) == "wholesale" and not bool(c.get("wholesale_free", true)) and String(c.get("wholesale_supplier", "")) == "red_imp":
 			paid_c = c
 	check(not paid_c.is_empty(), "paid courier appears")
 	gs.cash = 10000

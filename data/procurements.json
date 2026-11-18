@@ -1,0 +1,29 @@
+{
+  "offer_chance": 10,
+  "templates": [
+    {
+      "id": "nurse",
+      "name": "护士",
+      "name_key": "name_mid_level_nurse",
+      "item_id": "blood_bag",
+      "count": 5,
+      "days": 3,
+      "reward_base": 100,
+      "reward_rand": 25,
+      "slip_name": "采购订单",
+      "slip_body": "护士需要 5 袋血袋，3 天内交付。"
+    },
+    {
+      "id": "machinist",
+      "name": "机械师",
+      "name_key": "",
+      "item_id": "metal_ingot",
+      "count": 3,
+      "days": 4,
+      "reward_base": 180,
+      "reward_rand": 30,
+      "slip_name": "采购订单",
+      "slip_body": "机械师需要 3 块金属锭，4 天内交付。"
+    }
+  ]
+}
