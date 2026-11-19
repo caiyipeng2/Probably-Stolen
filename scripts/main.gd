@@ -1852,6 +1852,8 @@ func _container_store_choice(uid_text: String) -> void:
 	_refresh()
 
 func _open_showcase() -> void:
+	if GameState.show_display_tip():
+		_toast("提示：展示柜里的物品更容易被顾客看到，也会影响店铺吸引力。")
 	showcase_layer.visible = true
 	move_child(showcase_layer, get_child_count() - 1)
 	showcase_selected_uid = -1
@@ -6892,6 +6894,9 @@ func _do_dismiss() -> void:
 	_refresh()
 
 func _on_event_started(event: Dictionary) -> void:
+	if GameState.show_event_countdown():
+		event = event.duplicate(true)
+		event["text"] = String(event.get("text", "")) + "\n\n事件倒计时：%d 天。" % int(event.get("days", 3))
 	var title := String(event.get("title", "夜间事件"))
 	if String(event.get("display_key", "")) != "":
 		title = GameState.loc("Mechanic", String(event.get("display_key", "")), title)

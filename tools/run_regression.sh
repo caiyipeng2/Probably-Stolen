@@ -10,7 +10,7 @@ TESTS=(
   test_containers test_inspection test_inv test_aux_machines test_balance
   test_growth test_machines_durability test_machine_faults test_recipes_modules
   test_meta test_endings test_archive test_story_graphs
-  test_barter test_wholesale test_phone test_phone_services test_combat test_combat_parties test_security test_customer_pools test_procurement test_special_customers test_market test_p1_container test_p1_wanted test_p1_night test_perks test_localization test_assets test_p0 test_p1 test_p2 test_l2_property test_l2_requests test_l2_perks test_l2_afterhours test_l2_guns test_core_flow test_space
+  test_barter test_wholesale test_phone test_phone_services test_combat test_combat_parties test_security test_customer_pools test_procurement test_special_customers test_market test_p1_container test_p1_wanted test_p1_night test_perks test_localization test_assets test_p0 test_p1 test_p2 test_l2_property test_l2_requests test_l2_perks test_l2_afterhours test_l2_guns test_l2_difficulty test_core_flow test_space
 )
 OVERALL=0
 echo "Regression $STAMP" > "$OUT/summary.txt"

@@ -120,6 +120,9 @@ var combat_mag_size := 0
 var combat_ammo_id := ""
 var combat_gun_stats: Dictionary = {}
 var combat_is_gun := false
+var wild_favor_credit := 0
+var wild_bailed_out := false
+var aug_killed_today := false
 var gun_defs: Dictionary = {}
 var gun_order_defs: Dictionary = {}
 var commissions: Array = []
@@ -1466,7 +1469,8 @@ func _appraisal_acceptable(correct: int, value: int) -> int:
 func _appraisal_fee_percent(grade: int) -> int:
 	var r := appraisal_rank_data()
 	var arr: Array = r.get("fee_percent", [15, 12, 10, 8, 5])
-	return int(arr[clampi(grade, 1, 5) - 1])
+	var pct := int(arr[clampi(grade, 1, 5) - 1])
+	return int(round(float(pct) * float(diff_rule("appraisal_join_mult", 1))))
 
 func _appraisal_grade_name(grade: int) -> String:
 	match grade:
@@ -1484,6 +1488,7 @@ func _appraisal_progress(grade: int) -> float:
 func _add_appraisal_progress(delta: float) -> void:
 	if appraiser_level >= 3 or appraisal_promotion_declined:
 		return
+	delta *= float(diff_rule("appraisal_gain_mult", 1))
 	var threshold := float(appraisal_rank_data().get("progress_to_promote", 100))
 	appraisal_progress = clampf(appraisal_progress + delta, 0.0, threshold)
 	if appraisal_progress >= threshold:
@@ -1530,7 +1535,7 @@ func appraise_counter_item(value: int) -> Dictionary:
 	}
 
 func _appraisal_walkout() -> Dictionary:
-	_add_appraisal_progress(float(appraisal_rank_data().get("walkout_progress", 0)))
+	_add_appraisal_progress(float(appraisal_rank_data().get("walkout_progress", 0)) * float(diff_rule("appraisal_loss_mult", 1)))
 	var lost := counter_item
 	counter_item = {}
 	complete_customer(false)
@@ -2448,6 +2453,9 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 	blackmail_next_day = 1
 	afterhours_visits_left = 0
 	afterhours_went_out = false
+	wild_favor_credit = 0
+	wild_bailed_out = false
+	aug_killed_today = false
 	went_out_last_night = false
 	last_afterhour_outing_day = -1
 	scav_attempts_used = 0
@@ -2592,6 +2600,10 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 		apply_start_type(start_type)
 		if not perk_ids.is_empty():
 			apply_starting_perks(perk_ids)
+	if bool(diff_rule("landlord_grace_at_start", false)):
+		rent_due += 2
+	next_day_power_bonus += int(diff_rule("start_power_bonus", 0))
+	wild_favor_credit = int(diff_rule("network_intro_favor", 0))
 	start_day()
 
 func _stolen_heat_for_value(value: int) -> int:
@@ -2600,6 +2612,15 @@ func _stolen_heat_for_value(value: int) -> int:
 		if value >= int(row.get("min_value", 0)):
 			heat = int(row.get("heat", 0))
 	return heat
+
+func diff_bool(key: String, fallback: bool = false) -> bool:
+	return bool(diff_rule(key, fallback))
+
+func show_display_tip() -> bool:
+	return diff_bool("display_tip", true)
+
+func show_event_countdown() -> bool:
+	return diff_bool("event_countdown", true)
 
 func _decay_stolen_item(it: Dictionary) -> void:
 	if not bool(it.get("stolen", false)):
@@ -2749,7 +2770,7 @@ func revoke_permits() -> Dictionary:
 	return {"ok": true, "text": "吊销的许可证等级：%s。" % "、".join(parts)}
 
 func sec_trash_capacity() -> int:
-	return int(security_defs.get("inspection", {}).get("trash_capacity", 12))
+	return int(security_defs.get("inspection", {}).get("trash_capacity", 12)) + int(diff_rule("start_janitorial_bonus", 0))
 
 func sec_trash_free_slot() -> Vector2i:
 	var cap := sec_trash_capacity()
@@ -3283,6 +3304,8 @@ func _sec_maybe_start_inspection() -> void:
 	sec_inspection_fake = rng.randi_range(1, 100) <= int(cfg.get("fake_chance", 8))
 	if sec_inspection_fake:
 		sec_inspection_personality = 0
+		if bool(diff_rule("impostor_tell", false)):
+			_add_night_log("这个检查官的徽章戴反了，胸牌名字也是印上去的。")
 	else:
 		var personality := 0
 		if sec_bribe_tracker < 500:
@@ -3473,6 +3496,8 @@ func start_day() -> void:
 	if day > 1:
 		commissary_restock()
 	_grant_dividends()
+	if bool(diff_rule("wild_reminders", false)) and sec_fixer_tier() > 0 and (int(rep.get("lower", 0)) < 0 or int(rep.get("security", 0)) < 0 or int(rep.get("blackmarket", 0)) < 0):
+		_add_night_log("王尔德提醒你：声望已经很难看，善后人随时待命。")
 	_handle_cartel_weekly()
 	_handle_welfare_program()
 	_handle_secret_admirer()
@@ -3821,6 +3846,7 @@ func _gen_pool_customer(entry: Dictionary, pool_faction: String) -> Dictionary:
 		"done": false,
 		"line": line,
 		"cooldown": int(entry.get("cooldown", 0)),
+		"first_visit": rng.randi_range(1, 100) <= 40,
 	}
 	if intent == "information":
 		base["intent"] = "information"
@@ -3909,6 +3935,7 @@ func _gen_customer() -> Dictionary:
 		"patience": int(arche.get("patience", 3)),
 		"done": false,
 		"line": arche.get("greet", ""),
+		"first_visit": rng.randi_range(1, 100) <= 40,
 	}
 	if intent == "sell":
 		var pool: Array = tradable_pool if not tradable_pool.is_empty() else ["cig_red", "cig_black", "water_bottle_full", "water_jug", "nutrifruit", "hand_steel", "hand_carbon", "hand_gold", "aug_chip", "handmade_pistol", "revolver_short", "organ_heart", "organ_liver", "command_keycard", "chem_scanner"]
@@ -4112,6 +4139,10 @@ func accept_barter() -> Dictionary:
 			got.append(String(get_item_def(did).get("name", did)))
 	current_customer["done"] = true
 	current_customer["done_got"] = got
+	var favor_value := 0
+	for entry in barter_offer_items(current_customer):
+		favor_value += int(entry.get("count", 1)) * 10
+	cash += int(round(float(favor_value) * float(diff_rule("trade_favor_rate", 0))))
 	current_customer["line"] = String(dialogue_lines.get("dialog_barter_accept", "成交。"))
 	add_rep(String(current_customer.get("arche", {}).get("faction", "lower")), 1)
 	emit_signal("state_changed")
@@ -4250,6 +4281,7 @@ func _gen_courier_customer(f: Dictionary) -> Dictionary:
 		for n in range(int(entry.get("count", 1))):
 			stock.append(_bundle_stock(entry))
 	var discount := int(cfg.get("discount", -20))
+	discount += int(round((float(diff_rule("supplier_markup_mult", 1)) - 1.0) * 10.0))
 	var sh_id := String(cfg.get("shareholder", ""))
 	if sh_id != "" and bool(owned_upgrades.get(sh_id, false)):
 		discount -= 15
@@ -4657,6 +4689,8 @@ func put_display_on_counter(uid: int) -> bool:
 	factor *= 1.0 - float(current_customer.get("discount_buy", 0)) / 100.0
 	if starting_perk_active("perk_awful_negotiator"):
 		factor *= 0.95
+	if bool(current_customer.get("first_visit", false)):
+		factor *= 1.0 - float(diff_rule("new_customer_discount", 75)) / 400.0
 	if faction == "upper" and rep_perk_unlocked("UL_TIPS"):
 		factor *= 1.15
 	var val := market_value(it, true, faction)
@@ -4899,6 +4933,7 @@ func make_offer(price: int) -> Dictionary:
 	var min_price := int(round(float(item.get("min_price", 0)) * (1.0 - float(bargain_bonus) / 100.0) * (1.0 + addiction_price_mod()) * aug_discount))
 	if starting_perk_active("perk_awful_negotiator"):
 		min_price = int(round(float(min_price) * 1.05))
+	min_price = int(round(float(min_price) * (1.0 - float(diff_rule("merchant_discount", 0)) / 100.0)))
 	if price >= min_price:
 		cash -= price
 		item["known"] = true
@@ -5229,6 +5264,10 @@ func finish_day() -> Dictionary:
 		run_stats["insurance_spent"] = int(run_stats.get("insurance_spent", 0)) + ins_cost
 		if cash < 0:
 			summary["gameover"] = "rent"
+	if cash < 0 and bool(diff_rule("wild_bailout", false)) and not wild_bailed_out:
+		cash = 0
+		wild_bailed_out = true
+		_add_night_log("王尔德替你摆平了债务，现金归零。")
 	if summary["gameover"] == "":
 		var doom := ""
 		if rep_perk_unlocked("LLLYNCH"):
@@ -5713,6 +5752,8 @@ func _gen_special_customer(t: Dictionary) -> Dictionary:
 	base["wholesale_name"] = name
 	base["wholesale_supplier"] = ""
 	base["wholesale_discount"] = int(t.get("wholesale_discount", [0, 0])[0])
+	if String(t.get("id", "")).begins_with("retired"):
+		base["wholesale_discount"] += int(diff_rule("retired_supplier_markup", 0))
 	base["wholesale_stock"] = stock
 	base["wholesale_free"] = false
 	base["wholesale_done_key"] = ""
@@ -5831,8 +5872,9 @@ func _handle_sentinel_scalper() -> void:
 	var item := make_item("large_purple_injector", 100, true, false)
 	item["known"] = true
 	var val := market_value(item, false, "blackmarket")
-	item["asking_price"] = int(round(float(val) * 2.2))
-	item["min_price"] = int(round(float(val) * 1.5))
+	var markup := float(diff_rule("scalper_markup_base", 0)) + float(day) * float(diff_rule("scalper_markup_per_day", 0))
+	item["asking_price"] = int(round(float(val) * (1.0 + markup / 100.0)))
+	item["min_price"] = int(round(float(item["asking_price"]) * 0.7))
 	customers_today.append({
 		"arche": {"faction": "blackmarket", "name": "药贩子", "sprite": _random_client_sprite("blackmarket")},
 		"intent": "sell", "items": [item], "item_index": 0, "item": item,
@@ -6211,7 +6253,7 @@ func _refresh_jackson_stock() -> void:
 		var id := String(pool[rng.randi_range(0, pool.size() - 1)])
 		var it := make_item(id, rng.randi_range(70, 100), true, false)
 		it["known"] = true
-		var price := maxi(5, int(round(float(market_value(it, false, "upper")) * 1.35)))
+		var price := maxi(5, int(round(float(market_value(it, false, "upper")) * (1.35 + float(diff_rule("inventor_markup", 0)) / 100.0))))
 		jackson_stock.append({"item": it, "price": price})
 
 func jackson_buy(index: int) -> Dictionary:
@@ -6508,7 +6550,14 @@ func nightly_survival() -> void:
 			phase = "gameover"
 			ending_id = "sentinel"
 			_add_night_log("哨兵注射剂到期了。")
-	if aug_introduced and aug_presence >= 100:
+	if aug_introduced:
+		if not aug_killed_today:
+			var before := aug_presence
+			aug_presence = mini(100, aug_presence + int(diff_rule("aug_left_alive_presence_rise", 10)))
+			if bool(diff_rule("aug_warning", false)) and before < 75 and aug_presence >= 75:
+				_add_night_log("义体人的存在感正在失控（%d/100）。" % aug_presence)
+		aug_killed_today = false
+	if aug_introduced and aug_presence >= 100 and (bool(diff_rule("aug_gameover_full", false)) or starting_perk_active("perk_aug_menace")):
 		phase = "gameover"
 		ending_id = "aug"
 		_add_night_log("义体人控制了空间站。")
@@ -6775,6 +6824,7 @@ func upgrade_cost_mult() -> float:
 
 func insurance_daily_cost() -> int:
 	var cost := 15.0
+	cost *= float(diff_rule("insurance_cost_mult", 1))
 	if rep_perk_unlocked("LLTARGET"):
 		cost *= 2.0
 	if starting_perk_active("perk_wild_favorite"):
@@ -7774,6 +7824,14 @@ func engage_wanted_visit() -> Dictionary:
 	var w := wanted_def(wid)
 	if w.is_empty():
 		return {"ok": false, "text": "目标不存在。"}
+	if wid == "w_lou":
+		var demand := int(diff_rule("lou_demand", 750))
+		if cash >= demand:
+			cash -= demand
+			current_customer["done"] = true
+			complete_customer(true)
+			emit_signal("state_changed")
+			return {"ok": true, "text": "你付了卢 %d₵，他的人暂时离开了。" % demand}
 	current_customer["done"] = true
 	start_combat(String(w.get("enemy", "thug")), "security", wid, "wanted_visit")
 	emit_signal("state_changed")
@@ -7920,6 +7978,7 @@ func _combat_make_unit(base: Dictionary, team: int) -> Dictionary:
 	u["death_chance"] = int(base.get("death_chance", 100))
 	u["effects"] = []
 	u["dead"] = false
+	u["is_aug"] = String(base.get("id", "")).begins_with("aug") or String(base.get("name", "")).contains("改造")
 	u["is_player"] = false
 	u["max_action"] = 1
 	u["action"] = 1
@@ -8143,6 +8202,10 @@ func _combat_death_roll(u: Dictionary) -> void:
 		u["hp"] = 0
 		u["dead"] = true
 		combat_log.append("%s 倒下了。" % u.get("name", ""))
+		if bool(u.get("is_aug", false)) and not bool(u.get("is_player", false)):
+			aug_presence = maxi(0, aug_presence - int(diff_rule("aug_kill_presence_drop", 25)))
+			aug_killed_today = true
+			combat_log.append("改造体的存在感下降了（%d）。" % aug_presence)
 	else:
 		u["hp"] = 1
 		combat_log.append("%s 濒死挣扎，撑住了！" % u.get("name", ""))
@@ -8936,6 +8999,10 @@ func upgrade_cost(id: String) -> int:
 		cost += evidence_removal_purchases * int(security_defs.get("evidence_removal", {}).get("cost_step", 100))
 	cost = int(round(float(cost) * float(diff_rule("upgrade_price_mult", 1.0))))
 	cost = int(round(float(cost) * upgrade_cost_mult()))
+	if id == "INSURANCE":
+		cost = maxi(50, cost - int(diff_rule("start_insurance_bonus", 0)) * 10)
+	if id == "MARKETPLACE_REQUESTS":
+		cost += int(diff_rule("vendor_permit_fee", 1500))
 	return cost
 
 func upgrade_owned(id: String) -> bool:
@@ -8985,6 +9052,12 @@ func buy_upgrade(id: String) -> Dictionary:
 		emit_signal("state_changed")
 		return {"ok": true, "text": "证据已清除。下次价格 %d₵。" % upgrade_cost(id)}
 	owned_upgrades[id] = true
+	if id.begins_with("WILD_FIXER") or id.begins_with("ENDORSEMENT"):
+		cash += int(round(float(cost) * float(diff_rule("wild_refund", 0))))
+		if wild_favor_credit > 0:
+			var credit := mini(wild_favor_credit, cost)
+			cash += credit
+			wild_favor_credit -= credit
 	if id == "MARKETPLACE_REQUESTS":
 		_marketplace_unlock()
 	if String(u.get("effect", "")) == "power":
@@ -9369,7 +9442,7 @@ func machine_repair_cost(machine_id: String) -> int:
 	var cost := 60 + int(m.get("power", 2)) * 20
 	if machine_faults.has(machine_id):
 		cost += machine_fault_fee(String(machine_faults[machine_id]))
-	return cost
+	return int(round(float(cost) * float(diff_rule("power_cost_mult", 1))))
 
 func repair_machine(machine_id: String) -> Dictionary:
 	var m := machine_def(machine_id)
@@ -10454,6 +10527,7 @@ func save_game(slot: int = 1) -> bool:
 		"cartel_exit_available": cartel_exit_available, "cartel_exit_uses": cartel_exit_uses, "cartel_exited": cartel_exited,
 		"blackmail_next_day": blackmail_next_day,
 		"afterhours_visits_left": afterhours_visits_left, "afterhours_went_out": afterhours_went_out,
+		"wild_favor_credit": wild_favor_credit, "wild_bailed_out": wild_bailed_out, "aug_killed_today": aug_killed_today,
 		"went_out_last_night": went_out_last_night, "last_afterhour_outing_day": last_afterhour_outing_day,
 		"scav_attempts_used": scav_attempts_used, "afterhours_location": afterhours_location,
 		"jackson_stock": jackson_stock, "satchel_found": satchel_found, "kids_backpack_found": kids_backpack_found,
@@ -10670,6 +10744,9 @@ func load_game(slot: int = 1) -> bool:
 	blackmail_next_day = int(data.get("blackmail_next_day", 1))
 	afterhours_visits_left = int(data.get("afterhours_visits_left", 0))
 	afterhours_went_out = bool(data.get("afterhours_went_out", false))
+	wild_favor_credit = int(data.get("wild_favor_credit", 0))
+	wild_bailed_out = bool(data.get("wild_bailed_out", false))
+	aug_killed_today = bool(data.get("aug_killed_today", false))
 	went_out_last_night = bool(data.get("went_out_last_night", false))
 	last_afterhour_outing_day = int(data.get("last_afterhour_outing_day", -1))
 	scav_attempts_used = int(data.get("scav_attempts_used", 0))
