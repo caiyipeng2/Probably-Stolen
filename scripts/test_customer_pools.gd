@@ -41,9 +41,9 @@ func _init() -> void:
 	gs.rep["blackmarket"] = 0
 	check(gs._pool_chance(bm) == 7, "blackmarket base chance", str(gs._pool_chance(bm)))
 	gs.rep["blackmarket"] = 30
-	check(gs._pool_chance(bm) == 14, "blackmarket rep 30 chance", str(gs._pool_chance(bm)))
+	check(gs._pool_chance(bm) == 19, "blackmarket rep 30 chance + broker perk", str(gs._pool_chance(bm)))
 	gs.rep["blackmarket"] = 60
-	check(gs._pool_chance(bm) == 17, "blackmarket rep 60 chance", str(gs._pool_chance(bm)))
+	check(gs._pool_chance(bm) == 22, "blackmarket rep 60 chance + broker perk", str(gs._pool_chance(bm)))
 	gs.rep["upper"] = 30
 	check(gs._pool_chance(ul) == 12, "upper rep 30 chance", str(gs._pool_chance(ul)))
 	gs.rep["rev"] = 30

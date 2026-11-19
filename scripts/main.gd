@@ -2378,6 +2378,50 @@ func _buy_information_ui() -> void:
 	var res := GameState.buy_information()
 	_show_modal("情报商人", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
+func _open_gift() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "gift":
+		return
+	_show_modal("上层区施恩人", String(c.get("line", "")) + "\n\n这是一份无偿捐赠。", [
+		{"label": "收下捐赠", "cb": _accept_gift_ui, "color": C_GREEN},
+		{"label": "婉拒", "cb": _decline_gift_ui, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _accept_gift_ui() -> void:
+	var res := GameState.accept_charity_gift()
+	_close_modal()
+	_toast(String(res.get("text", "")))
+	_refresh()
+
+func _decline_gift_ui() -> void:
+	GameState.complete_customer(false)
+	_close_modal()
+	_refresh()
+
+func _open_blackmail() -> void:
+	var c := GameState.current_customer
+	if c.is_empty() or String(c.get("intent", "")) != "blackmail":
+		return
+	var amount := int(c.get("amount", 0))
+	_show_modal("敲诈者", String(c.get("line", "")), [
+		{"label": "支付 %d₵" % amount, "cb": _blackmail_pay_ui, "color": C_RUST},
+		{"label": "拒绝", "cb": _blackmail_refuse_ui, "color": C_MUTED},
+	])
+	modal_close_btn.visible = false
+
+func _blackmail_pay_ui() -> void:
+	var res := GameState.resolve_blackmail(true)
+	_close_modal()
+	_toast(String(res.get("text", "")))
+	_refresh()
+
+func _blackmail_refuse_ui() -> void:
+	var res := GameState.resolve_blackmail(false)
+	_close_modal()
+	_toast(String(res.get("text", "")))
+	_refresh()
+
 func _open_procurement_offer() -> void:
 	var c := GameState.current_customer
 	if c.is_empty() or String(c.get("intent", "")) != "procurement_offer":
@@ -2620,6 +2664,9 @@ func _build_commissary_layer() -> void:
 	commissary_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 func _open_commissary() -> void:
+	if GameState.commissary_banned():
+		_toast("你被配给站拒之门外。")
+		return
 	_play_room_ambience("amb_comissionary_ambience.ogg")
 	commissary_layer.visible = true
 	move_child(commissary_layer, get_child_count() - 1)
@@ -3405,7 +3452,7 @@ func _update_action_buttons() -> void:
 	var intent := String(c.get("intent", ""))
 	action_buttons["inspect"].disabled = not (has_customer and intent in ["sell", "appraise"])
 	action_buttons["inspect"].text = "估价" if intent == "appraise" else "鉴定"
-	action_buttons["bargain"].disabled = not (has_customer and has_counter and intent == "sell")
+	action_buttons["bargain"].disabled = not (has_customer and has_counter and intent == "sell" and GameState.can_bargain())
 	action_buttons["threaten"].disabled = not (has_customer and has_counter and intent == "sell")
 	action_buttons["deal"].disabled = not (has_customer and has_counter and intent == "sell")
 	action_buttons["next_item"].disabled = not (has_customer and intent == "sell" and GameState.current_customer.get("items", []).size() > 1)
@@ -3747,6 +3794,18 @@ func _on_customer_changed() -> void:
 		if wholesale_layer:
 			wholesale_layer.visible = false
 		_open_information_dealer()
+	elif intent == "gift":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_gift()
+	elif intent == "blackmail":
+		if barter_layer:
+			barter_layer.visible = false
+		if wholesale_layer:
+			wholesale_layer.visible = false
+		_open_blackmail()
 	elif intent == "hireling_return":
 		_open_hireling_return()
 	elif intent == "gun_order":
@@ -3906,7 +3965,8 @@ func _show_day_summary(s: Dictionary) -> void:
 			text += "\n\n你没能付清%s，店铺被收走了。" % ("房租" if go == "rent" else "贷款")
 		actions.append({"label": "重新开始", "cb": _restart_game, "color": C_RUST})
 	else:
-		actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
+		if not GameState.starting_perk_active("perk_unsubscribed"):
+			actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
 		actions.append({"label": "下一天", "cb": _next_day, "color": C_AMBER})
 	_show_modal("营业结算", text, actions)
 
@@ -4567,7 +4627,7 @@ func _notebook_entries() -> Array:
 	if not GameState.active_operations.is_empty():
 		var olines: Array = []
 		for op in GameState.active_operations:
-			olines.append("%s（至第 %d 天）" % [String(op.get("name", "")), int(op.get("until", 0))])
+			olines.append("%s（至第 %d 天）" % [GameState.operation_label(op), int(op.get("until", 0))])
 		notes.append({"id": "operations", "title": "派系行动", "body": "
 ".join(olines)})
 	if not GameState.pending_story.is_empty():
@@ -4649,7 +4709,7 @@ func _rebuild_info_list() -> void:
 				_add_info_button("%s  %+d" % [f.get("name", fid), int(GameState.rep.get(fid, 0))], fid)
 		"perks":
 			for p in GameState.starting_perks:
-				var chosen := GameState.starting_perk_id == String(p.get("id", ""))
+				var chosen := GameState.starting_perk_ids.has(String(p.get("id", "")))
 				_add_info_button("%s%s" % [p.get("name", p.get("id", "")), " · 已选" if chosen else ""], String(p.get("id", "")))
 		"rep_perks":
 			for p in GameState.rep_perk_defs:
@@ -4688,8 +4748,11 @@ func _rebuild_info_list() -> void:
 			for loc in _map_locations():
 				_add_info_button("%s · %s" % [String(loc.get("name", "")), String(loc.get("tag", ""))], String(loc.get("id", "")))
 		"notebook":
-			for note in _notebook_entries():
-				_add_info_button(String(note.get("title", "")), String(note.get("id", "")))
+			if not GameState.can_read_guides():
+				_add_info_button("文盲 · 无法阅读指南", "illiterate")
+			else:
+				for note in _notebook_entries():
+					_add_info_button(String(note.get("title", "")), String(note.get("id", "")))
 		"requests":
 			for req in GameState.store_requests:
 				_add_info_button("%s · %s×%d · %d₵" % [_faction_short(String(req.get("faction", ""))), GameState.item_display_name({"def_id": String(req.get("item_id", ""))}), int(req.get("count", 1)), int(req.get("credits", 0))], String(req.get("id", "")))
@@ -4843,7 +4906,7 @@ func _refresh_info_detail() -> void:
 			if not GameState.active_operations.is_empty():
 				var opnames: Array = []
 				for op in GameState.active_operations:
-					opnames.append(String(op.get("name", "")))
+					opnames.append(GameState.operation_label(op))
 				body += "
 进行中：" + "、".join(opnames)
 			info_body.text = body
@@ -4983,7 +5046,7 @@ func _refresh_info_detail() -> void:
 			if not GameState.active_operations.is_empty():
 				var opn: Array = []
 				for op in GameState.active_operations:
-					opn.append(String(op.get("name", "")))
+					opn.append(GameState.operation_label(op))
 				lines.append("派系行动：" + "、".join(opn))
 			if not GameState.night_log.is_empty():
 				lines.append("日志：" + String(GameState.night_log[-1]))
@@ -5024,6 +5087,11 @@ func _refresh_info_detail() -> void:
 			info_meta.text = String(loc.get("tag", ""))
 			info_body.text = String(loc.get("body", ""))
 		"notebook":
+			if not GameState.can_read_guides():
+				info_name.text = "文盲"
+				info_meta.text = "本局笔记 · 第 %d 天" % GameState.day
+				info_body.text = "你不识字，无法阅读任何指南或笔记。"
+				return
 			var note := {}
 			for n in _notebook_entries():
 				if String(n.get("id", "")) == info_selected_id:
@@ -5201,9 +5269,41 @@ func _open_facilities() -> void:
 		{"label": "排水槽倒空", "cb": _facility_drain_select, "color": C_CYAN},
 		{"label": "床铺：结束营业", "cb": _facility_sleep, "color": C_RUST},
 		{"label": "产权/按揭", "cb": _open_property, "color": C_AMBER},
+		{"label": "卡特尔事务", "cb": _open_cartel, "color": C_AMBER},
 		{"label": "选项", "cb": _open_options},
 		{"label": "关闭", "cb": _close_modal},
 	])
+
+func _open_cartel() -> void:
+	var cost := GameState.cartel_material_cost()
+	var lines: Array = []
+	lines.append("卡特尔声望：%d" % int(GameState.rep.get("cartel", 0)))
+	lines.append("材料申请：消耗 %d 声望，获得 2 个化学模块。" % cost)
+	if GameState.cartel_exited:
+		lines.append("你已金盆洗手，不再与卡特尔往来。")
+	elif GameState.cartel_exit_available:
+		lines.append("接头人已为你安排好退路，可以金盆洗手。")
+	else:
+		lines.append("退路尚未安排（声望 100 解锁）。")
+	var actions: Array = []
+	if not GameState.cartel_exited and int(GameState.rep.get("cartel", 0)) >= cost:
+		actions.append({"label": "申请材料（-%d 声望）" % cost, "cb": _cartel_materials_ui, "color": C_GREEN})
+	if not GameState.cartel_exited and GameState.cartel_exit_available:
+		actions.append({"label": "金盆洗手", "cb": _cartel_exit_ui, "color": C_RUST})
+	actions.append({"label": "返回", "cb": _open_facilities, "color": C_MUTED})
+	_show_modal("卡特尔事务", "\n".join(lines), actions)
+
+func _cartel_materials_ui() -> void:
+	var res := GameState.request_cartel_materials()
+	_close_modal()
+	_toast(String(res.get("text", "")))
+	_refresh()
+
+func _cartel_exit_ui() -> void:
+	var res := GameState.exit_cartel()
+	_close_modal()
+	_toast(String(res.get("text", "")))
+	_refresh()
 
 func _facility_fill_select() -> void:
 	var items: Array = []
@@ -6492,6 +6592,9 @@ func _submit_appraisal() -> void:
 			inspection_status.text = String(res.get("text", ""))
 
 func _open_bargain() -> void:
+	if not GameState.can_bargain():
+		_toast("你不善议价，无法与顾客讨价还价。")
+		return
 	if GameState.current_customer.get("intent") == "appraise":
 		_open_inspection()
 		return
