@@ -5353,6 +5353,7 @@ func _open_facilities() -> void:
 		{"label": "床铺：结束营业", "cb": _facility_sleep, "color": C_RUST},
 		{"label": "产权/按揭", "cb": _open_property, "color": C_AMBER},
 		{"label": "卡特尔事务", "cb": _open_cartel, "color": C_AMBER},
+		{"label": "枪械改装", "cb": _open_gun_mod, "color": C_AMBER},
 		{"label": "选项", "cb": _open_options},
 		{"label": "关闭", "cb": _close_modal},
 	])
@@ -5387,6 +5388,71 @@ func _cartel_exit_ui() -> void:
 	_close_modal()
 	_toast(String(res.get("text", "")))
 	_refresh()
+
+func _gun_slot_name(slot: String) -> String:
+	match slot:
+		"stock": return "枪托"
+		"rail": return "导轨"
+		"underbarrel": return "下挂"
+		"barrel": return "枪管"
+		"magazine": return "弹匣"
+		"special1": return "特殊1"
+		"special2": return "特殊2"
+		"special3": return "特殊3"
+	return slot
+
+func _open_gun_mod() -> void:
+	_close_modal()
+	var guns := GameState.gun_mod_gun_list()
+	if guns.is_empty():
+		_toast("背包里没有可改装的枪械。")
+		return
+	_open_select("枪械改装：选择枪械", guns, _gun_mod_pick_gun)
+
+func _gun_mod_pick_gun(gun_id: String) -> void:
+	var gun := GameState.find_item(int(gun_id))
+	if gun.is_empty():
+		_open_gun_mod()
+		return
+	var items: Array = []
+	var mods: Dictionary = gun.get("gun_mods", {})
+	for slot in GameState.gun_mod_defs.get("slots", []):
+		var s := String(slot)
+		var label := ""
+		if mods.has(s):
+			var mid := String(mods[s].get("def_id", ""))
+			label = "%s：%s（点击卸下）" % [_gun_slot_name(s), String(GameState.get_item_def(mid).get("name", mid))]
+		else:
+			label = "%s：空（点击安装）" % _gun_slot_name(s)
+		items.append({"id": s, "label": label})
+	items.append({"id": "__back__", "label": "返回"})
+	_open_select("改装 %s" % GameState.item_display_name(gun), items, _gun_mod_pick_slot.bind(int(gun_id)))
+
+func _gun_mod_pick_slot(slot: String, gun_id: int) -> void:
+	if slot == "__back__":
+		_open_gun_mod()
+		return
+	var gun := GameState.find_item(gun_id)
+	if gun.is_empty():
+		_open_gun_mod()
+		return
+	var mods: Dictionary = gun.get("gun_mods", {})
+	if mods.has(slot):
+		var res := GameState.gun_remove_mod(gun_id, slot)
+		_toast(String(res.get("text", "")))
+		_gun_mod_pick_gun(str(gun_id))
+		return
+	var choices := GameState.gun_owned_mods_for(gun, slot)
+	if choices.is_empty():
+		_toast("没有可用的%s配件。" % _gun_slot_name(slot))
+		_gun_mod_pick_gun(str(gun_id))
+		return
+	_open_select("%s · 选择配件" % _gun_slot_name(slot), choices, _gun_mod_pick_mod.bind(gun_id, slot))
+
+func _gun_mod_pick_mod(mod_id: String, gun_id: int, slot: String) -> void:
+	var res := GameState.gun_install_mod(gun_id, int(mod_id))
+	_toast(String(res.get("text", "")))
+	_gun_mod_pick_gun(str(gun_id))
 
 func _facility_fill_select() -> void:
 	var items: Array = []
@@ -5763,9 +5829,10 @@ func _update_combat_ui() -> void:
 	var p_armor: Dictionary = pl.get("armor", {}) if not pl.is_empty() else {}
 	if not p_armor.is_empty():
 		armor_text = " · 护甲 %d/%d" % [int(p_armor.get("value", 0)), int(p_armor.get("max", 0))]
-	combat_status.text = "第 %d 回合 · %s · 武器：%s%s
+	combat_status.text = "第 %d 回合 · %s · 武器：%s%s%s
 敌人 HP %d/%d%s · 你的 HP %d/%d%s" % [
 		GameState.combat_round, turn_text, weapon_name, armor_text,
+		(" · 弹药 %d/%d" % [GameState.combat_mag_rounds, GameState.combat_mag_size]) if GameState.combat_is_gun else "",
 		int(e.get("hp", 0)), emax, ("（" + effects_e + "）") if effects_e != "" else "",
 		GameState.combat_player_hp, GameState.combat_player_max, ("（" + effects_p + "）") if effects_p != "" else ""]
 	_clear_children(combat_actions_box)

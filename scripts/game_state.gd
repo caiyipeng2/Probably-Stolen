@@ -114,6 +114,12 @@ var aug_next_spawn_day := 0
 var hireling: Dictionary = {}
 var hireling_expedition: Dictionary = {}
 var gun_order: Dictionary = {}
+var gun_mod_defs: Dictionary = {}
+var combat_mag_rounds := 0
+var combat_mag_size := 0
+var combat_ammo_id := ""
+var combat_gun_stats: Dictionary = {}
+var combat_is_gun := false
 var gun_defs: Dictionary = {}
 var gun_order_defs: Dictionary = {}
 var commissions: Array = []
@@ -415,6 +421,11 @@ func _load_defs() -> void:
 		var gdata = JSON.parse_string(gun_file.get_as_text())
 		if gdata is Dictionary:
 			gun_defs = gdata
+	var gm_file := FileAccess.open("res://data/gun_mods.json", FileAccess.READ)
+	if gm_file:
+		var gmdata = JSON.parse_string(gm_file.get_as_text())
+		if gmdata is Dictionary:
+			gun_mod_defs = gmdata
 	var go_file := FileAccess.open("res://data/gun_orders.json", FileAccess.READ)
 	if go_file:
 		var godata = JSON.parse_string(go_file.get_as_text())
@@ -6982,11 +6993,31 @@ func report_aug() -> Dictionary:
 	emit_signal("state_changed")
 	return {"ok": true, "text": "治安部确认了义体信号，支付了 %d₵ 赏金。" % reward}
 
-func gun_def_stats(def_id: String, condition: String = "") -> Dictionary:
+func _gun_condition_key(value) -> String:
+	var conds: Dictionary = gun_defs.get("conditions", {})
+	if value is String and conds.has(value):
+		return value
+	var n := int(value)
+	if n >= 90:
+		return "new"
+	if n >= 75:
+		return "excellent"
+	if n >= 55:
+		return "good"
+	if n >= 35:
+		return "fair"
+	return "poor"
+
+func gun_def_stats(def_id: String, condition = "") -> Dictionary:
 	var g: Dictionary = gun_defs.get("guns", {}).get(def_id, {}).duplicate()
 	if g.is_empty():
 		return {}
-	var cond := condition if condition != "" else String(g.get("condition", "good"))
+	var cond_value = condition
+	if cond_value == null:
+		cond_value = g.get("condition", "good")
+	elif cond_value is String and cond_value == "":
+		cond_value = g.get("condition", "good")
+	var cond := _gun_condition_key(cond_value)
 	var cond_pct := int(gun_defs.get("conditions", {}).get(cond, 0))
 	var shape: Array = get_item_def(def_id).get("shape", [1, 1])
 	g["size"] = int(shape[0]) * int(shape[1])
@@ -6996,6 +7027,113 @@ func gun_def_stats(def_id: String, condition: String = "") -> Dictionary:
 		g[k] = int(round(float(g.get(k, 0)) * (100.0 + cond_pct) / 100.0))
 	g["condition"] = cond
 	return g
+
+func gun_mod_def(mod_id: String) -> Dictionary:
+	return gun_mod_defs.get("mods", {}).get(mod_id, {})
+
+func gun_mod_slot(mod_id: String) -> String:
+	return String(gun_mod_def(mod_id).get("slot", ""))
+
+func gun_item_stats(it: Dictionary) -> Dictionary:
+	var g := gun_def_stats(String(it.get("def_id", "")), _gun_condition_key(it.get("condition", 100)))
+	if g.is_empty():
+		return {}
+	var mods: Dictionary = it.get("gun_mods", {})
+	for slot in mods.keys():
+		var mid := String(mods[slot].get("def_id", ""))
+		var md := gun_mod_def(mid)
+		if md.is_empty():
+			continue
+		var stats: Dictionary = md.get("stats", {})
+		for k in stats.keys():
+			g[k] = int(g.get(k, 0)) + int(stats[k])
+		if bool(md.get("suppressor", false)):
+			g["suppressed"] = 1
+	g["mod_count"] = mods.size()
+	g["mag_size"] = gun_mag_size(it)
+	return g
+
+func gun_mag_size(it: Dictionary) -> int:
+	var def_id := String(it.get("def_id", ""))
+	var base := int(gun_defs.get("guns", {}).get(def_id, {}).get("mag_size", 8))
+	var mods: Dictionary = it.get("gun_mods", {})
+	if mods.has("magazine"):
+		var md := gun_mod_def(String(mods["magazine"].get("def_id", "")))
+		base += int(md.get("mag_bonus", 0))
+	return maxi(1, base)
+
+func gun_ammo_for_caliber(caliber: int) -> String:
+	return String(gun_mod_defs.get("ammo_by_caliber", {}).get(str(caliber), ""))
+
+func gun_mod_allowed(md: Dictionary, gun_def_id: String) -> bool:
+	var allow: Array = md.get("allow", [])
+	return allow.is_empty() or allow.has(gun_def_id)
+
+func gun_install_mod(gun_uid: int, mod_uid: int) -> Dictionary:
+	var gun := find_item(gun_uid)
+	var mod := find_item(mod_uid)
+	if gun.is_empty() or mod.is_empty():
+		return {"ok": false, "text": "找不到枪械或配件。"}
+	var mid := String(mod.get("def_id", ""))
+	var md := gun_mod_def(mid)
+	if md.is_empty():
+		return {"ok": false, "text": "这不是枪械配件。"}
+	if not gun_mod_allowed(md, String(gun.get("def_id", ""))):
+		return {"ok": false, "text": "这个配件不能装在这把枪上。"}
+	var slot := String(md.get("slot", ""))
+	if slot == "":
+		return {"ok": false, "text": "没有可用槽位。"}
+	var mods: Dictionary = gun.get("gun_mods", {})
+	if mods.has(slot):
+		return {"ok": false, "text": "该槽位已有配件，请先卸下。"}
+	var ex := String(md.get("exclusive", ""))
+	if ex != "":
+		for s in mods.keys():
+			if String(gun_mod_def(String(mods[s].get("def_id", ""))).get("exclusive", "")) == ex:
+				return {"ok": false, "text": "与其他配件互斥。"}
+	var detached := detach_item(mod_uid)
+	if detached.is_empty():
+		return {"ok": false, "text": "无法取下这个配件。"}
+	mods[slot] = {"def_id": mid}
+	gun["gun_mods"] = mods
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已安装 %s 到%s槽。" % [item_display_name(detached), slot]}
+
+func gun_remove_mod(gun_uid: int, slot: String) -> Dictionary:
+	var gun := find_item(gun_uid)
+	if gun.is_empty():
+		return {"ok": false, "text": "找不到枪械。"}
+	var mods: Dictionary = gun.get("gun_mods", {})
+	if not mods.has(slot):
+		return {"ok": false, "text": "这个槽位没有配件。"}
+	var mid := String(mods[slot].get("def_id", ""))
+	var it := make_item(mid, 100, true, false)
+	it["known"] = true
+	if not add_item(it):
+		return {"ok": false, "text": "背包空间不足，无法卸下。"}
+	mods.erase(slot)
+	gun["gun_mods"] = mods
+	emit_signal("state_changed")
+	return {"ok": true, "text": "已卸下 %s。" % item_display_name(it)}
+
+func gun_mod_gun_list() -> Array:
+	var out: Array = []
+	for it in _iter_inventory_items():
+		if not gun_def_stats(String(it.get("def_id", ""))).is_empty():
+			out.append({"id": str(int(it.get("uid", -1))), "label": item_display_name(it)})
+	return out
+
+func gun_owned_mods_for(gun_item: Dictionary, slot: String) -> Array:
+	var out: Array = []
+	for it in _iter_inventory_items():
+		var mid := String(it.get("def_id", ""))
+		var md := gun_mod_def(mid)
+		if md.is_empty() or String(md.get("slot", "")) != slot:
+			continue
+		if not gun_mod_allowed(md, String(gun_item.get("def_id", ""))):
+			continue
+		out.append({"id": str(int(it.get("uid", -1))), "label": item_display_name(it)})
+	return out
 
 func _gun_tier_for_faction(faction: String) -> int:
 	return int(gun_order_defs.get("faction_tier", {}).get(faction, 1))
@@ -7352,7 +7490,7 @@ func gun_order_eval(it: Dictionary) -> Dictionary:
 	if gun_order.is_empty():
 		return {"ok": false, "met": false, "reward": 0, "text": "没有订单。"}
 	var did := str(it.get("def_id", ""))
-	var stats := gun_def_stats(did, str(it.get("condition", "")))
+	var stats := gun_item_stats(it)
 	if stats.is_empty():
 		return {"ok": false, "met": false, "reward": 0, "text": "这不是枪。"}
 	var require: Dictionary = gun_order.get("require", {})
@@ -7403,7 +7541,7 @@ func deliver_gun_order(uid: int) -> Dictionary:
 	var tier := int(current_customer.get("tier", 1))
 	current_customer["gun_value"] = effective_value(it)
 	var ammo_id := ""
-	var caliber := int(gun_def_stats(String(it.get("def_id", "")), str(it.get("condition", ""))).get("caliber", 0))
+	var caliber := int(gun_item_stats(it).get("caliber", 0))
 	if rng.randi_range(1, 100) <= 50 + 5 * bonuses_met:
 		if caliber == 22:
 			ammo_id = "small_pistol_ammo"
@@ -7725,9 +7863,10 @@ func _combat_armor_absorb(u: Dictionary, damage: int) -> int:
 			if value <= 0:
 				break
 			if rng.randi_range(1, 100) <= int(a.get("efficiency", 0)):
-				value -= 1
 				absorbed += 1
 				remaining -= 1
+				if int(a.get("mitigation", 0)) <= 0 or rng.randi_range(1, 100) > int(a.get("mitigation", 0)):
+					value -= 1
 	if value <= 0 and int(a.get("resilience", 0)) > 0:
 		var res_absorb := mini(remaining, int(a.get("resilience", 0)))
 		absorbed += res_absorb
@@ -7852,10 +7991,16 @@ func start_combat(enemy_id: String, faction: String = "lower", wanted_id: String
 	combat_player_weapon = String(pw.get("ability", "fists"))
 	combat_player_weapon_uid = int(pw.get("uid", -1))
 	combat_player_items = _combat_item_abilities()
+	var gun_item := find_item(combat_player_weapon_uid)
+	combat_gun_stats = gun_item_stats(gun_item) if not gun_item.is_empty() else {}
+	combat_is_gun = not combat_gun_stats.is_empty()
+	combat_mag_size = int(combat_gun_stats.get("mag_size", 0))
+	combat_mag_rounds = combat_mag_size
+	combat_ammo_id = gun_ammo_for_caliber(int(combat_gun_stats.get("caliber", 0)))
 	var php := maxi(20, player_max_hp - wounds * 2)
 	var player := {
 		"uid": 0, "team": 0, "name": "你", "hp": php, "max_hp": php,
-		"accuracy": player_accuracy + survival_accuracy_mod() + combat_buff_accuracy, "reaction": player_reaction, "priority": 5, "dodge": 0, "crit": 10,
+		"accuracy": player_accuracy + survival_accuracy_mod() + combat_buff_accuracy + int(combat_gun_stats.get("accuracy", 0)) / 10, "reaction": player_reaction, "priority": 5, "dodge": 0, "crit": 10,
 		"crit_receive": 0, "death_chance": 40, "weapon": combat_player_weapon,
 		"abilities": [], "effects": [], "dead": false, "is_player": true,
 		"max_action": 1, "action": 1, "loot": [],
@@ -8042,6 +8187,8 @@ func _combat_resolve_effect(caster: Dictionary, target: Dictionary, eff: Diction
 	match etype:
 		"attack":
 			var dmg := rng.randi_range(int(eff.get("min", 1)), int(eff.get("max", 1)))
+			if bool(caster.get("is_player", false)) and combat_is_gun:
+				dmg += int(combat_gun_stats.get("firepower", 0)) / 20
 			if crit:
 				dmg *= 2
 				combat_log.append("暴击！")
@@ -8376,6 +8523,8 @@ func combat_player_skills() -> Array:
 		out.append({"id": aid, "name": String(a.get("name", aid)), "item_uid": item_uid})
 	out.append({"id": "brace_ability", "name": "防御", "item_uid": -1})
 	out.append({"id": "overwatch", "name": "警戒", "item_uid": -1})
+	if combat_is_gun and combat_mag_rounds < combat_mag_size:
+		out.append({"id": "reload", "name": "换弹（%d/%d）" % [combat_mag_rounds, combat_mag_size], "item_uid": -1})
 	return out
 
 func combat_select_target(uid: int) -> void:
@@ -8386,6 +8535,11 @@ func combat_player_action(ability_id: String, target_uid: int = -1, item_uid: in
 	if not combat_active or combat_ended or combat_current_uid != combat_player_uid:
 		return {"ok": false, "text": "还没轮到你。"}
 	var pl := _combat_unit_by_uid(combat_player_uid)
+	if ability_id == "reload":
+		return _combat_reload_action(pl)
+	if combat_is_gun and ability_id == combat_player_weapon:
+		if not combat_spend_round():
+			return {"ok": false, "text": "弹匣空了，先换弹。"}
 	var use_target := target_uid
 	if use_target < 0:
 		use_target = combat_target_uid
@@ -8401,6 +8555,36 @@ func combat_player_action(ability_id: String, target_uid: int = -1, item_uid: in
 	combat_turn_pos += 1
 	_combat_advance()
 	return {"ok": true, "text": label}
+
+func combat_spend_round() -> bool:
+	if not combat_is_gun:
+		return true
+	if combat_mag_rounds <= 0:
+		return false
+	combat_mag_rounds -= 1
+	return true
+
+func combat_reload() -> Dictionary:
+	if not combat_is_gun:
+		return {"ok": false, "text": "当前武器不需要换弹。"}
+	if combat_mag_rounds >= combat_mag_size:
+		return {"ok": false, "text": "弹匣是满的。"}
+	if combat_ammo_id == "" or inventory_count(combat_ammo_id) <= 0:
+		return {"ok": false, "text": "没有可用的弹药。"}
+	remove_inventory(combat_ammo_id, 1)
+	combat_mag_rounds = combat_mag_size
+	combat_log.append("你换上新的弹匣（%d/%d）。" % [combat_mag_rounds, combat_mag_size])
+	return {"ok": true, "text": "换弹完成。"}
+
+func _combat_reload_action(pl: Dictionary) -> Dictionary:
+	var res := combat_reload()
+	if not bool(res.get("ok", false)):
+		return res
+	_combat_end_turn(pl)
+	if not _combat_check_end():
+		combat_turn_pos += 1
+		_combat_advance()
+	return res
 
 func combat_action(action: String) -> Dictionary:
 	match action:
