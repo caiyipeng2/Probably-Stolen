@@ -2606,6 +2606,47 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 	wild_favor_credit = int(diff_rule("network_intro_favor", 0))
 	start_day()
 
+func day_summary_sections(s: Dictionary) -> Dictionary:
+	var day_no := int(s.get("day", day))
+	var rep_lines: Array = []
+	var fnames := {"lower": "下层", "upper": "上层", "security": "治安", "blackmarket": "黑市", "rev": "革命", "tourist": "游客", "church": "教会", "cartel": "卡特尔"}
+	for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
+		rep_lines.append("%s %+d" % [String(fnames.get(f, f)), int(rep.get(f, 0))])
+	var overview := "第 %d 天结算\n\n现金：%d₵\n净资产：%d₵\n今日销售：%d₵\n今日进货：%d₵\n接待顾客：%d\n下次房租：%d 天后（%d₵）\n下次贷款：%d 天后" % [
+		day_no, int(s.get("cash", cash)), net_worth(), int(s.get("sales", 0)), int(s.get("purchases", 0)),
+		int(run_stats.get("customers_served", 0)), int(s.get("rent_due", rent_due)), int(s.get("rent", rent)), int(s.get("loan_due", loan_due))]
+	var go := String(s.get("gameover", ""))
+	if go != "":
+		var e := ending_def(go)
+		overview += "\n\n【%s】\n%s" % [String(e.get("title", "结局")), String(e.get("text", "店铺被收走了。"))]
+	var credits := "收入\n\n营业收入：+%d₵\n售出物品：%d 件\n最佳单日：第 %d 天 · %d₵\n采购订单：%d 单\n当前委托：%d 条\n累计拾荒价值：%d₵" % [
+		int(s.get("sales", 0)), int(daily.get("sold", 0)), int(run_stats.get("best_day", 0)), int(run_stats.get("best_day_sales", 0)),
+		procurement_orders.size(), commissions.size(), int(run_stats.get("scavenged_value", 0))]
+	var expenses := "支出\n\n本周进货累计：%d₵\n房租：-%d₵\n其他费用：-%d₵\n保险累计：-%d₵\n电力/维修累计：-%d₵\n贿赂累计：-%d₵\n失窃损失：-%d₵" % [
+		int(run_stats.get("stock_spent", 0)), int(s.get("rent_paid", 0)), int(s.get("fees", 0)),
+		int(run_stats.get("insurance_spent", 0)), int(run_stats.get("power_spent", 0)),
+		int(run_stats.get("bribes", 0)), int(run_stats.get("burglary_losses", 0))]
+	var prop := "未购买"
+	if property_owned:
+		prop = "已买断"
+	elif is_paying_mortgage:
+		prop = "按揭中（剩 %d 周）" % mortgage_week_left
+	var ops: Array = []
+	for op in active_operations:
+		ops.append(operation_label(op))
+	var station := "店铺\n\n吸引力：%d\n已购升级：%d 项\n产权：%s\n派系声望：%s\n派系行动：%s" % [
+		store_attractiveness(), owned_upgrades.size(), prop, "、".join(rep_lines), "、".join(ops) if not ops.is_empty() else "无"]
+	var logs: Array = []
+	for i in range(maxi(0, night_log.size() - 8), night_log.size()):
+		logs.append(String(night_log[i]))
+	var nights := "夜间\n\n今日夜间事件：%s\n失窃：%d 次 / %d₵\n拾荒：%d 次 / %d₵\n夜间日志：\n%s" % [
+		String(afterhour_mods.get("name", "无")), int(run_stats.get("burglaries", 0)), int(run_stats.get("burglary_losses", 0)),
+		int(run_stats.get("scavenge_attempts", 0)), int(run_stats.get("scavenged_value", 0)), "、".join(logs) if not logs.is_empty() else "无"]
+	var security := "治安\n\n案件总额：%d₵\n当前证据：%d/100\n盘查：%d 次（通过 %d）\n没收物品：%d 件\n举报罪犯：%d\n通缉击破：%d\n治安声望：%+d" % [
+		sec_total_crime(), sec_evidence, int(run_stats.get("inspections", 0)), int(run_stats.get("inspections_passed", 0)),
+		int(run_stats.get("goods_seized", 0)), int(run_stats.get("criminals_reported", 0)), wanted_defeated.size(), int(rep.get("security", 0))]
+	return {"overview": overview, "credits": credits, "expenses": expenses, "station": station, "nights": nights, "security": security}
+
 func _stolen_heat_for_value(value: int) -> int:
 	var heat := 0
 	for row in security_defs.get("stolen_heat", []):

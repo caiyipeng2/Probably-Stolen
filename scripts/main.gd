@@ -69,6 +69,8 @@ var modal_panel: Panel
 var modal_title: Label
 var modal_text: Label
 var modal_actions: HBoxContainer
+var summary_tabs: HBoxContainer
+var summary_tab := "overview"
 var modal_close_btn: Button
 var machine_layer: Control
 var machine_list_box: VBoxContainer
@@ -1351,6 +1353,18 @@ func _build_modal() -> void:
 	modal_actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	modal_actions.add_theme_constant_override("separation", 16)
 	modal_panel.add_child(modal_actions)
+	summary_tabs = HBoxContainer.new()
+	summary_tabs.position = Vector2(30, 440)
+	summary_tabs.size = Vector2(1140, 48)
+	summary_tabs.alignment = BoxContainer.ALIGNMENT_CENTER
+	summary_tabs.add_theme_constant_override("separation", 8)
+	summary_tabs.visible = false
+	modal_panel.add_child(summary_tabs)
+	for pair in [["总览", "overview"], ["收入", "credits"], ["支出", "expenses"], ["店铺", "station"], ["夜间", "nights"], ["治安", "security"]]:
+		var tb := _button(summary_tabs, String(pair[0]), Vector2.ZERO, Vector2(170, 44), C_TEXT, _summary_tab_pick.bind(String(pair[1])))
+		tb.custom_minimum_size = Vector2(170, 44)
+		tb.add_theme_font_size_override("font_size", 20)
+		tb.set_meta("tab", String(pair[1]))
 	receipt_stamp = _label(modal_panel, "治安部
 查抄专用章", Vector2(880, 540), Vector2(260, 120), 30, Color("#a23a2e"), HORIZONTAL_ALIGNMENT_CENTER)
 	receipt_stamp.rotation = -0.18
@@ -3951,6 +3965,7 @@ func _on_day_finished(summary: Dictionary) -> void:
 	_show_day_summary(summary)
 
 func _show_day_summary(s: Dictionary) -> void:
+	last_summary = s
 	var text := "第 %d 天结算\n\n营业收入：+%d¥\n进货支出：-%d¥\n鉴定费用：-%d¥\n" % [int(s.get("day", 1)), int(s.get("sales", 0)), int(s.get("purchases", 0)), int(s.get("fees", 0))]
 	if int(s.get("rent_paid", 0)) > 0:
 		text += "房租支出：-%d¥\n" % int(s["rent_paid"])
@@ -3972,7 +3987,17 @@ func _show_day_summary(s: Dictionary) -> void:
 		if not GameState.starting_perk_active("perk_unsubscribed"):
 			actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
 		actions.append({"label": "下一天", "cb": _next_day, "color": C_AMBER})
-	_show_modal("营业结算", text, actions)
+	_show_modal("营业结算", "", actions)
+	summary_tabs.visible = true
+	_summary_tab_pick("overview")
+
+func _summary_tab_pick(tab: String) -> void:
+	summary_tab = tab
+	var sections: Dictionary = GameState.day_summary_sections(last_summary)
+	modal_text.text = String(sections.get(tab, ""))
+	for b in summary_tabs.get_children():
+		if b is Button:
+			b.modulate = Color(1.25, 1.12, 0.72) if String(b.get_meta("tab", "")) == tab else Color.WHITE
 
 func _return_to_day_summary() -> void:
 	if last_summary.is_empty():
@@ -5906,6 +5931,8 @@ func _toast(text: String) -> void:
 func _show_modal(title: String, text: String, actions: Array) -> void:
 	if receipt_stamp:
 		receipt_stamp.visible = false
+	if summary_tabs:
+		summary_tabs.visible = false
 	modal_panel.add_theme_stylebox_override("panel", _tex_style("window_frame.png", 8, C_PANEL, C_CYAN, 3))
 	modal_title.add_theme_color_override("font_color", C_AMBER)
 	modal_text.add_theme_color_override("font_color", C_TEXT)
