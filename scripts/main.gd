@@ -259,6 +259,10 @@ var input_title: Label
 var input_field: LineEdit
 var input_cb: Callable
 var queue_portrait_rects: Array = []
+var poster_layer: Control
+var poster_image: TextureRect
+var poster_status: Label
+var receipt_stamp: Label
 
 func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
@@ -286,6 +290,7 @@ func _ready() -> void:
 	_refresh()
 	_build_newgame_layer()
 	_build_input_layer()
+	_build_poster_layer()
 	_show_new_game_menu()
 	_capture_if_requested()
 	_autotest_if_requested()
@@ -303,6 +308,7 @@ func _ready() -> void:
 	_testp0ui_if_requested()
 	_testp1ui_if_requested()
 	_testspaceui_if_requested()
+	_testp2ui_if_requested()
 
 func _dumpinspect_if_requested() -> void:
 	if not "--dumpinspect" in OS.get_cmdline_args():
@@ -900,6 +906,19 @@ func _audio_path(name: String) -> String:
 		return private_path
 	return public_path if ResourceLoader.exists(public_path) else ""
 
+func _play_named_sfx(file_name: String) -> void:
+	if not audio_enabled or sfx_players.is_empty():
+		return
+	var path := _audio_path(file_name)
+	if path == "":
+		return
+	if not sfx_cache.has(path):
+		sfx_cache[path] = load(path)
+	var p: AudioStreamPlayer = sfx_players[sfx_next % sfx_players.size()]
+	sfx_next += 1
+	p.stream = sfx_cache[path]
+	p.play()
+
 func _play_sfx(key: String) -> void:
 	if not audio_enabled or sfx_players.is_empty():
 		return
@@ -1282,6 +1301,10 @@ func _build_modal() -> void:
 	modal_actions.alignment = BoxContainer.ALIGNMENT_CENTER
 	modal_actions.add_theme_constant_override("separation", 16)
 	modal_panel.add_child(modal_actions)
+	receipt_stamp = _label(modal_panel, "治安部
+查抄专用章", Vector2(880, 540), Vector2(260, 120), 30, Color("#a23a2e"), HORIZONTAL_ALIGNMENT_CENTER)
+	receipt_stamp.rotation = -0.18
+	receipt_stamp.visible = false
 	modal_close_btn = _button(modal_panel, "关闭", Vector2(1080, 16), Vector2(90, 44), C_MUTED, _close_modal)
 
 func _build_inspection_layer() -> void:
@@ -2684,6 +2707,13 @@ func _build_story_layer() -> void:
 	story_layer.add_child(dim)
 	var panel := _panel(story_layer, Vector2(230, 120), Vector2(1880, 840), C_PANEL, C_CYAN, 3)
 	_label(panel, "剧情 · STORY", Vector2(30, 18), Vector2(600, 48), 34, C_AMBER)
+	for ly in [0, 1010]:
+		var bar := ColorRect.new()
+		bar.position = Vector2(0, ly)
+		bar.size = Vector2(2340, 70)
+		bar.color = Color.BLACK
+		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
+		story_layer.add_child(bar)
 	story_portrait = _texture_rect(panel, Vector2(30, 150), Vector2(460, 540), "")
 	story_name = _label(panel, "", Vector2(530, 24), Vector2(1200, 42), 30, C_AMBER)
 	story_text = _label(panel, "", Vector2(530, 80), Vector2(1300, 370), 28, C_TEXT)
@@ -3301,10 +3331,46 @@ func _on_page_pressed(page: int) -> void:
 		return
 	_on_page(page)
 
+func _build_poster_layer() -> void:
+	poster_layer = Control.new()
+	poster_layer.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	poster_layer.z_index = 150
+	poster_layer.visible = false
+	poster_layer.mouse_filter = Control.MOUSE_FILTER_STOP
+	add_child(poster_layer)
+	var dim := ColorRect.new()
+	dim.color = Color(0, 0, 0, 0.85)
+	dim.set_anchors_and_offsets_preset(Control.PRESET_FULL_RECT)
+	poster_layer.add_child(dim)
+	var panel := _panel(poster_layer, Vector2(620, 160), Vector2(1100, 760), C_PANEL, C_RUST, 3)
+	_label(panel, "海报 · POSTER", Vector2(30, 18), Vector2(600, 46), 34, C_AMBER)
+	_button(panel, "关闭", Vector2(940, 14), Vector2(120, 48), C_MUTED, _close_poster)
+	poster_image = _texture_rect(panel, Vector2(230, 100), Vector2(640, 360), "")
+	poster_status = _label(panel, "", Vector2(30, 500), Vector2(1040, 80), 24, C_TEXT)
+	_button(panel, "拉下/拉起", Vector2(360, 620), Vector2(220, 64), C_RUST, _poster_apply)
+	_button(panel, "关闭", Vector2(600, 620), Vector2(140, 64), C_MUTED, _close_poster)
+
 func _toggle_poster_ui() -> void:
-	var pulled := GameState.toggle_poster()
-	_toast("海报已拉下，隐藏格开放。" if pulled else "海报已拉起，隐藏格封闭。")
+	poster_layer.visible = true
+	move_child(poster_layer, get_child_count() - 1)
+	_refresh_poster_preview()
+
+func _refresh_poster_preview() -> void:
+	var pulled := GameState.poster_pulled
+	var path := "res://assets_private/posters/" + ("poster_down.png" if pulled else "poster.png")
+	if ResourceLoader.exists(path):
+		poster_image.texture = load(path)
+	poster_status.text = "当前：%s
+%s" % ["已拉下（隐藏格开放）" if pulled else "已拉起（隐藏格封闭）", "拉下海报会露出墙后的隐藏格；再次拉起可以遮住它。"]
+
+func _poster_apply() -> void:
+	GameState.toggle_poster()
+	_play_sfx("page")
+	_refresh_poster_preview()
 	_refresh()
+
+func _close_poster() -> void:
+	poster_layer.visible = false
 
 func _on_page(page: int) -> void:
 	current_page = clampi(page, 0, GameState.pages_unlocked - 1)
@@ -3538,6 +3604,7 @@ func _start_customer_idle() -> void:
 	customer_idle_tween.tween_property(customer_rect, "position:y", 5.0, 1.2).set_trans(Tween.TRANS_SINE)
 
 func _on_customer_changed() -> void:
+	_play_named_sfx("new_bell.ogg")
 	_start_customer_idle()
 	selected_uid = int(GameState.counter_item["uid"]) if not GameState.counter_item.is_empty() else -1
 	var intent := String(GameState.current_customer.get("intent", "")) if not GameState.current_customer.is_empty() else ""
@@ -5004,6 +5071,7 @@ func _facility_fill_select() -> void:
 	_open_select("水龙头：选择容器", items, _facility_fill_uid)
 
 func _facility_fill_uid(id: String) -> void:
+	_play_named_sfx("pour_water.ogg")
 	var res := GameState.fill_liquid_from_faucet(int(id))
 	_open_facilities()
 	_toast(String(res.get("text", "")))
@@ -5020,6 +5088,7 @@ func _facility_drain_select() -> void:
 	_open_select("排水槽：选择容器", items, _facility_drain_uid)
 
 func _facility_drain_uid(id: String) -> void:
+	_play_named_sfx("pour_water.ogg")
 	var res := GameState.drain_liquid_container(int(id))
 	_open_facilities()
 	_toast(String(res.get("text", "")))
@@ -5436,6 +5505,8 @@ func _toast(text: String) -> void:
 	_show_modal("提示", text, [{"label": "知道了", "cb": _close_modal}])
 
 func _show_modal(title: String, text: String, actions: Array) -> void:
+	if receipt_stamp:
+		receipt_stamp.visible = false
 	modal_panel.add_theme_stylebox_override("panel", _tex_style("window_frame.png", 8, C_PANEL, C_CYAN, 3))
 	modal_title.add_theme_color_override("font_color", C_AMBER)
 	modal_text.add_theme_color_override("font_color", C_TEXT)
@@ -5462,8 +5533,10 @@ func _show_receipt(title: String, text: String) -> void:
 	var body := "— — — — — — — — — —
 " + text + "
 — — — — — — — — — —
-盖章：治安部查抄专用章"
+收费项目已登记在案"
 	_show_modal(title, body, [{"label": "收起", "cb": _close_modal}])
+	if receipt_stamp:
+		receipt_stamp.visible = true
 	modal_panel.add_theme_stylebox_override("panel", _tex_style("inspection_receipt.png", 14, Color("#efe6cf"), Color("#8a7a5a"), 3))
 	modal_title.add_theme_color_override("font_color", Color("#4a3423"))
 	modal_text.add_theme_color_override("font_color", Color("#2b241b"))
@@ -5481,6 +5554,29 @@ func _show_news(title: String, text: String, actions: Array) -> void:
 			b.add_theme_color_override("font_color", Color("#2b2a24"))
 			b.add_theme_color_override("font_hover_color", Color("#4a3423"))
 			b.add_theme_color_override("font_pressed_color", Color("#4a3423"))
+
+func _testp2ui_if_requested() -> void:
+	if not "--testp2ui" in OS.get_cmdline_args():
+		return
+	await get_tree().create_timer(0.6).timeout
+	_welcome_done()
+	await get_tree().create_timer(0.2).timeout
+	if modal_layer.visible:
+		_close_modal()
+	_toggle_poster_ui()
+	await get_tree().process_frame
+	print("P2UI poster visible=", poster_layer.visible, " texture=", poster_image.texture != null)
+	_poster_apply()
+	print("P2UI poster pulled=", GameState.poster_pulled)
+	_close_poster()
+	_show_receipt("测试查抄单", "罚款 100₵")
+	await get_tree().process_frame
+	print("P2UI receipt stamp=", receipt_stamp.visible, " text=", modal_title.text)
+	_close_modal()
+	_play_named_sfx("new_bell.ogg")
+	print("P2UI audio bell ok")
+	await get_tree().process_frame
+	get_tree().quit(0)
 
 func _testspaceui_if_requested() -> void:
 	if not "--testspaceui" in OS.get_cmdline_args():
@@ -5508,6 +5604,7 @@ func _testp1ui_if_requested() -> void:
 		_close_modal()
 	_open_facilities()
 	await get_tree().process_frame
+	_play_named_sfx("new_bell.ogg")
 	print("P1UI facilities title=", modal_title.text, " actions=", modal_actions.get_child_count())
 	_close_modal()
 	_open_info_tab("news")
@@ -5836,6 +5933,7 @@ func _open_space() -> void:
 	_show_modal("舰船 · LEGACY SPACE LAYER", GameState.space_state_text(), actions)
 
 func _space_scan_ui() -> void:
+	_play_named_sfx("ping_sonar.ogg")
 	var pois := GameState.space_scan()
 	var items: Array = []
 	for poi in pois:
@@ -5854,6 +5952,7 @@ func _space_travel_ui(id: String) -> void:
 			break
 	if poi.is_empty():
 		return
+	_play_named_sfx("notif_nav_ready.ogg")
 	var res := GameState.space_travel(poi)
 	if not bool(res.get("ok", false)):
 		_open_space()

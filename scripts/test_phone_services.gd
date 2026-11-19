@@ -13,7 +13,7 @@ func _init() -> void:
 	gs.new_game()
 	gs.rng.seed = 20261117
 	# commissary initial stock and redeem
-	check(gs.commissary_defs.size() == 7, "commissary items")
+	check(gs.commissary_defs.size() == 8, "commissary items")
 	check(int(gs.commissary_stock.get("nutrifruit", 0)) == 8, "commissary initial stock", str(gs.commissary_stock.get("nutrifruit", 0)))
 	gs.add_item(gs.make_item("food_stamp", 100, true, false))
 	gs.add_item(gs.make_item("food_stamp", 100, true, false))

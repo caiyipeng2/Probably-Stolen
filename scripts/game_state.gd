@@ -4804,6 +4804,33 @@ func finish_day() -> Dictionary:
 	emit_signal("state_changed")
 	return summary
 
+func _night_rats() -> void:
+	var food: Array = []
+	for it in inventory:
+		var cat := String(get_item_def(String(it.get("def_id", ""))).get("category", ""))
+		if cat in ["food", "animal"]:
+			food.append(it)
+	for it in display:
+		var cat2 := String(get_item_def(String(it.get("def_id", ""))).get("category", ""))
+		if cat2 in ["food", "animal"]:
+			food.append(it)
+	if food.is_empty() or rng.randi_range(1, 100) > 12:
+		return
+	if inventory_count("mouse_trap") > 0 and rng.randi_range(1, 100) <= 70:
+		remove_inventory("mouse_trap", 1)
+		_add_night_log("老鼠触发了捕鼠器，店里安静下来。")
+		return
+	var stolen: Dictionary = food[rng.randi_range(0, food.size() - 1)]
+	var sname := item_display_name(stolen)
+	if String(stolen.get("location", "")) == "display":
+		for i in range(display.size()):
+			if int(display[i].get("uid", -1)) == int(stolen.get("uid", -2)):
+				display.remove_at(i)
+				break
+	else:
+		remove_inventory(String(stolen.get("def_id", "")), 1)
+	_add_night_log("老鼠啃坏了 %s，只能扔掉。" % sname)
+
 func _night_burglary() -> void:
 	if display.is_empty():
 		return
@@ -4840,6 +4867,7 @@ func advance_day() -> void:
 			hireling["status"] = "available"
 	advance_machines_one_cycle()
 	_night_burglary()
+	_night_rats()
 	nightly_survival()
 	run_stats["days_played"] = int(run_stats.get("days_played", day)) + 1
 	run_stats["net_worth_by_day"][str(day + 1)] = net_worth()
