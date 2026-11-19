@@ -1135,6 +1135,7 @@ func _build_ui() -> void:
 	var shop_poster_path := "res://assets_private/posters/" + ("poster_down_crop.png" if GameState.poster_pulled else "poster_crop.png")
 	if ResourceLoader.exists(shop_poster_path):
 		shop_poster.texture = load(shop_poster_path)
+	shop_poster.z_index = 2
 	walker_layer = Control.new()
 	walker_layer.position = Vector2.ZERO
 	walker_layer.size = Vector2(1920, 1080)
