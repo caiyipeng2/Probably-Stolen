@@ -259,6 +259,15 @@ var cartel_exit_available := false
 var cartel_exit_uses := 0
 var cartel_exited := false
 var blackmail_next_day := 1
+var afterhours_visits_left := 0
+var afterhours_went_out := false
+var went_out_last_night := false
+var last_afterhour_outing_day := -1
+var scav_attempts_used := 0
+var afterhours_location := ""
+var jackson_stock: Array = []
+var satchel_found := false
+var kids_backpack_found := false
 signal music_toggled(on: bool)
 
 var difficulty := "normal"
@@ -2426,6 +2435,15 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 	cartel_exit_uses = 0
 	cartel_exited = false
 	blackmail_next_day = 1
+	afterhours_visits_left = 0
+	afterhours_went_out = false
+	went_out_last_night = false
+	last_afterhour_outing_day = -1
+	scav_attempts_used = 0
+	afterhours_location = ""
+	jackson_stock = []
+	satchel_found = false
+	kids_backpack_found = false
 	player_max_hp = 100
 	player_accuracy = 70
 	player_reaction = 10
@@ -3408,6 +3426,10 @@ func start_day() -> void:
 	bargain_bonus = 0
 	phase = "open"
 	store_water_ml = 20000
+	afterhours_visits_left = 2 if starting_perk_active("perk_speedy") else 1
+	afterhours_went_out = false
+	afterhours_location = ""
+	scav_attempts_used = 0
 	current_index = -1
 	current_customer = {}
 	counter_item = {}
@@ -3512,7 +3534,7 @@ func start_day() -> void:
 	if aug_introduced and day >= aug_next_spawn_day and regular_count > 0:
 		customers_today[regular_start + rng.randi_range(0, regular_count - 1)] = _gen_aug_customer()
 		aug_next_spawn_day = day + rng.randi_range(6, 7)
-	if rng.randi_range(1, 100) <= 8:
+	if rng.randi_range(1, 100) <= 8 and not starting_perk_active("perk_known_snitch"):
 		var candidates: Array = []
 		for w in wanted:
 			if not wanted_defeated.has(String(w.get("id", ""))):
@@ -3532,6 +3554,7 @@ func start_day() -> void:
 		else:
 			appraisal_days_missed += 1
 	_append_rep_perk_customers(customers_today)
+	went_out_last_night = false
 	if appraisal_promotion_day >= 0 and day >= appraisal_promotion_day:
 		pending_promotion = true
 	_queue_story_for_day()
@@ -5285,6 +5308,7 @@ func _night_burglary() -> void:
 func advance_day() -> void:
 	if phase == "gameover":
 		return
+	went_out_last_night = afterhours_went_out
 	_resolve_hireling_expedition()
 	if not hireling.is_empty() and String(hireling.get("status", "")) == "injured":
 		hireling["health"] = mini(int(hireling.get("max_health", 100)), int(hireling.get("health", 0)) + 10)
@@ -5441,6 +5465,11 @@ func starting_perks_valid(ids: Array) -> Dictionary:
 			return {"ok": false, "text": "这个天赋最多选 %d 次。" % maxi(1, int(m.get("max_slot", 1)))}
 	return {"ok": true, "text": "可以开始。"}
 
+func add_rep_raw(faction: String, amount: int) -> void:
+	if not rep.has(faction):
+		rep[faction] = 0
+	rep[faction] = clampi(int(rep[faction]) + amount, -100, 100)
+
 func apply_starting_perks(ids: Array) -> Dictionary:
 	if starting_perk_chosen:
 		return {"ok": false, "text": "本局已经选择过天赋。"}
@@ -5476,25 +5505,23 @@ func _apply_starting_perk_effect(pid: String) -> void:
 		"perk_bad_lease": rent += 40
 		"perk_well_connected":
 			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
-				add_rep(f, 15)
+				add_rep_raw(f, 15)
 		"perk_public_enemy":
 			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
-				add_rep(f, -15)
-		"perk_model_citizen": add_rep("security", 30)
+				add_rep_raw(f, -15)
+		"perk_model_citizen": add_rep_raw("security", 30)
 		"perk_convict":
-			add_rep("security", -30)
-			add_rep("blackmarket", 25)
+			add_rep_raw("security", -30)
 		"perk_sycophant":
-			add_rep("upper", 15)
+			add_rep_raw("upper", 15)
 			perk_flags["rep_gain"] = true
 		"perk_known_snitch":
-			add_rep("security", -10)
-			add_rep("blackmarket", -10)
-			add_rep("rev", -10)
-		"perk_revolution_sympathizer": add_rep("rev", 25)
+			add_rep_raw("blackmarket", -10)
+			add_rep_raw("rev", -10)
+		"perk_revolution_sympathizer": add_rep_raw("rev", 25)
 		"perk_colorful_character":
 			for f in ["lower", "upper", "security", "blackmarket", "rev", "tourist", "church", "cartel"]:
-				add_rep(f, 3)
+				add_rep_raw(f, 3)
 		"perk_tapehead":
 			add_item(make_item("radio_on", 100, true, false))
 			add_item(make_item("cassette_player", 100, true, false))
@@ -5555,9 +5582,14 @@ func _apply_starting_perk_effect(pid: String) -> void:
 		"perk_awful_negotiator": perk_flags["awful_negotiator"] = true
 		"perk_tinkerer": perk_flags["tinkerer"] = true
 		"perk_illiterate": perk_flags["illiterate"] = true
-		"perk_maimed", "perk_degenerative_osteoarthritis":
-			perk_flags[pid] = true
+		"perk_maimed":
+			perk_flags["perk_maimed"] = true
 			wounds = mini(10, wounds + 2)
+		"perk_degenerative_osteoarthritis":
+			perk_flags["perk_degenerative_osteoarthritis"] = true
+			wounds = mini(10, wounds + 2)
+			for i in range(2):
+				add_item(make_item("topical_bandage_item", 100, true, false))
 		"perk_proficient_scavenger", "perk_careful_scavenger":
 			perk_flags[pid] = true
 		"perk_wild_favorite":
@@ -5994,6 +6026,200 @@ func exit_cartel() -> Dictionary:
 	_add_night_log("你与卡特尔和平分手，金盆洗手。")
 	emit_signal("state_changed")
 	return {"ok": true, "text": "你与卡特尔断绝了关系（卡特尔声望 -25）。"}
+
+func afterhours_block_reason() -> String:
+	if phase != "endday":
+		return "只能在结束营业后外出。"
+	if afterhours_visits_left <= 0:
+		return "今晚已经没有外出的机会。"
+	if wounds >= 7:
+		return "伤势严重，无法外出。"
+	if starting_perk_active("perk_agoraphobia") and last_afterhour_outing_day >= 0:
+		var ready := last_afterhour_outing_day + 3
+		if day < ready:
+			return "广场恐惧症：还需要休息 %d 晚。" % (ready - day)
+	return ""
+
+func afterhours_locations() -> Array:
+	var out: Array = []
+	if not starting_perk_active("perk_maimed"):
+		out.append({"id": "dumping_ground", "name": "垃圾倾倒场"})
+	if not commissary_banned():
+		out.append({"id": "commissary", "name": "补给站"})
+	if not rep_perk_unlocked("LLAVOIDED"):
+		out.append({"id": "dr_jackson", "name": "杰克逊医生"})
+	return out
+
+func afterhours_travel(loc_id: String) -> Dictionary:
+	var reason := afterhours_block_reason()
+	if reason != "":
+		return {"ok": false, "text": reason}
+	var known := false
+	for loc in afterhours_locations():
+		if String(loc.get("id", "")) == loc_id:
+			known = true
+			break
+	if not known:
+		return {"ok": false, "text": "今晚去不了那里。"}
+	afterhours_visits_left -= 1
+	afterhours_went_out = true
+	last_afterhour_outing_day = day
+	afterhours_location = loc_id
+	scav_attempts_used = 0
+	if loc_id == "dr_jackson":
+		_refresh_jackson_stock()
+	var names := {"dumping_ground": "垃圾倾倒场", "commissary": "补给站", "dr_jackson": "杰克逊医生"}
+	_add_night_log("夜间外出：%s。" % String(names.get(loc_id, loc_id)))
+	emit_signal("state_changed")
+	return {"ok": true, "location": loc_id, "text": "你摸黑来到%s。" % String(names.get(loc_id, loc_id))}
+
+func afterhours_return() -> Dictionary:
+	afterhours_location = ""
+	emit_signal("state_changed")
+	return {"ok": true, "text": "你回到店铺。"}
+
+func scav_attempts_max() -> int:
+	if starting_perk_active("perk_maimed"):
+		return 0
+	var n := 5
+	if starting_perk_active("perk_proficient_scavenger"):
+		n += 2
+	if starting_perk_active("perk_careful_scavenger"):
+		n -= 2
+	if starting_perk_active("perk_degenerative_osteoarthritis"):
+		n -= int((day - 1) / 7)
+		if n < 3:
+			return 0
+	n += int(afterhour_mods.get("scav_attempts", 0))
+	return maxi(0, n)
+
+func scav_attempts_left() -> int:
+	return maxi(0, scav_attempts_max() - scav_attempts_used)
+
+func scav_minor_chance() -> float:
+	if starting_perk_active("perk_careful_scavenger"):
+		return 0.0
+	if int(afterhour_mods.get("injury_immunity", 0)) > 0:
+		return 0.0
+	var chance := 5.0 + float(scav_attempts_used)
+	if inventory_count("flashlight") > 0:
+		chance /= 2.0
+	return chance * (1.0 + float(afterhour_mods.get("injury_chance", 0)) / 100.0)
+
+func scav_major_chance() -> float:
+	if starting_perk_active("perk_careful_scavenger"):
+		return 0.0
+	if int(afterhour_mods.get("injury_immunity", 0)) > 0:
+		return 0.0
+	var chance := 1.0 + float(scav_attempts_used) * 0.25
+	if inventory_count("flashlight") > 0:
+		chance /= 2.0
+	return chance * (1.0 + float(afterhour_mods.get("injury_chance", 0)) / 100.0)
+
+func _roll_scav_item() -> String:
+	var table: Array = [
+		["scrap_metal", 55.0], ["printer_plastic", 20.0], ["common_ore", 15.0],
+		["common_electronic", 8.0], ["nuts_metal", 5.0], ["wire", 5.0],
+		["metal_ingot", 3.0], ["energy_credit", 3.0], ["turbo_booster_adv", 1.0],
+		["blank_module", 1.0], ["chem_module", 0.5], ["system_capped_neural_core", 0.2],
+	]
+	var roll := rng.randf() * 100.0
+	for row in table:
+		roll -= float(row[1])
+		if roll <= 0.0:
+			return String(row[0])
+	return "scrap_metal"
+
+func _roll_scav_loot() -> Array:
+	var loot: Array = []
+	var it := make_item(_roll_scav_item(), rng.randi_range(45, 100), true, false)
+	loot.append(it)
+	if rng.randi_range(1, 100) <= 3 and not satchel_found and inventory_count("satchel") == 0:
+		var bag := make_item("satchel", 100, true, false)
+		loot.append(bag)
+		satchel_found = true
+	elif rng.randi_range(1, 100) <= 3 and not kids_backpack_found and inventory_count("kids_backpack") == 0:
+		var bag2 := make_item("kids_backpack", 100, true, false)
+		loot.append(bag2)
+		kids_backpack_found = true
+	if rng.randi_range(1, 100) <= 1:
+		loot.append(make_item("mouse_trap", 100, true, false))
+	if inventory_count("screwdriver") > 0 and rng.randi_range(1, 100) <= 10:
+		loot.append(make_item("nuts_metal", 100, true, false))
+	if inventory_count("wire_cutter") > 0 and rng.randi_range(1, 100) <= 10:
+		loot.append(make_item("wire", 100, true, false))
+	if inventory_count("welder") > 0 and rng.randi_range(1, 100) <= 10:
+		loot.append(make_item("scrap_metal", 100, true, false))
+	var double_chance := float(afterhour_mods.get("loot_double_chance", 0))
+	if inventory_count("metal_scanner") > 0:
+		double_chance += 15.0
+	if double_chance > 0.0 and rng.randf() * 100.0 < double_chance:
+		loot.append(make_item(_roll_scav_item(), rng.randi_range(45, 100), true, false))
+	return loot
+
+func scavenge_dumping_ground() -> Dictionary:
+	if afterhours_location != "dumping_ground":
+		return {"ok": false, "text": "你不在垃圾倾倒场。"}
+	if scav_attempts_left() <= 0:
+		return {"ok": false, "text": "今晚已经搜不动了。"}
+	if not wound_stable:
+		return {"ok": false, "text": "伤口还在流血，先处理伤口。"}
+	var minor := scav_minor_chance()
+	var major := scav_major_chance()
+	scav_attempts_used += 1
+	run_stats["scavenge_attempts"] = int(run_stats.get("scavenge_attempts", 0)) + 1
+	var roll := rng.randf() * 100.0
+	if roll < minor:
+		gain_wound(false)
+		_add_night_log("拾荒时被碎屑划伤。")
+		emit_signal("state_changed")
+		return {"ok": true, "wounded": "minor", "text": "碎屑划伤了你，今晚还剩 %d 次搜索。" % scav_attempts_left()}
+	if roll < minor + major:
+		gain_wound(true)
+		_add_night_log("拾荒时被重物砸伤。")
+		emit_signal("state_changed")
+		return {"ok": true, "wounded": "major", "text": "重物砸中了你，伤势严重！今晚还剩 %d 次搜索。" % scav_attempts_left()}
+	var loot := _roll_scav_loot()
+	var names: Array = []
+	var value := 0
+	for it in loot:
+		it["known"] = false
+		add_item(it)
+		names.append(item_display_name(it))
+		value += effective_value(it)
+	run_stats["scavenged_value"] = int(run_stats.get("scavenged_value", 0)) + value
+	run_stats["best_find_value"] = maxi(int(run_stats.get("best_find_value", 0)), value)
+	_add_night_log("拾荒所得：%s（约 %d₵）。" % ["、".join(names), value])
+	emit_signal("state_changed")
+	return {"ok": true, "loot": names, "value": value, "text": "翻找垃圾，找到：%s。今晚还剩 %d 次搜索。" % ["、".join(names), scav_attempts_left()]}
+
+func _refresh_jackson_stock() -> void:
+	jackson_stock = []
+	var pool := ["blank_module", "common_electronic", "chem_module", "bandage_item", "salve", "water_test_strip", "flashlight", "magnifier", "common_ore", "metal_ingot"]
+	for i in range(4):
+		var id := String(pool[rng.randi_range(0, pool.size() - 1)])
+		var it := make_item(id, rng.randi_range(70, 100), true, false)
+		it["known"] = true
+		var price := maxi(5, int(round(float(market_value(it, false, "upper")) * 1.35)))
+		jackson_stock.append({"item": it, "price": price})
+
+func jackson_buy(index: int) -> Dictionary:
+	if afterhours_location != "dr_jackson":
+		return {"ok": false, "text": "你不在杰克逊医生那里。"}
+	if index < 0 or index >= jackson_stock.size():
+		return {"ok": false, "text": "没有这件货。"}
+	var entry: Dictionary = jackson_stock[index]
+	var price := int(entry.get("price", 0))
+	if cash < price:
+		return {"ok": false, "text": "现金不足，需要 %d₵。" % price}
+	cash -= price
+	var it: Dictionary = entry.get("item", {})
+	it["location"] = "backpack"
+	add_item(it)
+	jackson_stock.remove_at(index)
+	_add_night_log("从杰克逊医生处购入 %s（%d₵）。" % [item_display_name(it), price])
+	emit_signal("state_changed")
+	return {"ok": true, "text": "买下 %s，花费 %d₵。" % [item_display_name(it), price]}
 
 
 func _append_rep_perk_customers(list: Array) -> void:
@@ -6502,6 +6728,8 @@ func customer_count_modifier() -> int:
 		mod -= 1
 	if starting_perk_active("perk_prime_real_estate"):
 		mod += 1
+	if went_out_last_night and not starting_perk_active("perk_short_sleeper"):
+		mod -= 1
 	return mod
 
 func tinkerer_material_saved() -> bool:
@@ -10041,6 +10269,10 @@ func save_game(slot: int = 1) -> bool:
 		"secret_admirer_days": secret_admirer_days, "charity_cooldown": charity_cooldown, "discerning_cooldown": discerning_cooldown,
 		"cartel_exit_available": cartel_exit_available, "cartel_exit_uses": cartel_exit_uses, "cartel_exited": cartel_exited,
 		"blackmail_next_day": blackmail_next_day,
+		"afterhours_visits_left": afterhours_visits_left, "afterhours_went_out": afterhours_went_out,
+		"went_out_last_night": went_out_last_night, "last_afterhour_outing_day": last_afterhour_outing_day,
+		"scav_attempts_used": scav_attempts_used, "afterhours_location": afterhours_location,
+		"jackson_stock": jackson_stock, "satchel_found": satchel_found, "kids_backpack_found": kids_backpack_found,
 		"owned_upgrades": owned_upgrades, "profession_id": profession_id, "profession_chosen": profession_chosen, "equipped_armor_uid": equipped_armor_uid, "sec_crimes": sec_crimes, "sec_evidence": sec_evidence, "sec_state": sec_state, "sec_officer_pending": sec_officer_pending, "sec_last_inspection_day": sec_last_inspection_day, "sec_bribe_tracker": sec_bribe_tracker, "sec_inspection_countdown": sec_inspection_countdown, "sec_inspection_pending": sec_inspection_pending, "sec_inspection_personality": sec_inspection_personality, "sec_inspection_fake": sec_inspection_fake, "starting_perk_id": starting_perk_id, "starting_perk_chosen": starting_perk_chosen, "poster_pulled": poster_pulled, "combat_allies": combat_allies, "market_modifiers": market_modifiers, "client_cooldowns": client_cooldowns, "sec_permit_revoke_pending": sec_permit_revoke_pending, "sec_permit_revoke_levels": sec_permit_revoke_levels, "active_permits": active_permits, "trash_items": trash_items, "upgrade_cooldowns": upgrade_cooldowns, "evidence_removal_purchases": evidence_removal_purchases,
 		"commissions": commissions, "procurement_orders": procurement_orders, "story_seen": story_seen, "story_flags": story_flags,
 		"scene_seen": scene_seen, "wanted_defeated": wanted_defeated, "ending_id": ending_id,
@@ -10252,6 +10484,15 @@ func load_game(slot: int = 1) -> bool:
 	cartel_exit_uses = int(data.get("cartel_exit_uses", 0))
 	cartel_exited = bool(data.get("cartel_exited", false))
 	blackmail_next_day = int(data.get("blackmail_next_day", 1))
+	afterhours_visits_left = int(data.get("afterhours_visits_left", 0))
+	afterhours_went_out = bool(data.get("afterhours_went_out", false))
+	went_out_last_night = bool(data.get("went_out_last_night", false))
+	last_afterhour_outing_day = int(data.get("last_afterhour_outing_day", -1))
+	scav_attempts_used = int(data.get("scav_attempts_used", 0))
+	afterhours_location = String(data.get("afterhours_location", ""))
+	jackson_stock = data.get("jackson_stock", []).duplicate(true)
+	satchel_found = bool(data.get("satchel_found", false))
+	kids_backpack_found = bool(data.get("kids_backpack_found", false))
 	machine_jobs = data.get("machine_jobs", []).duplicate(true)
 	for j in machine_jobs:
 		j["remaining"] = float(j.get("remaining", 0.0))

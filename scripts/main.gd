@@ -3965,10 +3965,93 @@ func _show_day_summary(s: Dictionary) -> void:
 			text += "\n\n你没能付清%s，店铺被收走了。" % ("房租" if go == "rent" else "贷款")
 		actions.append({"label": "重新开始", "cb": _restart_game, "color": C_RUST})
 	else:
+		if GameState.afterhours_visits_left > 0:
+			actions.append({"label": "夜间外出（剩 %d 次）" % GameState.afterhours_visits_left, "cb": _open_afterhours_map_deferred, "color": C_GREEN})
 		if not GameState.starting_perk_active("perk_unsubscribed"):
 			actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
 		actions.append({"label": "下一天", "cb": _next_day, "color": C_AMBER})
 	_show_modal("营业结算", text, actions)
+
+func _return_to_day_summary() -> void:
+	if last_summary.is_empty():
+		_close_modal()
+		return
+	last_summary["cash"] = GameState.cash
+	_show_day_summary(last_summary)
+
+func _open_afterhours_map_deferred() -> void:
+	call_deferred("_open_afterhours_map")
+
+func _open_afterhours_map() -> void:
+	var text := "第 %d 天 · 夜间\n今夜还可外出 %d 次。\n\n" % [GameState.day, GameState.afterhours_visits_left]
+	var reason := GameState.afterhours_block_reason()
+	var actions: Array = []
+	if reason == "":
+		text += "去哪儿？"
+		for loc in GameState.afterhours_locations():
+			actions.append({"label": String(loc.get("name", "")), "cb": _afterhours_travel_deferred.bind(String(loc.get("id", ""))), "color": C_CYAN})
+	else:
+		text += reason
+	actions.append({"label": "回店睡觉", "cb": _return_to_day_summary, "color": C_MUTED})
+	_show_modal("夜间外出", text, actions)
+	modal_close_btn.visible = false
+
+func _afterhours_travel_deferred(loc_id: String) -> void:
+	call_deferred("_afterhours_travel_ui", loc_id)
+
+func _afterhours_travel_ui(loc_id: String) -> void:
+	var res := GameState.afterhours_travel(loc_id)
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
+		return
+	match loc_id:
+		"dumping_ground":
+			_play_room_ambience("amb_dumps_ambience.ogg")
+			_open_scavenge_ui(String(res.get("text", "")))
+		"dr_jackson":
+			_open_jackson_ui()
+		"commissary":
+			_close_modal()
+			_open_commissary()
+
+func _open_scavenge_ui(prefix: String = "") -> void:
+	var left := GameState.scav_attempts_left()
+	var text := prefix + "\n\n"
+	text += "剩余搜索：%d 次\n轻伤风险：%.1f%%\n重伤风险：%.1f%%\n\n垃圾堆里有旧金属、电子件，偶尔也有值钱货。" % [left, GameState.scav_minor_chance(), GameState.scav_major_chance()]
+	var actions: Array = []
+	if left > 0:
+		actions.append({"label": "搜索一次", "cb": _scavenge_once_ui, "color": C_GREEN})
+	actions.append({"label": "离开垃圾场", "cb": _afterhours_return_ui, "color": C_MUTED})
+	_show_modal("垃圾倾倒场", text, actions)
+
+func _scavenge_once_ui() -> void:
+	_play_named_sfx("debris_short.ogg")
+	var res := GameState.scavenge_dumping_ground()
+	_open_scavenge_ui(String(res.get("text", "")))
+	if String(res.get("wounded", "")) != "":
+		_play_named_sfx("sfx_step_left.ogg")
+
+func _open_jackson_ui() -> void:
+	var lines: Array = ["杰克逊医生的柜台亮着灯。\n"]
+	var actions: Array = []
+	for i in range(GameState.jackson_stock.size()):
+		var entry: Dictionary = GameState.jackson_stock[i]
+		var it: Dictionary = entry.get("item", {})
+		lines.append("%s · %d₵" % [GameState.item_display_name(it), int(entry.get("price", 0))])
+		actions.append({"label": "买下 %s（%d₵）" % [GameState.item_display_name(it), int(entry.get("price", 0))], "cb": _jackson_buy_ui.bind(i), "color": C_CYAN})
+	actions.append({"label": "离开", "cb": _afterhours_return_ui, "color": C_MUTED})
+	_show_modal("杰克逊医生", "\n".join(lines), actions)
+	modal_close_btn.visible = false
+
+func _jackson_buy_ui(index: int) -> void:
+	var res := GameState.jackson_buy(index)
+	_toast(String(res.get("text", "")))
+	_open_jackson_ui()
+
+func _afterhours_return_ui() -> void:
+	GameState.afterhours_return()
+	_stop_room_ambience()
+	_open_afterhours_map()
 
 func _next_day() -> void:
 	_close_modal()
