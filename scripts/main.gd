@@ -263,6 +263,8 @@ var poster_layer: Control
 var poster_image: TextureRect
 var poster_status: Label
 var receipt_stamp: Label
+var room_ambience_player: AudioStreamPlayer
+var shop_poster: TextureRect
 
 func _ready() -> void:
 	force_public_assets = "--publicassets" in OS.get_cmdline_args()
@@ -885,6 +887,9 @@ func _setup_audio() -> void:
 		ambience_player.stream = load(amb_path)
 		if audio_enabled:
 			ambience_player.play()
+	room_ambience_player = AudioStreamPlayer.new()
+	room_ambience_player.volume_db = -20.0
+	add_child(room_ambience_player)
 	radio_player = AudioStreamPlayer.new()
 	radio_player.volume_db = -14.0
 	add_child(radio_player)
@@ -905,6 +910,22 @@ func _audio_path(name: String) -> String:
 	if ResourceLoader.exists(private_path):
 		return private_path
 	return public_path if ResourceLoader.exists(public_path) else ""
+
+func _play_room_ambience(file_name: String) -> void:
+	if not audio_enabled or room_ambience_player == null:
+		return
+	var path := _audio_path(file_name)
+	if path == "":
+		return
+	var st = load(path)
+	if st is AudioStreamOggVorbis:
+		st.loop = true
+	room_ambience_player.stream = st
+	room_ambience_player.play()
+
+func _stop_room_ambience() -> void:
+	if room_ambience_player:
+		room_ambience_player.stop()
 
 func _play_named_sfx(file_name: String) -> void:
 	if not audio_enabled or sfx_players.is_empty():
@@ -1110,6 +1131,10 @@ func _build_ui() -> void:
 	game_view.add_child(back)
 	_texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_scene_base.png"))
 	bg_window = _texture_rect(game_view, Vector2.ZERO, Vector2(1920, 1080), _art_path("shop_bg_window.png"))
+	shop_poster = _texture_rect(game_view, Vector2(420, 120), Vector2(100, 120), "")
+	var shop_poster_path := "res://assets_private/posters/" + ("poster_down_crop.png" if GameState.poster_pulled else "poster_crop.png")
+	if ResourceLoader.exists(shop_poster_path):
+		shop_poster.texture = load(shop_poster_path)
 	walker_layer = Control.new()
 	walker_layer.position = Vector2.ZERO
 	walker_layer.size = Vector2(1920, 1080)
@@ -1220,6 +1245,19 @@ func _build_customer_card() -> void:
 
 func _build_dialogue() -> void:
 	var p := _panel(game_view, Vector2(1280, 170), Vector2(560, 220), C_PANEL, C_CYAN, 2)
+	var bubble_style := _style(C_PANEL, C_CYAN, 2)
+	bubble_style.corner_radius_top_left = 18
+	bubble_style.corner_radius_top_right = 18
+	bubble_style.corner_radius_bottom_left = 18
+	bubble_style.corner_radius_bottom_right = 18
+	p.add_theme_stylebox_override("panel", bubble_style)
+	var dtail := ColorRect.new()
+	dtail.position = Vector2(-10, 60)
+	dtail.size = Vector2(22, 22)
+	dtail.rotation = 0.78
+	dtail.color = C_PANEL
+	dtail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	p.add_child(dtail)
 	dialogue_name = _label(p, "", Vector2(16, 10), Vector2(528, 32), 24, C_AMBER)
 	dialogue_text = _label(p, "", Vector2(16, 48), Vector2(528, 118), 28, C_TEXT)
 	dialogue_hint = _label(p, "右侧选择交涉动作 · 长按物品查看详情", Vector2(16, 178), Vector2(528, 26), 20, C_MUTED)
@@ -2531,11 +2569,13 @@ func _build_commissary_layer() -> void:
 	commissary_status.autowrap_mode = TextServer.AUTOWRAP_WORD_SMART
 
 func _open_commissary() -> void:
+	_play_room_ambience("amb_comissionary_ambience.ogg")
 	commissary_layer.visible = true
 	move_child(commissary_layer, get_child_count() - 1)
 	_rebuild_commissary()
 
 func _close_commissary() -> void:
+	_stop_room_ambience()
 	commissary_layer.visible = false
 
 func _rebuild_commissary() -> void:
@@ -2715,6 +2755,21 @@ func _build_story_layer() -> void:
 		bar.mouse_filter = Control.MOUSE_FILTER_IGNORE
 		story_layer.add_child(bar)
 	story_portrait = _texture_rect(panel, Vector2(30, 150), Vector2(460, 540), "")
+	var bubble := _panel(panel, Vector2(500, 60), Vector2(1320, 420), C_PANEL2, C_LINE, 2)
+	var bubble_style := _style(C_PANEL2, C_LINE, 2)
+	bubble_style.corner_radius_top_left = 22
+	bubble_style.corner_radius_top_right = 22
+	bubble_style.corner_radius_bottom_left = 22
+	bubble_style.corner_radius_bottom_right = 22
+	bubble.add_theme_stylebox_override("panel", bubble_style)
+	bubble.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	var tail := ColorRect.new()
+	tail.position = Vector2(480, 300)
+	tail.size = Vector2(28, 28)
+	tail.rotation = 0.78
+	tail.color = C_PANEL2
+	tail.mouse_filter = Control.MOUSE_FILTER_IGNORE
+	panel.add_child(tail)
 	story_name = _label(panel, "", Vector2(530, 24), Vector2(1200, 42), 30, C_AMBER)
 	story_text = _label(panel, "", Vector2(530, 80), Vector2(1300, 370), 28, C_TEXT)
 	story_choices = VBoxContainer.new()
@@ -3360,6 +3415,8 @@ func _refresh_poster_preview() -> void:
 	var path := "res://assets_private/posters/" + ("poster_down_crop.png" if pulled else "poster_crop.png")
 	if ResourceLoader.exists(path):
 		poster_image.texture = load(path)
+	if shop_poster:
+		shop_poster.texture = poster_image.texture
 	poster_status.text = "当前：%s
 %s" % ["已拉下（隐藏格开放）" if pulled else "已拉起（隐藏格封闭）", "拉下海报会露出墙后的隐藏格；再次拉起可以遮住它。"]
 
@@ -4199,6 +4256,7 @@ func _choose_module(id: String) -> void:
 	if id == "__clear__":
 		GameState.clear_modules(selected_machine_id)
 	elif id != "":
+		_play_sfx("battery_insert")
 		GameState.install_module(selected_machine_id, id)
 	_refresh_machine_panel()
 
@@ -5047,6 +5105,7 @@ func _open_network() -> void:
 	_open_info_tab("network")
 
 func _open_facilities() -> void:
+	_play_room_ambience("amb_dumps_ambience.ogg")
 	var text := "水龙头剩余 %d ml。
 
 设施：水龙头/排水槽、床铺、卷帘门、录音机。
@@ -5252,6 +5311,7 @@ func _inspection_bribe() -> void:
 	_security_result_modal(GameState.sec_resolve_inspection(false, true))
 
 func _on_inspection_arrived() -> void:
+	_play_named_sfx("alarm2.ogg")
 	if not GameState.sec_inspection_pending:
 		return
 	var title := "治安检查"
@@ -5724,6 +5784,7 @@ func _testpresentationui_if_requested() -> void:
 	get_tree().quit(0)
 
 func _close_modal() -> void:
+	_stop_room_ambience()
 	modal_layer.visible = false
 
 func _clear_children(node: Node) -> void:
