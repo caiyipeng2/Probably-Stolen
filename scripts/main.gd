@@ -3357,7 +3357,7 @@ func _toggle_poster_ui() -> void:
 
 func _refresh_poster_preview() -> void:
 	var pulled := GameState.poster_pulled
-	var path := "res://assets_private/posters/" + ("poster_down.png" if pulled else "poster.png")
+	var path := "res://assets_private/posters/" + ("poster_down_crop.png" if pulled else "poster_crop.png")
 	if ResourceLoader.exists(path):
 		poster_image.texture = load(path)
 	poster_status.text = "当前：%s
