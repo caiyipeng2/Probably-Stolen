@@ -263,6 +263,7 @@ var poster_layer: Control
 var poster_image: TextureRect
 var poster_status: Label
 var receipt_stamp: Label
+var bell_button: Button
 var room_ambience_player: AudioStreamPlayer
 var shop_poster: TextureRect
 
@@ -927,6 +928,13 @@ func _stop_room_ambience() -> void:
 	if room_ambience_player:
 		room_ambience_player.stop()
 
+func _ring_bell() -> void:
+	_play_named_sfx("new_bell.ogg")
+	var res := GameState.summon_customer()
+	_refresh()
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
+
 func _play_named_sfx(file_name: String) -> void:
 	if not audio_enabled or sfx_players.is_empty():
 		return
@@ -1161,6 +1169,9 @@ func _build_ui() -> void:
 	_build_customer_card()
 	_build_dialogue()
 	_build_counter()
+	bell_button = _button(game_view, "按铃 · 召唤顾客", Vector2(720, 630), Vector2(480, 80), C_GREEN, _ring_bell)
+	bell_button.z_index = 6
+	bell_button.add_theme_font_size_override("font_size", 30)
 	_build_drawer()
 	_build_modal()
 	_build_inspection_layer()
@@ -2201,13 +2212,52 @@ func _open_due_customer(kind: String) -> void:
 		return
 	var amount := int(c.get("amount", 0))
 	var title := "房东" if kind == "rent" else "放贷人"
+	var actions: Array = [{"label": "支付 %d₵" % amount, "cb": _pay_due.bind(kind), "color": C_GREEN}]
+	if kind == "rent" and GameState.can_buy_out_store():
+		actions.append({"label": "买断 %d₵" % GameState.store_buy_price(), "cb": _buy_out_ui, "color": C_AMBER})
+	actions.append({"label": "稍后", "cb": _decline_procurement, "color": C_MUTED})
 	_show_modal(title, String(c.get("line", "")) + "
 
-应付：%d₵" % amount, [
-		{"label": "支付 %d₵" % amount, "cb": _pay_due.bind(kind), "color": C_GREEN},
-		{"label": "稍后", "cb": _decline_procurement, "color": C_MUTED},
-	])
+应付：%d₵" % amount, actions)
 	modal_close_btn.visible = false
+
+func _buy_out_ui() -> void:
+	var res := GameState.buy_out_store()
+	_close_modal()
+	_refresh()
+	_show_modal("产权", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _open_property() -> void:
+	if GameState.property_owned:
+		_show_modal("产权", "店铺已归你所有，不再支付房租。", [{"label": "关闭", "cb": _close_modal}])
+		return
+	var price := GameState.store_buy_price()
+	var down := GameState.mortgage_down_payment()
+	var weekly := GameState.mortgage_weekly_for(price, down)
+	var text := "买断价：%d₵
+按揭：首付 %d₵ · 每周 %d₵ · %d 周" % [price, down, weekly, int(GameState.diff_rule("mortgage_weeks", 12))]
+	if GameState.is_paying_mortgage:
+		text = "按揭中：剩余 %d 周 · 每周 %d₵ · 下次扣款 %d 天后" % [GameState.mortgage_week_left, GameState.mortgage_weekly_payment, GameState.mortgage_due]
+	var actions: Array = []
+	if GameState.is_paying_mortgage:
+		actions.append({"label": "提前还一期", "cb": _pay_mortgage_ui, "color": C_GREEN})
+	else:
+		actions.append({"label": "买断 %d₵" % price, "cb": _buy_out_ui, "color": C_AMBER})
+		actions.append({"label": "申请按揭", "cb": _take_mortgage_ui, "color": C_CYAN})
+	actions.append({"label": "关闭", "cb": _close_modal})
+	_show_modal("产权 · 店铺", text, actions)
+
+func _take_mortgage_ui() -> void:
+	var res := GameState.take_mortgage()
+	_close_modal()
+	_refresh()
+	_show_modal("按揭", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
+
+func _pay_mortgage_ui() -> void:
+	var res := GameState.pay_mortgage_week()
+	_close_modal()
+	_refresh()
+	_show_modal("按揭", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
 func _pay_due(kind: String) -> void:
 	var res: Dictionary = GameState.pay_rent_early() if kind == "rent" else GameState.pay_loan_early()
@@ -2697,9 +2747,9 @@ func _build_info_bay() -> void:
 	var panel := _panel(info_layer, Vector2(230, 60), Vector2(1880, 960), C_PANEL, C_CYAN, 3)
 	info_title = _label(panel, "信息网络", Vector2(30, 16), Vector2(600, 48), 36, C_AMBER)
 	_button(panel, "关闭", Vector2(1726, 14), Vector2(120, 48), C_MUTED, _close_info)
-	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"], ["新闻", "news"], ["地图", "map"], ["笔记", "notebook"]]
+	var tabs := [["网络", "network"], ["专精", "professions"], ["估价", "appraisal"], ["派系", "factions"], ["顾客", "customers"], ["电话", "phone"], ["治安", "security"], ["通缉", "wanted"], ["天赋", "perks"], ["声望", "rep_perks"], ["档案", "archive"], ["状态", "status"], ["成就", "achievements"], ["统计", "stats"], ["新闻", "news"], ["地图", "map"], ["笔记", "notebook"], ["委托", "requests"]]
 	for i in range(tabs.size()):
-		var tb := _button(panel, tabs[i][0], Vector2(20 + i * 106, 70), Vector2(100, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
+		var tb := _button(panel, tabs[i][0], Vector2(20 + i * 96, 70), Vector2(92, 44), C_MUTED, _switch_info_tab.bind(tabs[i][1]))
 		info_tab_buttons[tabs[i][1]] = tb
 	var scroll := ScrollContainer.new()
 	scroll.position = Vector2(24, 130)
@@ -3087,6 +3137,11 @@ func _refresh() -> void:
 		rep_labels[k].text = "%s %+d" % [_faction_short(k), v]
 	_update_customer()
 	_update_counter()
+	if bell_button:
+		var remaining := GameState.customers_today.size() - GameState.current_index - 1
+		bell_button.visible = GameState.phase == "open" and GameState.current_customer.is_empty() and remaining > 0
+		bell_button.disabled = remaining <= 0
+		bell_button.text = "按铃 · 召唤下一位（剩 %d）" % maxi(0, remaining)
 	_rebuild_display()
 	_rebuild_grid()
 	_update_detail()
@@ -4635,6 +4690,9 @@ func _rebuild_info_list() -> void:
 		"notebook":
 			for note in _notebook_entries():
 				_add_info_button(String(note.get("title", "")), String(note.get("id", "")))
+		"requests":
+			for req in GameState.store_requests:
+				_add_info_button("%s · %s×%d · %d₵" % [_faction_short(String(req.get("faction", ""))), GameState.item_display_name({"def_id": String(req.get("item_id", ""))}), int(req.get("count", 1)), int(req.get("credits", 0))], String(req.get("id", "")))
 		"news":
 			for i in range(news_archive.size() - 1, -1, -1):
 				var ni: Dictionary = news_archive[i]
@@ -4974,6 +5032,27 @@ func _refresh_info_detail() -> void:
 			info_name.text = String(note.get("title", ""))
 			info_meta.text = "本局笔记 · 第 %d 天" % GameState.day
 			info_body.text = String(note.get("body", ""))
+		"requests":
+			var req := {}
+			for r in GameState.store_requests:
+				if String(r.get("id", "")) == info_selected_id:
+					req = r
+					break
+			if req.is_empty():
+				info_name.text = "没有请求"
+				return
+			var item_name := String(req.get("custom_name", ""))
+			if item_name == "":
+				item_name = GameState.item_display_name({"def_id": String(req.get("item_id", ""))})
+			info_name.text = "商店请求 · %s" % _faction_short(String(req.get("faction", "")))
+			info_meta.text = "%s ×%d · 剩余 %d 天" % [item_name, int(req.get("count", 1)), int(req.get("days", 0))]
+			info_body.text = "报酬：%d₵ + %s 声望 %+d
+交付后物品从背包扣除。
+当前持有：%d" % [int(req.get("credits", 0)), _faction_short(String(req.get("faction", ""))), int(req.get("rep", 0)), GameState.inventory_count(String(req.get("item_id", "")))]
+			info_action.visible = true
+			info_action.text = "交付"
+			info_action.disabled = GameState.inventory_count(String(req.get("item_id", ""))) < int(req.get("count", 1))
+			info_status.text = "可交付" if not info_action.disabled else "物品不足"
 		"news":
 			var nidx := int(info_selected_id)
 			if nidx < 0 or nidx >= news_archive.size():
@@ -5025,6 +5104,12 @@ func _info_action() -> void:
 		"professions":
 			var res := GameState.apply_profession(info_selected_id)
 			_refresh()
+			_refresh_info_detail()
+			info_status.text = String(res.get("text", ""))
+		"requests":
+			var res := GameState.fill_store_request(info_selected_id)
+			_refresh()
+			_rebuild_info_list()
 			_refresh_info_detail()
 			info_status.text = String(res.get("text", ""))
 		"status":
@@ -5115,6 +5200,7 @@ func _open_facilities() -> void:
 		{"label": "水龙头灌满", "cb": _facility_fill_select, "color": C_CYAN},
 		{"label": "排水槽倒空", "cb": _facility_drain_select, "color": C_CYAN},
 		{"label": "床铺：结束营业", "cb": _facility_sleep, "color": C_RUST},
+		{"label": "产权/按揭", "cb": _open_property, "color": C_AMBER},
 		{"label": "选项", "cb": _open_options},
 		{"label": "关闭", "cb": _close_modal},
 	])
@@ -5919,7 +6005,7 @@ func _ng_render() -> void:
 		_label(panel, "开局天赋（%d/3 点 · 槽位 %d/%d）" % [pts, ng_perks.size(), GameState.starting_perk_slots(ng_perks)], Vector2(44, 132), Vector2(1200, 40), 30, C_AMBER)
 		var first_run := GameState.run_count <= 0
 		if first_run:
-			_label(panel, "首局不可选天赋：先完成一局，之后的周目才开放。", Vector2(44, 168), Vector2(1400, 30), 20, C_RUST)
+			_label(panel, "首局不可选天赋：完成首局后，新开局有 3 点可分配。", Vector2(44, 168), Vector2(1400, 30), 20, C_RUST)
 		var scroll := ScrollContainer.new()
 		scroll.position = Vector2(44, 210)
 		scroll.size = Vector2(1660, 650)
@@ -6165,7 +6251,7 @@ func _welcome_done() -> void:
 
 func _tutorial_text() -> String:
 	match GameState.tutorial_step:
-		1: return "教程 1/4：先点右侧「鉴定」检查顾客的物品。"
+		1: return "教程 1/4：先按铃召唤顾客，再点右侧「鉴定」检查物品。"
 		2: return "教程 2/4：点「议价」砍价，或直接「成交」。"
 		3: return "教程 3/4：选中背包物品点「上架」，展示柜商品才能卖给买家。"
 		4: return "教程 4/4：点左侧「结束营业」进入下一天。"
@@ -6413,7 +6499,9 @@ func _open_bargain() -> void:
 		_toast("当前没有可议价的物品。")
 		return
 	_play_sfx("soft")
-	if GameState.current_customer.get("intent") == "sell":
+	if bool(GameState.current_customer.get("bargain_locked", false)):
+		bargain_price = GameState.bargain_locked_price()
+	elif GameState.current_customer.get("intent") == "sell":
 		bargain_price = int(GameState.counter_item.get("asking_price", 0))
 	else:
 		bargain_price = int(GameState.current_customer.get("offer", 0))
@@ -6426,30 +6514,36 @@ func _refresh_bargain_modal() -> void:
 		_close_modal()
 		return
 	var def := GameState.get_item_def(it["def_id"])
+	var direction := int(c.get("bargain_direction", 0))
+	var locked := bool(c.get("bargain_locked", false))
+	if locked:
+		bargain_price = int(c.get("bargain_price", bargain_price))
 	var text := ""
 	if c.get("intent") == "sell":
-		text = "顾客开价：%d¥\n你的报价：%d¥\n\n压低价格会降低成交率；鉴定后再出价更安全。\n现金：%d¥" % [int(it.get("asking_price", 0)), bargain_price, GameState.cash]
+		text = "顾客开价：%d¥\n你的报价：%d¥\n现金：%d¥" % [int(it.get("asking_price", 0)), bargain_price, GameState.cash]
 	else:
-		text = "顾客出价：%d¥\n你的报价：%d¥\n\n顾客预算：%d¥\n现金：%d¥" % [int(c.get("offer", 0)), bargain_price, int(c.get("budget", 0)), GameState.cash]
-	var pct := 0
-	if c.get("intent") == "sell":
-		var asking := maxi(1, int(it.get("asking_price", 1)))
-		pct = int(round((1.0 - float(bargain_price) / float(asking)) * 100.0))
+		text = "顾客出价：%d¥\n你的报价：%d¥\n顾客预算：%d¥\n现金：%d¥" % [int(c.get("offer", 0)), bargain_price, int(c.get("budget", 0)), GameState.cash]
+	if direction == 0:
+		text += "\n\n请选择压价或抬价（只能选一次，之后不可更改）。"
+	elif not locked:
+		text += "\n\n已选择%s：请选择幅度（锁定后不可更改）。" % ("压价" if direction < 0 else "抬价")
 	else:
-		var base_offer := maxi(1, int(c.get("offer", 1)))
-		pct = int(round((float(bargain_price) / float(base_offer) - 1.0) * 100.0))
-	if pct != 0:
-		var pv: Dictionary = GameState.bargain_preview(absi(pct))
-		text += "\n\n当前%s %d%%：成功 %d%% · 离店 %d%% · 声望 %+d" % ["压价" if pct > 0 else "抬价", absi(pct), int(pv.get("success", 0)), int(pv.get("leave", 0)), int(pv.get("rep", 0))]
-	var actions: Array = [
-		{"label": "-10%", "cb": _bargain_adjust.bind(0.9)},
-		{"label": "-5%", "cb": _bargain_adjust.bind(0.95)},
-		{"label": "+5%", "cb": _bargain_adjust.bind(1.05)},
-		{"label": "+10%", "cb": _bargain_adjust.bind(1.1)},
-		{"label": "报价", "cb": _bargain_confirm, "color": C_AMBER},
-		{"label": "勒索", "cb": _do_blackmail, "color": C_RUST},
-		{"label": "威胁", "cb": _do_threaten, "color": C_RUST},
-	]
+		text += "\n\n已锁定：%s %d%%。" % ["压价" if direction < 0 else "抬价", int(c.get("bargain_percent", 0))]
+	if locked:
+		var pv: Dictionary = GameState.bargain_preview(absi(int(c.get("bargain_percent", 0))))
+		text += "\n成功 %d%% · 离店 %d%% · 声望 %+d" % [int(pv.get("success", 0)), int(pv.get("leave", 0)), int(pv.get("rep", 0))]
+	var actions: Array = []
+	if direction == 0:
+		actions.append({"label": "压价", "cb": _bargain_pick_direction.bind(-1), "color": C_CYAN})
+		actions.append({"label": "抬价", "cb": _bargain_pick_direction.bind(1), "color": C_AMBER})
+	elif not locked:
+		actions.append({"label": "5%", "cb": _bargain_pick_percent.bind(5)})
+		actions.append({"label": "10%", "cb": _bargain_pick_percent.bind(10)})
+		actions.append({"label": "15%", "cb": _bargain_pick_percent.bind(15)})
+	else:
+		actions.append({"label": "报价", "cb": _bargain_confirm, "color": C_AMBER})
+	actions.append({"label": "勒索", "cb": _do_blackmail, "color": C_RUST})
+	actions.append({"label": "威胁", "cb": _do_threaten, "color": C_RUST})
 	if GameState.aug_introduced and not bool(c.get("aug_scanned", false)) and GameState.inventory_count("aug_scanner") > 0:
 		actions.append({"label": "扫描义体", "cb": _do_scan_aug, "color": C_CYAN})
 	if GameState.aug_introduced and not bool(c.get("aug_threatened", false)):
@@ -6487,11 +6581,25 @@ func _do_report_aug() -> void:
 	_refresh()
 	_show_modal("举报义体", String(res.get("text", "")), [{"label": "关闭", "cb": _close_modal}])
 
-func _bargain_adjust(factor: float) -> void:
-	bargain_price = maxi(1, int(round(float(bargain_price) * factor)))
+func _bargain_pick_direction(direction: int) -> void:
+	var res := GameState.bargain_choose_direction(direction)
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
+		return
+	_refresh_bargain_modal()
+
+func _bargain_pick_percent(percent: int) -> void:
+	var res := GameState.bargain_choose_percent(percent)
+	if not bool(res.get("ok", false)):
+		_toast(String(res.get("text", "")))
+		return
+	bargain_price = int(res.get("price", bargain_price))
 	_refresh_bargain_modal()
 
 func _bargain_confirm() -> void:
+	if not bool(GameState.current_customer.get("bargain_locked", false)):
+		_toast("先选择压价或抬价，并锁定幅度。")
+		return
 	var res: Dictionary = {}
 	if GameState.current_customer.get("intent") == "sell":
 		res = GameState.make_offer(bargain_price)

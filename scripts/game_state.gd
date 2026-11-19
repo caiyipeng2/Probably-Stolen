@@ -49,6 +49,11 @@ var customer_defs: Array = []
 var client_pools: Dictionary = {}
 var client_cooldowns: Dictionary = {}
 var client_sprite_pools: Dictionary = {}
+var store_request_defs: Dictionary = {}
+var store_requests: Array = []
+var store_request_seen: Array = []
+var marketplace_unlocked_day := -1
+var auto_customer_flow := true
 var faction_ops: Array = []
 var afterhour_defs: Array = []
 var faction_power: Dictionary = {"rev": 0, "bm": 0, "sec": 0, "civil_unrest": 0}
@@ -191,6 +196,17 @@ var upgrade_cooldowns: Dictionary = {}
 var evidence_removal_purchases := 0
 var _suppress_sec_tick := false
 var ending_id := ""
+var property_owned := false
+var is_paying_mortgage := false
+var mortgage_week_left := 0
+var mortgage_total_weeks := 0
+var mortgage_weekly_payment := 0
+var mortgage_down_paid := 0
+var mortgage_interest_taken := 0
+var mortgage_offer_declined := false
+var property_bought_at := 0
+var property_bought_day := 0
+var mortgage_due := 0
 var machine_jobs: Array = []
 var power := 10
 var max_power := 10
@@ -260,8 +276,12 @@ var pending_event: Dictionary = {}
 var tutorial_done := false
 var tutorial_step := 0
 
+func _is_headless() -> bool:
+	return DisplayServer.get_name() == "headless"
+
 func _ready() -> void:
 	rng.randomize()
+	auto_customer_flow = _is_headless()
 	_load_defs()
 	_load_run_meta()
 	new_game()
@@ -405,6 +425,11 @@ func _load_defs() -> void:
 		var spdata = JSON.parse_string(sp_file.get_as_text())
 		if spdata is Array:
 			space_pois = spdata
+	var sr_file := FileAccess.open("res://data/store_requests.json", FileAccess.READ)
+	if sr_file:
+		var srdata = JSON.parse_string(sr_file.get_as_text())
+		if srdata is Dictionary:
+			store_request_defs = srdata
 	var ach_file := FileAccess.open("res://data/achievements.json", FileAccess.READ)
 	if ach_file:
 		var adata = JSON.parse_string(ach_file.get_as_text())
@@ -2431,7 +2456,7 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 	pending_event = {}
 	tutorial_done = false
 	tutorial_step = 0
-	if start_type == "":
+	if start_type == "" and _is_headless():
 		var start_items := [
 			["water_bottle_full", 92, true, false],
 			["cig_red", 88, true, false],
@@ -2471,6 +2496,17 @@ func new_game(diff_id: String = "normal", mode: String = "mobile", start_type: S
 	expedition_room_index = 0
 	market_modifiers = {"FOOD": 0, "MEDICAL": 0, "SUBSTANCE": 0, "MATERIAL": 0, "WEAPON": 0, "ARMOR": 0, "WATER": 0}
 	ending_id = ""
+	property_owned = false
+	is_paying_mortgage = false
+	mortgage_week_left = 0
+	mortgage_total_weeks = 0
+	mortgage_weekly_payment = 0
+	mortgage_down_paid = 0
+	mortgage_interest_taken = 0
+	mortgage_offer_declined = false
+	property_bought_at = 0
+	property_bought_day = 0
+	mortgage_due = 0
 	_refresh_upgrades()
 	machine_jobs = []
 	machine_modules = {}
@@ -3209,8 +3245,132 @@ func _sec_maybe_start_inspection() -> void:
 		sec_inspection_personality = personality
 	emit_signal("inspection_arrived")
 
+func _marketplace_unlock() -> void:
+	if marketplace_unlocked_day < 0:
+		marketplace_unlocked_day = day
+	_add_store_request_by_id("unique_georgio_tp")
+	var ll := _pick_request_by_faction("lower", false)
+	if not ll.is_empty():
+		_add_store_request_def(ll)
+
+func _store_request_defs() -> Array:
+	return store_request_defs.get("requests", [])
+
+func _store_request_def_by_id(rid: String) -> Dictionary:
+	for r in _store_request_defs():
+		if String(r.get("id", "")) == rid:
+			return r
+	return {}
+
+func _pick_request_by_faction(faction: String, allow_unique: bool) -> Dictionary:
+	var candidates: Array = []
+	for r in _store_request_defs():
+		if String(r.get("faction", "")) != faction:
+			continue
+		if bool(r.get("unique", false)) and not allow_unique:
+			continue
+		candidates.append(r)
+	if candidates.is_empty():
+		return {}
+	return candidates[rng.randi_range(0, candidates.size() - 1)]
+
+func _request_reward(def: Dictionary, item_id: String) -> int:
+	if String(def.get("reward_mode", "")) == "unit":
+		var unit := int(get_item_def(item_id).get("base_value", 10))
+		var mn := float(def.get("mult_min", 1.0))
+		var mx := float(def.get("mult_max", mn))
+		var mult := rng.randf_range(mn, mx)
+		return int(round(float(unit) * mult * int(def.get("count", 1))))
+	return int(def.get("credits", 0))
+
+func _add_store_request_by_id(rid: String) -> bool:
+	return _add_store_request_def(_store_request_def_by_id(rid))
+
+func _add_store_request_def(def: Dictionary) -> bool:
+	if def.is_empty():
+		return false
+	var rid := String(def.get("id", ""))
+	if rid == "":
+		return false
+	if bool(def.get("unique", false)) and store_request_seen.has(rid):
+		return false
+	for req in store_requests:
+		if String(req.get("id", "")) == rid:
+			return false
+	var item_id := String(def.get("item", ""))
+	if String(def.get("pool", "")) != "":
+		var pool: Array = store_request_defs.get("pools", {}).get(String(def.get("pool", "")), [])
+		if pool.is_empty():
+			return false
+		item_id = String(pool[rng.randi_range(0, pool.size() - 1)])
+	if item_id == "":
+		return false
+	var req := {
+		"id": rid, "faction": String(def.get("faction", "lower")),
+		"item_id": item_id, "count": int(def.get("count", 1)),
+		"days": int(def.get("days", 3)), "rep": int(def.get("rep", 0)),
+		"credits": _request_reward(def, item_id),
+		"custom_name": String(def.get("custom_name", "")),
+		"unique": bool(def.get("unique", false)),
+	}
+	store_requests.append(req)
+	if bool(req.get("unique", false)):
+		store_request_seen.append(rid)
+	emit_signal("state_changed")
+	return true
+
+func _decay_store_requests() -> void:
+	for i in range(store_requests.size() - 1, -1, -1):
+		store_requests[i]["days"] = int(store_requests[i].get("days", 0)) - 1
+		if int(store_requests[i].get("days", 0)) <= 0:
+			store_requests.remove_at(i)
+
+func _gen_store_requests() -> void:
+	if marketplace_unlocked_day < 0 or day <= 8:
+		return
+	if not bool(owned_upgrades.get("MARKETPLACE_REQUESTS", false)):
+		return
+	for sc in store_request_defs.get("scheduled", []):
+		if day == marketplace_unlocked_day + int(sc.get("offset", 0)):
+			_add_store_request_by_id(String(sc.get("id", "")))
+	if rep_perk_unlocked("REV_REQUEST"):
+		var weekday := day % 7
+		if weekday == 5 and rng.randi_range(1, 100) <= 80:
+			_add_store_request_def(_pick_request_by_faction("rev", false))
+		elif weekday == 1 and starting_perk_id == "perk_revolution_sympathizer":
+			_add_store_request_def(_pick_request_by_faction("rev", false))
+	if rng.randi_range(1, 100) <= 8:
+		var ul := _store_request_def_by_id("ul_rare_item") if rng.randf() < 0.75 else _store_request_def_by_id("ul_charity")
+		_add_store_request_def(ul)
+	if rng.randi_range(1, 100) <= 4:
+		_add_store_request_def(_store_request_def_by_id("lower_worker_stayawake"))
+
+func fill_store_request(rid: String) -> Dictionary:
+	var req: Dictionary = {}
+	var idx := -1
+	for i in range(store_requests.size()):
+		if String(store_requests[i].get("id", "")) == rid:
+			req = store_requests[i]
+			idx = i
+			break
+	if req.is_empty():
+		return {"ok": false, "text": "没有这条请求。"}
+	var item_id := String(req.get("item_id", ""))
+	var count := int(req.get("count", 1))
+	if inventory_count(item_id) < count:
+		return {"ok": false, "text": "物品不足：需要 %s ×%d。" % [item_display_name({"def_id": item_id}), count]}
+	remove_inventory(item_id, count)
+	cash += int(req.get("credits", 0))
+	add_rep(String(req.get("faction", "lower")), int(req.get("rep", 0)))
+	run_stats["customers_served"] = int(run_stats.get("customers_served", 0)) + 1
+	store_requests.remove_at(idx)
+	emit_signal("state_changed")
+	return {"ok": true, "text": "完成请求：%s ×%d，获得 %d₵。" % [item_display_name({"def_id": item_id}), count, int(req.get("credits", 0))]}
+
 func start_day() -> void:
 	_sec_on_new_day()
+	_decay_store_requests()
+	_gen_store_requests()
 	_maybe_introduce_aug()
 	if day >= 2 and not _suppress_sec_tick:
 		_apply_afterhour_event()
@@ -3354,7 +3514,14 @@ func start_day() -> void:
 		emit_signal("permit_revoke_arrived")
 	if pending_story != "":
 		emit_signal("story_available", pending_story)
-	next_customer()
+	if auto_customer_flow:
+		next_customer()
+	else:
+		current_index = -1
+		current_customer = {}
+		counter_item = {}
+		phase = "open"
+		emit_signal("customer_changed")
 
 func store_attractiveness() -> int:
 	var score := 250
@@ -4264,6 +4431,14 @@ func phone_unlock_supplier(upgrade_id: String) -> void:
 		pc["state"] = "Introduction"
 		_add_night_log("新联系人：%s（%s）。" % [String(phone_contacts[sid].get("name", sid)), phone_number_of(sid)])
 
+func summon_customer() -> Dictionary:
+	if phase != "open" and not current_customer.is_empty():
+		return {"ok": false, "text": "当前还有顾客。"}
+	if current_index + 1 >= customers_today.size():
+		return {"ok": false, "text": "今天没有更多顾客了。"}
+	next_customer()
+	return {"ok": true, "text": "顾客上门。"}
+
 func next_customer() -> void:
 	if phase == "gameover":
 		return
@@ -4564,6 +4739,43 @@ func bargain_leave_chance(percent: int) -> int:
 		chance -= 10
 	return clampi(chance, 5, 80)
 
+func bargain_choose_direction(direction: int) -> Dictionary:
+	if current_customer.is_empty():
+		return {"ok": false, "text": "当前没有顾客。"}
+	if bool(current_customer.get("bargain_locked", false)):
+		return {"ok": false, "text": "议价方式已经锁定。"}
+	if direction not in [-1, 1]:
+		return {"ok": false, "text": "只能选择压价或抬价。"}
+	current_customer["bargain_direction"] = direction
+	return {"ok": true, "text": "已选择%s，之后不能更改。" % ("压价" if direction < 0 else "抬价")}
+
+func bargain_choose_percent(percent: int) -> Dictionary:
+	if current_customer.is_empty():
+		return {"ok": false, "text": "当前没有顾客。"}
+	var direction := int(current_customer.get("bargain_direction", 0))
+	if direction == 0:
+		return {"ok": false, "text": "先选择压价或抬价。"}
+	if bool(current_customer.get("bargain_locked", false)):
+		return {"ok": false, "text": "报价方式已经锁定。"}
+	percent = clampi(percent, 1, 50)
+	var base := int(current_customer.get("offer", 0))
+	if String(current_customer.get("intent", "")) == "sell":
+		base = int(current_customer.get("item", {}).get("asking_price", 0))
+	if base <= 0:
+		return {"ok": false, "text": "没有可议价的报价。"}
+	var price := base
+	if direction < 0:
+		price = int(round(float(base) * (1.0 - float(percent) / 100.0)))
+	else:
+		price = int(round(float(base) * (1.0 + float(percent) / 100.0)))
+	current_customer["bargain_percent"] = percent
+	current_customer["bargain_price"] = maxi(1, price)
+	current_customer["bargain_locked"] = true
+	return {"ok": true, "text": "已锁定：%s %d%%。" % ["压价" if direction < 0 else "抬价", percent], "price": maxi(1, price)}
+
+func bargain_locked_price() -> int:
+	return int(current_customer.get("bargain_price", 0)) if not current_customer.is_empty() else 0
+
 func bargain_preview(percent: int) -> Dictionary:
 	return {
 		"success": bargain_success_chance(percent),
@@ -4724,7 +4936,14 @@ func complete_customer(success: bool) -> void:
 		if not success:
 			add_rep("lower", -1)
 	emit_signal("state_changed")
-	next_customer()
+	if auto_customer_flow:
+		next_customer()
+	else:
+		current_customer = {}
+		counter_item = {}
+		phase = "open"
+		emit_signal("customer_changed")
+		emit_signal("state_changed")
 
 func add_rep(faction: String, amount: int) -> void:
 	if not rep.has(faction):
@@ -4740,15 +4959,148 @@ func add_rep(faction: String, amount: int) -> void:
 			final_amount = int(round(float(final_amount) * float(_sec_perk_def("UL_PETITION").get("rep_loss_mult", 2.0))))
 	rep[faction] = clampi(int(rep[faction]) + final_amount, -100, 100)
 
+func store_buy_price() -> int:
+	var base := int(diff_rule("property_base_price", 12000))
+	var inc := int(diff_rule("property_price_per_day", 50))
+	var cap := int(diff_rule("property_price_cap", 5000))
+	return base + mini(maxi(0, day - 50) * inc, cap)
+
+func mortgage_down_payment() -> int:
+	var share := float(diff_rule("mortgage_down_share", 0.15))
+	return maxi(500, int(round(float(store_buy_price()) * share / 500.0)) * 500)
+
+func mortgage_weekly_for(price: int, down: int) -> int:
+	var weeks := maxi(1, int(diff_rule("mortgage_weeks", 12)))
+	var loan := maxi(0, price - down)
+	var rate := int(diff_rule("mortgage_interest", 50))
+	var interest := int(float(loan * rate) / 100.0)
+	interest = int(float(interest) / 52.0) * weeks
+	return int(ceil(float(loan + interest) / float(weeks)))
+
+func can_buy_out_store() -> bool:
+	return not property_owned and cash >= store_buy_price()
+
+func can_be_offered_mortgage() -> bool:
+	if property_owned or is_paying_mortgage or mortgage_offer_declined:
+		return false
+	return cash >= mortgage_down_payment() * 2
+
+func _on_property_owned(by_mortgage: bool) -> void:
+	unlock_achievement("ACH_BUYOUT")
+	if not bool(perk_flags.get("sold_dirty", false)):
+		unlock_achievement("ACH_HONEST_MERCHANT")
+	if start_type_id == "rock_bottom":
+		unlock_achievement("ACH_RAG_TO_RICHES")
+		if difficulty in ["hard", "challenge"]:
+			unlock_achievement("ACH_NOTHING_TO_RICHES")
+	if day < 50:
+		unlock_achievement("ACH_PRODIGIOUS")
+	var deed := make_item("deed", 100, true, false)
+	deed["known"] = true
+	add_item(deed)
+	_add_night_log("产权到手：%s。" % ("按揭付清" if by_mortgage else "现金买断"))
+	emit_signal("state_changed")
+
+func buy_out_store() -> Dictionary:
+	if property_owned:
+		return {"ok": false, "text": "店铺已经是你的了。"}
+	var price := store_buy_price()
+	if cash < price:
+		return {"ok": false, "text": "现金不足，买断需要 %d₵。" % price}
+	cash -= price
+	property_owned = true
+	property_bought_at = price
+	property_bought_day = day
+	_on_property_owned(false)
+	return {"ok": true, "text": "买断店铺：支付 %d₵，房租时代结束。" % price}
+
+func take_mortgage() -> Dictionary:
+	if not can_be_offered_mortgage():
+		return {"ok": false, "text": "当前无法申请按揭。"}
+	var price := store_buy_price()
+	var down := mortgage_down_payment()
+	if cash < down:
+		return {"ok": false, "text": "首付不足，需要 %d₵。" % down}
+	var weeks := maxi(1, int(diff_rule("mortgage_weeks", 12)))
+	var weekly := mortgage_weekly_for(price, down)
+	var loan := price - down
+	var rate := int(diff_rule("mortgage_interest", 50))
+	var interest := int(float(loan * rate) / 100.0)
+	interest = int(float(interest) / 52.0) * weeks
+	cash -= down
+	is_paying_mortgage = true
+	mortgage_week_left = weeks
+	mortgage_total_weeks = weeks
+	mortgage_weekly_payment = weekly
+	mortgage_down_paid = down
+	mortgage_interest_taken = interest
+	property_bought_at = loan
+	mortgage_due = 7
+	_add_night_log("按揭获批：首付 %d₵，每周 %d₵，共 %d 周。" % [down, weekly, weeks])
+	emit_signal("state_changed")
+	return {"ok": true, "text": "按揭获批：首付 %d₵，每周 %d₵。" % [down, weekly]}
+
+func _try_repo_assets(need: int) -> bool:
+	var candidates: Array = []
+	for it in display:
+		candidates.append(it)
+	for it in inventory:
+		candidates.append(it)
+	candidates.sort_custom(func(a, b): return effective_value(a) > effective_value(b))
+	var recovered := 0
+	for it in candidates:
+		if recovered >= need:
+			break
+		var val := effective_value(it)
+		if String(it.get("location", "")) == "display":
+			for i in range(display.size() - 1, -1, -1):
+				if int(display[i].get("uid", -1)) == int(it.get("uid", -2)):
+					display.remove_at(i)
+					break
+		else:
+			var idx := _find_root_index(inventory, int(it.get("uid", -1)))
+			if idx >= 0:
+				inventory.remove_at(idx)
+		recovered += val
+	return recovered >= need
+
+func pay_mortgage_week() -> Dictionary:
+	if not is_paying_mortgage:
+		return {"ok": false, "text": "没有进行中的按揭。"}
+	var pay := mortgage_weekly_payment
+	if cash >= pay:
+		cash -= pay
+		mortgage_week_left -= 1
+		mortgage_due = 7
+		run_stats["rent_paid"] = int(run_stats.get("rent_paid", 0)) + pay
+		if mortgage_week_left <= 0:
+			is_paying_mortgage = false
+			property_owned = true
+			_on_property_owned(true)
+			return {"ok": true, "text": "按揭付清，产权到手。"}
+		_add_night_log("支付按揭 %d₵，剩余 %d 周。" % [pay, mortgage_week_left])
+		emit_signal("state_changed")
+		return {"ok": true, "text": "支付按揭 %d₵，剩余 %d 周。" % [pay, mortgage_week_left]}
+	if _try_repo_assets(pay):
+		mortgage_due = 7
+		_add_night_log("无法支付按揭，放贷人收走了货物。")
+		emit_signal("state_changed")
+		return {"ok": true, "text": "现金不足，货物被收走抵债。"}
+	phase = "gameover"
+	ending_id = "repo"
+	return {"ok": false, "text": "现金不足且无货可收，店铺被收回。"}
+
 func finish_day() -> Dictionary:
 	rent_due -= 1
 	loan_due -= 1
+	if is_paying_mortgage:
+		mortgage_due -= 1
 	var summary := {
 		"day": day, "sales": daily["sales"], "purchases": daily["purchases"],
 		"fees": daily["fees"], "rent_paid": 0, "loan_paid": 0,
 		"rent": rent, "rent_due": rent_due, "loan_due": loan_due, "cash": cash, "gameover": ""
 	}
-	if rent_due <= 0:
+	if not property_owned and not is_paying_mortgage and rent_due <= 0:
 		var rent_cost := int(round(float(rent) * (1.0 - minf(50.0, float(upgrade_total("rent"))) / 100.0)))
 		if cash >= rent_cost:
 			cash -= rent_cost
@@ -4757,6 +5109,21 @@ func finish_day() -> Dictionary:
 			rent_due = 7
 		else:
 			summary["gameover"] = "rent"
+	if is_paying_mortgage and mortgage_due <= 0 and summary["gameover"] == "":
+		if cash >= mortgage_weekly_payment:
+			cash -= mortgage_weekly_payment
+			mortgage_week_left -= 1
+			mortgage_due = 7
+			run_stats["rent_paid"] = int(run_stats.get("rent_paid", 0)) + mortgage_weekly_payment
+			if mortgage_week_left <= 0:
+				is_paying_mortgage = false
+				property_owned = true
+				_on_property_owned(true)
+		elif _try_repo_assets(mortgage_weekly_payment):
+			mortgage_due = 7
+			_add_night_log("无法支付按揭，货物被收走抵债。")
+		else:
+			summary["gameover"] = "repo"
 	if loan_due <= 0 and summary["gameover"] == "":
 		if cash >= loan:
 			cash -= loan
@@ -4960,6 +5327,8 @@ func apply_start_type(pid: String) -> Dictionary:
 		var iid := String(entry[0])
 		var cnt := int(entry[1])
 		if iid == "" or cnt <= 0:
+			continue
+		if not _is_headless():
 			continue
 		for n in range(cnt):
 			var it := make_item(iid, 100, true, false)
@@ -7651,6 +8020,8 @@ func buy_upgrade(id: String) -> Dictionary:
 		emit_signal("state_changed")
 		return {"ok": true, "text": "证据已清除。下次价格 %d₵。" % upgrade_cost(id)}
 	owned_upgrades[id] = true
+	if id == "MARKETPLACE_REQUESTS":
+		_marketplace_unlock()
 	if String(u.get("effect", "")) == "power":
 		power += int(u.get("value", 0))
 	var card_map := {"BREWER": "card_brewer", "CHEMIST": "card_chem", "PHARMA": "card_pharma", "MINER": "card_mining"}
@@ -9126,6 +9497,12 @@ func save_game(slot: int = 1) -> bool:
 		"aug_introduced": aug_introduced, "aug_next_spawn_day": aug_next_spawn_day,
 		"hireling": hireling, "hireling_expedition": hireling_expedition, "gun_order": gun_order,
 		"store_water_ml": store_water_ml, "next_combat_accuracy_bonus": next_combat_accuracy_bonus,
+		"store_requests": store_requests, "store_request_seen": store_request_seen, "marketplace_unlocked_day": marketplace_unlocked_day,
+		"property_owned": property_owned, "is_paying_mortgage": is_paying_mortgage,
+		"mortgage_week_left": mortgage_week_left, "mortgage_total_weeks": mortgage_total_weeks,
+		"mortgage_weekly_payment": mortgage_weekly_payment, "mortgage_down_paid": mortgage_down_paid,
+		"mortgage_interest_taken": mortgage_interest_taken, "mortgage_offer_declined": mortgage_offer_declined,
+		"property_bought_at": property_bought_at, "property_bought_day": property_bought_day, "mortgage_due": mortgage_due,
 		"faction_power": faction_power, "operation_cooldowns": operation_cooldowns, "active_operations": active_operations,
 		"space_mode": space_mode, "space_ship": space_ship, "space_fuel": space_fuel, "space_hull": space_hull,
 		"space_max_hull": space_max_hull, "space_day": space_day, "space_poi": space_poi, "space_log": space_log,
@@ -9231,6 +9608,20 @@ func load_game(slot: int = 1) -> bool:
 	hireling = data.get("hireling", {}).duplicate(true)
 	hireling_expedition = data.get("hireling_expedition", {}).duplicate(true)
 	gun_order = data.get("gun_order", {}).duplicate(true)
+	store_requests = data.get("store_requests", []).duplicate(true)
+	store_request_seen = data.get("store_request_seen", []).duplicate()
+	marketplace_unlocked_day = int(data.get("marketplace_unlocked_day", -1))
+	property_owned = bool(data.get("property_owned", false))
+	is_paying_mortgage = bool(data.get("is_paying_mortgage", false))
+	mortgage_week_left = int(data.get("mortgage_week_left", 0))
+	mortgage_total_weeks = int(data.get("mortgage_total_weeks", 0))
+	mortgage_weekly_payment = int(data.get("mortgage_weekly_payment", 0))
+	mortgage_down_paid = int(data.get("mortgage_down_paid", 0))
+	mortgage_interest_taken = int(data.get("mortgage_interest_taken", 0))
+	mortgage_offer_declined = bool(data.get("mortgage_offer_declined", false))
+	property_bought_at = int(data.get("property_bought_at", 0))
+	property_bought_day = int(data.get("property_bought_day", 0))
+	mortgage_due = int(data.get("mortgage_due", 0))
 	store_water_ml = int(data.get("store_water_ml", 20000))
 	next_combat_accuracy_bonus = int(data.get("next_combat_accuracy_bonus", 0))
 	space_mode = bool(data.get("space_mode", false))
