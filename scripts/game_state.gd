@@ -7160,6 +7160,18 @@ func gun_mod_allowed(md: Dictionary, gun_def_id: String) -> bool:
 	var allow: Array = md.get("allow", [])
 	return allow.is_empty() or allow.has(gun_def_id)
 
+func gun_slot_name(slot: String) -> String:
+	match slot:
+		"stock": return "枪托"
+		"rail": return "导轨"
+		"underbarrel": return "下挂"
+		"barrel": return "枪管"
+		"magazine": return "弹匣"
+		"special1": return "特殊1"
+		"special2": return "特殊2"
+		"special3": return "特殊3"
+	return slot
+
 func gun_install_mod(gun_uid: int, mod_uid: int) -> Dictionary:
 	var gun := find_item(gun_uid)
 	var mod := find_item(mod_uid)
@@ -7188,7 +7200,7 @@ func gun_install_mod(gun_uid: int, mod_uid: int) -> Dictionary:
 	mods[slot] = {"def_id": mid}
 	gun["gun_mods"] = mods
 	emit_signal("state_changed")
-	return {"ok": true, "text": "已安装 %s 到%s槽。" % [item_display_name(detached), slot]}
+	return {"ok": true, "text": "已安装 %s 到%s槽。" % [item_display_name(detached), gun_slot_name(slot)]}
 
 func gun_remove_mod(gun_uid: int, slot: String) -> Dictionary:
 	var gun := find_item(gun_uid)
@@ -10597,26 +10609,109 @@ func save_game(slot: int = 1) -> bool:
 		"space_at_station": space_at_station,
 		"raid_action_points": raid_action_points, "raid_turn": raid_turn, "expedition_loot_log": expedition_loot_log,
 	}
-	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.WRITE)
+	var primary := "user://save_%d.json" % slot
+	var backup := "user://save_%d_prev.json" % slot
+	if FileAccess.file_exists(primary):
+		var old := FileAccess.get_file_as_string(primary)
+		if old != "":
+			var bf := FileAccess.open(backup, FileAccess.WRITE)
+			if bf:
+				bf.store_string(old)
+				bf.close()
+	var f := FileAccess.open(primary, FileAccess.WRITE)
 	if f == null:
 		return false
 	f.store_string(JSON.stringify(data, "\t"))
 	f.close()
+	_write_save_meta(slot, data)
 	return true
 
-func has_save(slot: int = 1) -> bool:
-	return FileAccess.file_exists("user://save_%d.json" % slot)
+func _write_save_meta(slot: int, data: Dictionary) -> void:
+	var meta := {
+		"version": 1, "day": int(data.get("day", 1)), "cash": int(data.get("cash", 0)),
+		"net_worth": net_worth(), "difficulty": String(data.get("difficulty", difficulty)),
+		"start_type": String(data.get("start_type_id", "")), "appraiser_level": int(data.get("appraiser_level", 0)),
+		"saved_at": int(Time.get_unix_time_from_system()),
+		"saved_at_text": Time.get_datetime_string_from_system(false, true),
+	}
+	var f := FileAccess.open("user://save_%d_meta.json" % slot, FileAccess.WRITE)
+	if f:
+		f.store_string(JSON.stringify(meta, "\t"))
+		f.close()
 
-func load_game(slot: int = 1) -> bool:
-	if not has_save(slot):
-		return false
-	var f := FileAccess.open("user://save_%d.json" % slot, FileAccess.READ)
+func _read_save_file(path: String) -> Dictionary:
+	var f := FileAccess.open(path, FileAccess.READ)
 	if f == null:
-		return false
+		return {}
 	var data = JSON.parse_string(f.get_as_text())
 	f.close()
-	if not data is Dictionary:
+	return data if data is Dictionary else {}
+
+func save_meta(slot: int) -> Dictionary:
+	var meta := _read_save_file("user://save_%d_meta.json" % slot)
+	if not meta.is_empty():
+		return meta
+	var data := _read_save_file("user://save_%d.json" % slot)
+	if data.is_empty():
+		data = _read_save_file("user://save_%d_prev.json" % slot)
+	if data.is_empty():
+		return {}
+	return {"day": int(data.get("day", 1)), "cash": int(data.get("cash", 0)), "saved_at_text": "存档"}
+
+func save_slot_label(slot: int) -> String:
+	if not has_save(slot):
+		return "槽位 %d（空）" % slot
+	var m := save_meta(slot)
+	var when := String(m.get("saved_at_text", "存档"))
+	return "槽位 %d · 第 %d 天 · %d₵ · %s" % [slot, int(m.get("day", 0)), int(m.get("cash", 0)), when]
+
+func repair_save(slot: int) -> Dictionary:
+	var primary := "user://save_%d.json" % slot
+	var data := _read_save_file(primary)
+	var used_backup := false
+	if data.is_empty():
+		data = _read_save_file("user://save_%d_prev.json" % slot)
+		used_backup = not data.is_empty()
+	if data.is_empty():
+		return {"ok": false, "used_backup": false, "text": "主存档与备份都无法读取。"}
+	data["day"] = int(data.get("day", 1))
+	data["cash"] = int(data.get("cash", 0))
+	if not (data.get("rep", null) is Dictionary):
+		data["rep"] = {"lower": 0, "upper": 0, "security": 0, "blackmarket": 0, "rev": 0, "tourist": 0, "church": 0, "cartel": 0}
+	if not (data.get("inventory", null) is Array):
+		data["inventory"] = []
+	if not (data.get("display", null) is Array):
+		data["display"] = []
+	if int(data.get("uid_counter", 0)) <= 0:
+		var max_uid := 1
+		for it in data.get("inventory", []):
+			max_uid = maxi(max_uid, int(it.get("uid", 0)))
+		data["uid_counter"] = max_uid + 1
+	var f := FileAccess.open(primary, FileAccess.WRITE)
+	if f == null:
+		return {"ok": false, "used_backup": used_backup, "text": "无法写入修复后的存档。"}
+	f.store_string(JSON.stringify(data, "\t"))
+	f.close()
+	_write_save_meta(slot, data)
+	return {"ok": true, "used_backup": used_backup, "text": "已修复槽位 %d%s。" % [slot, "（来自备份）" if used_backup else ""]}
+
+func has_save(slot: int = 1) -> bool:
+	return FileAccess.file_exists("user://save_%d.json" % slot) or FileAccess.file_exists("user://save_%d_prev.json" % slot)
+
+func load_game(slot: int = 1) -> bool:
+	var primary := "user://save_%d.json" % slot
+	var data := _read_save_file(primary)
+	var from_backup := false
+	if data.is_empty():
+		data = _read_save_file("user://save_%d_prev.json" % slot)
+		from_backup = not data.is_empty()
+	if data.is_empty():
 		return false
+	if from_backup:
+		var wf := FileAccess.open(primary, FileAccess.WRITE)
+		if wf:
+			wf.store_string(JSON.stringify(data, "\t"))
+			wf.close()
 	day = int(data.get("day", 1))
 	cash = int(data.get("cash", 600))
 	rent = int(data.get("rent", 200))
@@ -10807,6 +10902,9 @@ func load_game(slot: int = 1) -> bool:
 	_suppress_sec_tick = true
 	start_day()
 	_suppress_sec_tick = false
+	if from_backup:
+		night_log.append("主存档损坏，已从上一份备份恢复。")
+		_write_save_meta(slot, data)
 	return true
 
 func _normalize_item(it: Dictionary) -> void:

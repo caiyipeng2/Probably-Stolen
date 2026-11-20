@@ -3901,10 +3901,9 @@ func _on_load() -> void:
 func _open_save_menu(mode: String) -> void:
 	var actions: Array = []
 	for i in range(1, 4):
-		var label := "槽位 %d%s" % [i, "" if GameState.has_save(i) else "（空）"]
-		if mode == "load" and GameState.has_save(i):
-			var prev := _save_preview(i)
-			label += " · 第 %d 天 · %d₵" % [int(prev.get("day", 0)), int(prev.get("cash", 0))]
+		var label := "槽位 %d（空）" % i
+		if GameState.has_save(i):
+			label = GameState.save_slot_label(i) if mode == "load" else "槽位 %d（覆盖）" % i
 		if mode == "save":
 			actions.append({"label": label, "cb": _save_slot.bind(i)})
 		else:
@@ -3927,21 +3926,24 @@ func _save_slot(slot: int) -> void:
 		_toast("存档失败。")
 
 func _load_slot(slot: int) -> void:
-	if GameState.load_game(slot):
-		selected_uid = -1
-		current_page = 0
-		_close_modal()
-		_refresh()
-		if GameState.sec_officer_pending:
-			_on_security_officer_arrived()
-		elif GameState.sec_permit_revoke_pending:
-			_on_permit_revoke_arrived()
-		elif GameState.sec_inspection_pending:
-			_on_inspection_arrived()
-		else:
-			_toast("已读取槽位 %d。" % slot)
+	if not GameState.load_game(slot):
+		var repaired: Dictionary = GameState.repair_save(slot)
+		if not bool(repaired.get("ok", false)) or not GameState.load_game(slot):
+			_toast("读档失败：%s" % String(repaired.get("text", "无法修复存档。")))
+			return
+		_toast(String(repaired.get("text", "存档已修复。")))
+	selected_uid = -1
+	current_page = 0
+	_close_modal()
+	_refresh()
+	if GameState.sec_officer_pending:
+		_on_security_officer_arrived()
+	elif GameState.sec_permit_revoke_pending:
+		_on_permit_revoke_arrived()
+	elif GameState.sec_inspection_pending:
+		_on_inspection_arrived()
 	else:
-		_toast("槽位 %d 为空。" % slot)
+		_toast("已读取槽位 %d。" % slot)
 
 func _on_end_day_pressed() -> void:
 	if GameState.phase == "gameover":
