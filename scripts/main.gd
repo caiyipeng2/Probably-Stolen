@@ -1354,7 +1354,7 @@ func _build_modal() -> void:
 	modal_actions.add_theme_constant_override("separation", 16)
 	modal_panel.add_child(modal_actions)
 	summary_tabs = HBoxContainer.new()
-	summary_tabs.position = Vector2(30, 440)
+	summary_tabs.position = Vector2(30, 446)
 	summary_tabs.size = Vector2(1140, 48)
 	summary_tabs.alignment = BoxContainer.ALIGNMENT_CENTER
 	summary_tabs.add_theme_constant_override("separation", 8)
@@ -3988,6 +3988,9 @@ func _show_day_summary(s: Dictionary) -> void:
 			actions.append({"label": "今日报纸", "cb": _open_newspaper, "color": C_CYAN})
 		actions.append({"label": "下一天", "cb": _next_day, "color": C_AMBER})
 	_show_modal("营业结算", "", actions)
+	modal_text.add_theme_font_size_override("font_size", 22)
+	modal_text.add_theme_constant_override("line_spacing", 2)
+	modal_actions.position = Vector2(30, 520)
 	summary_tabs.visible = true
 	_summary_tab_pick("overview")
 
@@ -5943,6 +5946,7 @@ func _show_modal(title: String, text: String, actions: Array) -> void:
 	modal_text.add_theme_font_size_override("font_size", 26)
 	modal_text.add_theme_constant_override("line_spacing", 6)
 	modal_text.text = text
+	modal_actions.position = Vector2(30, 500)
 	_clear_children(modal_actions)
 	var n := actions.size()
 	var bw := 200 if n <= 4 else 140
